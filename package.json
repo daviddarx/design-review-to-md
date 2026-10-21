@@ -1,0 +1,13 @@
+{
+  "name": "@icfm/design-review",
+  "private": true,
+  "type": "module",
+  "peerDependencies": {
+    "react": "^19",
+    "react-dom": "^19"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "happy-dom": "^21.0.4"
+  }
+}
