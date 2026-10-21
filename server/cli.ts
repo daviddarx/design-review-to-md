@@ -59,7 +59,7 @@ function main() {
     process.stdout.write(chunk)
     if (!announced && isReadyOutput(chunk.toString())) {
       announced = true
-      console.log(`\n[design-review] Open http://localhost:${args.port} (not :${args.target})\n`)
+      console.log(`\n[design-review] Open http://localhost:${args.port}\n`)
     }
   })
   const killChild = (signal: NodeJS.Signals = "SIGTERM") => {
