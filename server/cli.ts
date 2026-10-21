@@ -30,6 +30,11 @@ export function parseArgs(argv: string[]): Args {
   return { port, target, root: values.root, command }
 }
 
+// Next prints "✓ Ready in 1.2s" once it serves; colour codes are stripped first.
+export function isReadyOutput(text: string): boolean {
+  return /\bReady in\b/.test(text.replace(/\x1b\[[0-9;]*m/g, ""))
+}
+
 function main() {
   let args: Args
   try {
@@ -42,9 +47,20 @@ function main() {
   mkdirSync(root, { recursive: true })
 
   // Own process group, so the whole tree (npx → next) is signalled at once.
+  // stdout is piped so the review URL can follow the app's "Ready" line,
+  // which would otherwise leave the app's own port as the last URL shown.
   const child = spawn(args.command[0], args.command.slice(1), {
-    stdio: "inherit",
+    stdio: ["inherit", "pipe", "inherit"],
     detached: true,
+    env: { ...process.env, FORCE_COLOR: process.stdout.isTTY ? "1" : "0" },
+  })
+  let announced = false
+  child.stdout?.on("data", (chunk: Buffer) => {
+    process.stdout.write(chunk)
+    if (!announced && isReadyOutput(chunk.toString())) {
+      announced = true
+      console.log(`\n[design-review] Open http://localhost:${args.port} (not :${args.target})\n`)
+    }
   })
   const killChild = (signal: NodeJS.Signals = "SIGTERM") => {
     if (child.pid === undefined || child.exitCode !== null || child.signalCode !== null) return
