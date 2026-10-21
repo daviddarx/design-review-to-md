@@ -271,7 +271,7 @@ export function buildCreate(tree: DraftNode): CreatePayload {
 
 // What stops a save, or null.
 export function problem(tree: DraftNode): string | null {
-  if (!tree.text.trim()) return "Give the point a title first."
+  if (!tree.text.trim()) return "Give the feedback a title first."
   const kept = (nodes: DraftNode[]): DraftNode[] =>
     prune(nodes).flatMap((n) => [n, ...kept(n.children)])
   if (kept(tree.children).some((n) => !n.text.trim())) {

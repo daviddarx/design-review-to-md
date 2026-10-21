@@ -96,7 +96,7 @@ export function PointDrawer({
   const loadPoint = async (n: number) => {
     const data = await readTopic(topic)
     const found = data.points.find((p) => p.number === n)
-    if (!found) throw new Error(`Point ${n} no longer exists.`)
+    if (!found) throw new Error(`Feedback ${n} no longer exists.`)
     setPoint(found)
     setTree(fromPoint(found))
   }
@@ -108,7 +108,7 @@ export function PointDrawer({
       .then((data) => {
         if (!live) return
         const found = data.points.find((p) => p.number === pointNumber)
-        if (!found) return setError(`Point ${pointNumber} no longer exists.`)
+        if (!found) return setError(`Feedback ${pointNumber} no longer exists.`)
         setPoint(found)
         setTree(fromPoint(found))
       })
@@ -343,7 +343,7 @@ export function PointDrawer({
     }
   }
 
-  const title = pointNumber === undefined ? "New point" : `Point ${pointNumber}`
+  const title = pointNumber === undefined ? "New feedback" : `Feedback ${pointNumber}`
 
   return (
     <section
@@ -390,8 +390,12 @@ export function PointDrawer({
       )}
 
       {confirmDelete && point && (
-        <div className="dr-confirm dr-drawer-confirm" role="alertdialog" aria-label="Delete point?">
-          <span>Delete point {point.number}? Its files go too.</span>
+        <div
+          className="dr-confirm dr-drawer-confirm"
+          role="alertdialog"
+          aria-label="Delete feedback?"
+        >
+          <span>Delete feedback {point.number}? Its files go too.</span>
           <span className="dr-confirm-actions">
             <button
               type="button"
@@ -422,7 +426,7 @@ export function PointDrawer({
         {loading ? (
           <p className="dr-empty">Loading…</p>
         ) : loadFailed ? (
-          <p className="dr-empty">This point could not be loaded.</p>
+          <p className="dr-empty">This feedback could not be loaded.</p>
         ) : (
           flatten(tree).map(({ node, depth }) => (
             <DrawerRow
@@ -512,8 +516,8 @@ function DrawerRow({
             data-node-input={node.id}
             rows={1}
             value={node.text}
-            placeholder={depth === 0 ? "Point title" : "Sub-point"}
-            aria-label={depth === 0 ? "Point title" : "Row text"}
+            placeholder={depth === 0 ? "Title" : "Row"}
+            aria-label={depth === 0 ? "Feedback title" : "Row text"}
             disabled={busy}
             onChange={(e) => onText(e.target.value)}
             onKeyDown={onKeyDown}
@@ -552,7 +556,7 @@ function DrawerRow({
       )}
       <div className="dr-row-actions">
         {depth < 2 && (
-          <button type="button" onClick={onAddChild} title="Add a sub-point at the end">
+          <button type="button" onClick={onAddChild} title="Add a row at the end">
             ＋ sub
           </button>
         )}
@@ -568,7 +572,7 @@ function DrawerRow({
           <button
             type="button"
             onClick={onDelete}
-            title={depth === 0 ? "Delete this point and its files" : "Delete this row"}
+            title={depth === 0 ? "Delete this feedback and its files" : "Delete this row"}
           >
             🗑 delete
           </button>

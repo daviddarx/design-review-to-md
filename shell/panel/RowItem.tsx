@@ -210,7 +210,7 @@ export function RowItem({
       {refining === null && (
         <div className="dr-row-actions">
           {row.depth === 0 && (
-            <button type="button" title="Edit point" onClick={() => onEditPoint(pointNumber)}>
+            <button type="button" title="Edit feedback" onClick={() => onEditPoint(pointNumber)}>
               Edit
             </button>
           )}

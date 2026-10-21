@@ -125,12 +125,12 @@ export function Toolbar({
         type="button"
         className="dr-tool-button"
         onClick={onPinAndAdd}
-        title="Pick an element and add a point (⌃P)"
+        title="Pick an element and add feedback (⌃P)"
       >
         Pin &amp; add
       </button>
       <button type="button" className="dr-tool-button" onClick={onNewPoint}>
-        New point
+        New feedback
       </button>
       <button type="button" className="dr-tool-button" onClick={onToggleList}>
         List <span className="dr-count">{listCount}</span>

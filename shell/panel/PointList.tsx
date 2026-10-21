@@ -36,7 +36,7 @@ export function PointList({ rows, records, onLoadRecord, onOp, ...rest }: PointL
   }
 
   return (
-    <ul className="dr-list" aria-label="Points" onKeyDown={onKeyDown}>
+    <ul className="dr-list" aria-label="Feedback" onKeyDown={onKeyDown}>
       {rows.map((row) => {
         const ownerId = row.pin ? row.rowId : row.inheritedPinFrom
         const ownerPin = ownerId ? byId.get(ownerId)?.pin : undefined

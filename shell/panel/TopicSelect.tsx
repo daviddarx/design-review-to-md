@@ -11,7 +11,7 @@ type TopicSelectProps = {
   onOpen(): void // refresh the folder list before it is shown
 }
 
-// Topic folders in a native select; "New topic…" swaps it for an inline
+// Topic folders in a native select; "New review…" swaps it for an inline
 // field holding a name suggested from the current URL.
 export function TopicSelect({ topics, topic, onChange, onCreate, onOpen }: TopicSelectProps) {
   const [draft, setDraft] = useState<string | null>(null)
@@ -34,11 +34,11 @@ export function TopicSelect({ topics, topic, onChange, onCreate, onOpen }: Topic
     return (
       <input
         className="dr-input dr-topic"
-        aria-label="New topic name"
+        aria-label="New review name"
         autoFocus
         value={draft}
         disabled={busy}
-        placeholder="Topic name"
+        placeholder="Review name"
         onFocus={(e) => e.currentTarget.select()}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={() => !busy && setDraft(null)}
@@ -58,7 +58,7 @@ export function TopicSelect({ topics, topic, onChange, onCreate, onOpen }: Topic
   return (
     <select
       className="dr-input dr-topic"
-      aria-label="Topic"
+      aria-label="Review"
       value={topic ?? ""}
       onPointerDown={onOpen}
       onFocus={onOpen}
@@ -69,7 +69,7 @@ export function TopicSelect({ topics, topic, onChange, onCreate, onOpen }: Topic
     >
       {!topic && (
         <option value="" disabled>
-          Choose a topic
+          Choose a review
         </option>
       )}
       {topic && !topics.includes(topic) && <option value={topic}>{topic}</option>}
@@ -78,7 +78,7 @@ export function TopicSelect({ topics, topic, onChange, onCreate, onOpen }: Topic
           {t}
         </option>
       ))}
-      <option value={NEW}>New topic…</option>
+      <option value={NEW}>New review…</option>
     </select>
   )
 }

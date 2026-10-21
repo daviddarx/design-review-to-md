@@ -93,3 +93,7 @@ plan beside it.
   (from the step's shell `url`), then outlines the tool element if it is
   open. A missing app element is no longer an error: the notice points at the
   faded pin and at Restore state.
+- **Wording: Review › Feedback** (his pick). Everything he reads says
+  "review" for a `docs/review/<name>/` folder and "feedback" for one numbered
+  item (＋ New feedback, Feedback 3, Delete feedback). The code, the API
+  routes (`/topics`, `/points`) and this record keep `topic` / `point`.

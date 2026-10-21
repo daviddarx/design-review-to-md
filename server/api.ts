@@ -67,7 +67,7 @@ function decode(segment: string): string {
 }
 
 function pointNumber(segment: string): number {
-  if (!/^\d+$/.test(segment)) throw new HttpError(400, "Invalid point number")
+  if (!/^\d+$/.test(segment)) throw new HttpError(400, "Invalid feedback number")
   return Number(segment)
 }
 

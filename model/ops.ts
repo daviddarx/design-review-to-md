@@ -44,7 +44,7 @@ function resolve(point: Point, rowId: string): Row[] {
 
 function target(point: Point, rowId: string): Row {
   const row = resolve(point, rowId).at(-1)
-  if (!row) throw new OpError("not-found", `${rowId} is a point, not a row`)
+  if (!row) throw new OpError("not-found", `${rowId} is a feedback title, not a row`)
   return row
 }
 
@@ -155,7 +155,7 @@ export function applyOp(point: Point, op: Op, retired: string[]): OpResult {
     case "deleteRow": {
       const chain = resolve(next, op.rowId)
       const row = chain.at(-1)
-      if (!row) throw new OpError("not-found", `${op.rowId} is a point, not a row`)
+      if (!row) throw new OpError("not-found", `${op.rowId} is a feedback title, not a row`)
       const siblings = chain.length === 1 ? next.rows : chain[0].children
       siblings.splice(siblings.indexOf(row), 1)
       result.deletedRowIds = ids(row, op.rowId)

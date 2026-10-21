@@ -140,19 +140,19 @@ describe("PointDrawer", () => {
     ])
   })
 
-  it("deletes a saved point after an inline confirm, then closes", async () => {
+  it("deletes saved feedback after an inline confirm, then closes", async () => {
     const confirm = vi.fn(() => true)
     vi.stubGlobal("confirm", confirm)
     const { onClose, onSaved } = await render(5)
-    const trash = () => host.querySelector<HTMLButtonElement>('button[title^="Delete this point"]')!
+    const trash = () => host.querySelector<HTMLButtonElement>('button[title^="Delete this feedback"]')!
     const button = (label: string) =>
       [...host.querySelectorAll("button")].find((b) => b.textContent === label)!
     const deletes = () => calls.filter((c) => c.method === "DELETE")
 
     await act(async () => trash().click())
-    expect(host.textContent).toContain("Delete point 5? Its files go too.")
+    expect(host.textContent).toContain("Delete feedback 5? Its files go too.")
     await act(async () => button("Keep").click())
-    expect(host.querySelector('[aria-label="Delete point?"]')).toBeNull()
+    expect(host.querySelector('[aria-label="Delete feedback?"]')).toBeNull()
     expect(deletes()).toEqual([])
 
     await act(async () => trash().click())
@@ -165,7 +165,7 @@ describe("PointDrawer", () => {
 
   it("offers no point delete on a new point", async () => {
     await render()
-    expect(host.querySelector('button[title^="Delete this point"]')).toBeNull()
+    expect(host.querySelector('button[title^="Delete this feedback"]')).toBeNull()
   })
 
   it("ignores Enter, Esc and ⌘Enter while an IME composes (Safari: keyCode 229)", async () => {

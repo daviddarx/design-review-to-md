@@ -24,7 +24,7 @@ const REAL_ROW_ID = /^\d+(\.[a-z]+(\.\d+)?)?$/
 function safeTopic(name: string): string {
   const trimmed = name.trim()
   if (!trimmed || !TOPIC_PATTERN.test(trimmed) || /^\.+$/.test(trimmed)) {
-    throw new StorageError(400, `Invalid topic name: ${JSON.stringify(name)}`)
+    throw new StorageError(400, `Invalid review name: ${JSON.stringify(name)}`)
   }
   return trimmed.replace(/ /g, "-")
 }
@@ -171,7 +171,7 @@ export class Storage {
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err
     }
-    throw new StorageError(404, `No point ${n}`)
+    throw new StorageError(404, `No feedback ${n}`)
   }
 
   private async writeAssets(
@@ -252,7 +252,7 @@ export class Storage {
         await fs.mkdir(dir)
       } catch (err) {
         if ((err as NodeJS.ErrnoException).code === "EEXIST") {
-          throw new StorageError(409, "Topic already exists")
+          throw new StorageError(409, "Review already exists")
         }
         throw err
       }
@@ -281,7 +281,7 @@ export class Storage {
   ): Promise<{ number: number; rowIds: string[] }> {
     const dir = this.topicDir(topic)
     return this.serial(async () => {
-      if (!title.trim()) throw new StorageError(400, "A point needs a title")
+      if (!title.trim()) throw new StorageError(400, "Feedback needs a title")
       const meta = await this.readMeta(dir)
       const number = meta.nextPoint
       await fs.mkdir(dir, { recursive: true })
@@ -362,7 +362,7 @@ export class Storage {
     const dir = this.topicDir(topic)
     const resolved = path.resolve(dir, relative)
     if (resolved !== dir && !resolved.startsWith(dir + path.sep)) {
-      throw new StorageError(400, "Path escapes the topic folder")
+      throw new StorageError(400, "Path escapes the review folder")
     }
     return resolved
   }

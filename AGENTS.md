@@ -1,11 +1,11 @@
 # Design review — Claude's protocol
 
-Applies when asked to work through a review topic (`docs/review/<topic>/`).
+Applies when asked to work through a review (`docs/review/<review>/`).
 Be strict and terse. No chattiness in the files.
 
 ## Rules
 
-- Work only on rows tagged `open`, in the topic you were given.
+- Work only on rows tagged `open`, in the review you were given.
 - After implementing a row, change its tag to `review`. Touch nothing else on that line.
 - Add a `- Claude: …` line under a row **only** if the result differs from what he asked, something was not possible, or he must decide something. One line, as short as possible.
 - **Never** write "done", "fixed", "implemented", or a restatement of the request. A row with nothing to report changes status silently.
@@ -15,9 +15,9 @@ Be strict and terse. No chattiness in the files.
 
 ## Where things are
 
-`docs/review/<topic>/<NN>-<slug>.md` is one point; its files are in the folder `<NN>-<slug>/` beside it.
+`docs/review/<review>/<NN>-<slug>.md` is one feedback; its files are in the folder `<NN>-<slug>/` beside it.
 
-- `<rowId>` is `5`, `5.c` or `5.b.1` (point, row, sub-row).
+- `<rowId>` is `5`, `5.c` or `5.b.1` (feedback, row, sub-row).
 - `<rowId>-pin.png` — screenshot of what he pinned. May be missing.
 - `<rowId>-pin.json` — where it is: `steps[]` with `url`, `element.selector`, `element.component` and `element.source` (`file`, `line`, when known). Read this to find the code.
 - `<rowId>-state.json` — localStorage snapshot of what he saw. Gitignored, so it may be missing on another machine.
@@ -47,7 +47,7 @@ A row with no pin of its own belongs to the pin of its nearest parent.
 - Pin line: `📍 <path> — ![](<folder>/<rowId>-pin.png)`, or just `📍 <path>` when there is no screenshot. A pin on the review tool itself has the path `(review tool)`.
 - `📎 [<file>](<folder>/<file>)` lines are attachments.
 - `Before:` is his earlier wording, `Claude:` is yours. Oldest first, under the row.
-- A `- Claude:` (or `- Before:`) line goes **exactly two spaces deeper than the row it belongs to** — its indent is what assigns it to that row. Under a sub-sub-point that is four spaces:
+- A `- Claude:` (or `- Before:`) line goes **exactly two spaces deeper than the row it belongs to** — its indent is what assigns it to that row. Under a sub-row that is four spaces:
 
   ```md
   - c. Search field next to it is misaligned `open`

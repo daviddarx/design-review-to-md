@@ -54,7 +54,7 @@ const FILTERS: { value: Filter; label: string }[] = [
 ]
 
 export const copyPromptText = (topic: string) =>
-  `Work through the open points in docs/review/${topic}/ — follow packages/design-review/AGENTS.md.`
+  `Work through the open feedback in docs/review/${topic}/ — follow packages/design-review/AGENTS.md.`
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err))
 
@@ -271,7 +271,7 @@ export function Panel({
           onOpen={refreshTopics}
         />
         <button type="button" className="dr-button" onClick={onNewPoint} disabled={!topic}>
-          ＋ New point
+          ＋ New feedback
         </button>
         <button
           type="button"
@@ -321,9 +321,11 @@ export function Panel({
 
       <div className="dr-panel-body" inert={covered}>
         {!topic ? (
-          <p className="dr-empty">Choose a topic, or create one from the menu above.</p>
+          <p className="dr-empty">Choose a review, or create one from the menu above.</p>
         ) : !loaded ? null : points.length === 0 ? (
-          <p className="dr-empty">No points yet. Add one with ＋ New point or Pin &amp; add.</p>
+          <p className="dr-empty">
+            No feedback yet. Add some with ＋ New feedback or Pin &amp; add.
+          </p>
         ) : rows.length === 0 ? (
           <p className="dr-empty">Nothing here with this status.</p>
         ) : (
