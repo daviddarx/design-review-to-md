@@ -520,6 +520,120 @@ body {
   gap: 6px;
 }
 
+/* Point drawer: over the panel's list at full panel width, below the
+   resize edge (z-index 2) so the panel stays resizable. */
+.dr-drawer {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--dr-surface);
+  animation: dr-drawer-in 160ms ease-out;
+}
+
+@keyframes dr-drawer-in {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+}
+
+.dr-drawer.dr-hidden {
+  display: none;
+}
+
+.dr-drawer-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--dr-line);
+  background: #fff;
+}
+
+.dr-drawer-title {
+  flex: 0 0 auto;
+}
+
+.dr-drawer-topic {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--dr-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dr-drawer-confirm {
+  margin: 8px 12px 0;
+}
+
+.dr-drawer-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 6px 0 64px;
+}
+
+.dr-drawer-row.dr-depth-0 {
+  margin-top: 0;
+  border-top: 0;
+}
+
+.dr-drawer-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: auto;
+  min-height: 28px;
+  padding: 4px 6px;
+  font-weight: inherit;
+  line-height: 1.45;
+  resize: none;
+  field-sizing: content;
+}
+
+.dr-drawer-hint {
+  margin: 2px 0 0 24px;
+  color: var(--dr-text-muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.dr-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 4px 0 0 24px;
+  padding: 0;
+  list-style: none;
+  font-weight: 400;
+}
+
+.dr-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 2px 0 6px;
+  border: 1px solid #d4d4d4;
+  border-radius: 4px;
+  background: #fff;
+  font-size: 12px;
+}
+
+.dr-file button {
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.dr-drawer-keys {
+  margin: 16px 12px 0;
+  color: var(--dr-text-muted);
+  font-size: 11px;
+}
+
 .dr-toolbar {
   position: fixed;
   z-index: 2147483000;

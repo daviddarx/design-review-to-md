@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import type { PointerEvent as ReactPointerEvent } from "react"
+import type { PointerEvent as ReactPointerEvent, ReactNode } from "react"
 import type { Op } from "../../model/ops.ts"
 import type { PinRecord, Point } from "../../model/types.ts"
 import { applyOp, createTopic, fileUrl, listTopics, readTopic, useTopicFeed } from "../api.ts"
@@ -19,6 +19,8 @@ export type PanelProps = {
   onRestoreState(rowId: string, target: PinTarget): void
   onOpenSource(rowId: string, target: PinTarget): void
   onOpenCountChange(n: number): void // feeds the toolbar's List count
+  drawer?: ReactNode // the point drawer, laid over everything but the resize edge
+  reloadSignal?: number // a change refetches the topic (after a drawer save)
 }
 
 const DEFAULT_WIDTH = 440
@@ -62,6 +64,8 @@ export function Panel({
   onRestoreState,
   onOpenSource,
   onOpenCountChange,
+  drawer,
+  reloadSignal,
 }: PanelProps) {
   const preferred = useRef(readPreferredWidth())
   const [width, setWidth] = useState(() => clampWidth(preferred.current))
@@ -126,6 +130,13 @@ export function Panel({
   }, [load])
 
   useTopicFeed(topic, load)
+
+  const lastReload = useRef(reloadSignal)
+  useEffect(() => {
+    if (reloadSignal === lastReload.current) return
+    lastReload.current = reloadSignal
+    load()
+  }, [reloadSignal, load])
 
   const tally = useMemo(() => counts(points), [points])
   const rows = useMemo(() => flattenRows(points, filter), [points, filter])
@@ -233,7 +244,7 @@ export function Panel({
         }}
       />
 
-      <header className="dr-panel-head">
+      <header className="dr-panel-head" inert={Boolean(drawer)}>
         <TopicSelect
           topics={topics}
           topic={topic}
@@ -256,7 +267,12 @@ export function Panel({
         <ShortcutHelp />
       </header>
 
-      <div className="dr-filters" role="radiogroup" aria-label="Filter by status">
+      <div
+        className="dr-filters"
+        role="radiogroup"
+        aria-label="Filter by status"
+        inert={Boolean(drawer)}
+      >
         {FILTERS.map((f) => (
           <button
             key={f.value}
@@ -290,7 +306,7 @@ export function Panel({
         </div>
       )}
 
-      <div className="dr-panel-body">
+      <div className="dr-panel-body" inert={Boolean(drawer)}>
         {!topic ? (
           <p className="dr-empty">Choose a topic, or create one from the menu above.</p>
         ) : !loaded ? null : points.length === 0 ? (
@@ -311,6 +327,7 @@ export function Panel({
           />
         )}
       </div>
+      {drawer}
     </aside>
   )
 }

@@ -265,7 +265,7 @@ export function problem(tree: DraftNode): string | null {
   const kept = (nodes: DraftNode[]): DraftNode[] =>
     prune(nodes).flatMap((n) => [n, ...kept(n.children)])
   if (kept(tree.children).some((n) => !n.text.trim())) {
-    return "A row with an attachment or a pin needs text."
+    return "Every row needs text — delete empty rows with 🗑."
   }
   return null
 }
