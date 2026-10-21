@@ -49,4 +49,13 @@ A row with no pin of its own belongs to the pin of its nearest parent.
 - Pin line: `📍 <path> — ![](<folder>/<rowId>-pin.png)`, or just `📍 <path>` when there is no screenshot. A pin on the review tool itself has the path `(review tool)`.
 - `📎 [<file>](<folder>/<file>)` lines are attachments.
 - `Before:` is his earlier wording, `Claude:` is yours. Oldest first, under the row.
+- A `- Claude:` (or `- Before:`) line goes **exactly two spaces deeper than the row it belongs to** — its indent is what assigns it to that row. Under a sub-sub-point that is four spaces:
+
+  ```md
+  - c. Search field next to it is misaligned `open`
+    - Claude: note on c
+    - 1. Left edge `review`
+      - Claude: note on c.1
+  ```
+
 - Keep every line you do not change byte-for-byte.
