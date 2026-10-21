@@ -36,3 +36,39 @@ plan beside it.
 - **Open in VS Code is a spike** (plan Task 9): React-only via `_debugStack` +
   source maps, dropped if unreliable. Next's dev endpoints are off-limits — the
   end product must work in any React app.
+
+## Decisions (build)
+
+- **No HTML injection.** The shell reaches into the same-origin iframe; the
+  proxy never rewrites the app's HTML. The shell document is the isolation.
+- **Shortcuts: ⌃R** toggles review mode (caught in the shell and the iframe
+  document); **⌃P** is Pin & add, works in text fields too, and with a drawer
+  open it appends a pinned top-level row instead of opening a second drawer.
+- **Pin line without image.** If screen capture is refused or unsupported the pin
+  is still recorded: `📍 <path>` alone. `(review tool)` is the path for pins on
+  the tool's own UI.
+- **Attachments** are linked by the server as `📎 [<file>](<folder>/<file>)` on
+  a line under their row (the point's own go in the preamble); his text is never
+  rewritten. The line is preserved on rewrite and not added twice.
+- **Folder in the topic read.** `GET /topics/:topic` adds `folder` to each point
+  so the shell finds `<rowId>-pin.json` / `-state.json` when the pin line has no
+  screenshot. Inherited-pin rows use the ancestor's files.
+- **`GET /__review/api/repo-root`** lets the shell record a pin's source
+  repo-relative from a source map's `file://` path.
+- **Open in VS Code is kept, with known limits:** the fiber half (React
+  `_debugStack`) was only simulated, never tried in a browser; a shadcn
+  `Button` opens `components/ui/button.tsx` (host fiber call site); the first
+  pick can add up to 1.5 s while source maps load. Maps are refetched every
+  pick, keyed by full URL.
+- **Refine joins its text to one line** (a multi-line row would break the md).
+  Markdown file names are fixed at creation: refining a title does not rename.
+- **An open drawer is never remounted** by New point / Pin & add, and leaving
+  review mode keeps panel and drawer mounted (hidden) so a draft survives.
+- **`npm run review` cannot run beside another `next dev` in the same
+  checkout** (Next's dev lock). Stop the other one first.
+- **Prettier's tailwind plugin trims leading spaces** in template-literal class
+  strings inside this package; build class lists from arrays instead.
+- **Claude's protocol** is `packages/design-review/AGENTS.md`; the repo's
+  `CLAUDE.md` points to it. This tool gets no `version-history.md` section.
+- **Self-review topic:** `docs/review/design-review-tool/` holds the tool's own
+  feedback, starting from an empty `topic.json`.
