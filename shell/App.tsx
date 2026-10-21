@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import type { PinRecord } from "../model/types.ts"
 import { fileUrl, openEditor } from "./api.ts"
 import { PointDrawer } from "./drawer/PointDrawer.tsx"
 import type { CapturedPin } from "./drawer/draft.ts"
@@ -7,6 +8,8 @@ import type { PinTarget } from "./panel/listModel.ts"
 import { Panel } from "./panel/Panel.tsx"
 import { restoreLocalStorage } from "./pick/capture.ts"
 import { goToPin } from "./pick/goToPin.ts"
+import { PinMarkers } from "./pick/PinMarkers.tsx"
+import type { Marker } from "./pick/PinMarkers.tsx"
 import { usePicker } from "./pick/Picker.tsx"
 import { readKey, writeKey } from "./prefs.ts"
 import { Toolbar } from "./Toolbar.tsx"
@@ -16,7 +19,9 @@ import { useShortcut } from "./useShortcut.ts"
 
 type DrawerState = { key: number; pointNumber?: number; capture?: CapturedPin }
 
-export const PIN_MISSING = "Pinned element not found — the page changed since."
+export const PIN_MISSING =
+  "Not on screen as it was — the faded pin marks where you clicked. Restore state to see it as it was."
+export const TOOL_PIN_MISSING = "That part of the review tool is not open now."
 
 // ⌃P — Control, never Command (⌘P stays the browser's print).
 export function isPinAndAdd(e: KeyboardEvent): boolean {
@@ -42,6 +47,8 @@ export function App() {
   const [panelMounted, setPanelMounted] = useState(review)
   if (review && !panelMounted) setPanelMounted(true)
   const [appendCapture, setAppendCapture] = useState<{ seq: number; capture: CapturedPin }>()
+  const [drawerMarkers, setDrawerMarkers] = useState<Marker[]>([])
+  const [hoverMarker, setHoverMarker] = useState<Marker | null>(null)
   const drawerSeq = useRef(0)
   const appendSeq = useRef(0)
   const drawerRef = useRef(drawer)
@@ -86,11 +93,24 @@ export function App() {
     if (!review) picker.cancel()
   }, [review, picker.cancel])
 
+  // Only the row that set the hover marker may clear it: leaving one row and
+  // entering the next can arrive in either order.
+  const onHoverPin = (ownerRowId: string, record: PinRecord | null) => {
+    const step = record?.steps[0]
+    if (step) setHoverMarker({ key: `hover:${ownerRowId}`, label: ownerRowId, step })
+    else setHoverMarker((m) => (m?.label === ownerRowId ? null : m))
+  }
+  const markers = useMemo(
+    () => (hoverMarker ? [...drawerMarkers, hoverMarker] : drawerMarkers),
+    [drawerMarkers, hoverMarker]
+  )
+
   const onGoToPin = async (_rowId: string, target: PinTarget) => {
     if (!frame) return
     if (!target.record) return `No pin record for ${target.ownerRowId} — it cannot be found again.`
     const result = await goToPin(frame, target.record, picker.flash)
-    return result === "missing" ? PIN_MISSING : null
+    if (result === "found") return null
+    return target.record.steps[0]?.inTool ? TOOL_PIN_MISSING : PIN_MISSING
   }
 
   // After the panel's own confirm. The snapshot is gitignored, so a pin
@@ -139,6 +159,7 @@ export function App() {
             onGoToPin={onGoToPin}
             onRestoreState={onRestoreState}
             onOpenSource={onOpenSource}
+            onHoverPin={onHoverPin}
             onOpenCountChange={setOpenCount}
             reloadSignal={reloadSignal}
             drawer={
@@ -154,6 +175,7 @@ export function App() {
                   focusSignal={drawerFocus}
                   onSaved={() => setReloadSignal((n) => n + 1)}
                   onClose={() => setDrawer(null)}
+                  onPinsChange={setDrawerMarkers}
                 />
               )
             }
@@ -171,6 +193,7 @@ export function App() {
           listCount={openCount}
         />
       )}
+      <PinMarkers frame={frame} markers={markers} hidden={!review || picker.picking} />
       {picker.layer}
     </div>
   )

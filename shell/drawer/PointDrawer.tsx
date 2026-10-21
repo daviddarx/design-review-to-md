@@ -21,6 +21,7 @@ import {
   updateNode,
 } from "./draft.ts"
 import type { CapturedPin, DraftNode } from "./draft.ts"
+import type { Marker } from "../pick/PinMarkers.tsx"
 
 export type PointDrawerProps = {
   topic: string
@@ -33,6 +34,7 @@ export type PointDrawerProps = {
   focusSignal?: number // a change pulls focus back into the drawer (New point while open)
   onSaved?(): void
   onClose(): void
+  onPinsChange?(markers: Marker[]): void // the pins made in this drawer, drawn on the page
 }
 
 // The picker writes these names itself; an attachment may not take them in
@@ -73,6 +75,7 @@ export function PointDrawer({
   focusSignal,
   onSaved,
   onClose,
+  onPinsChange,
 }: PointDrawerProps) {
   const [tree, setTree] = useState<DraftNode>(() => newDraft(initialCapture))
   const [point, setPoint] = useState<Point | null>(null)
@@ -140,6 +143,18 @@ export function PointDrawer({
     seenSignal.current = focusSignal
     setFocusId(BACK)
   }, [focusSignal])
+
+  // Every pin made in this drawer shows where its click landed, until the
+  // drawer closes.
+  useEffect(() => {
+    onPinsChange?.(
+      flatten(tree).flatMap(({ node }) => {
+        const step = node.capture?.record.steps[0]
+        return step ? [{ key: node.id, label: node.savedRowId ?? "", step }] : []
+      })
+    )
+  }, [tree, onPinsChange])
+  useEffect(() => () => onPinsChange?.([]), [onPinsChange])
 
   // A capture arriving while the point still loads waits for it: the load
   // replaces the whole tree.

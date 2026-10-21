@@ -1,4 +1,4 @@
-import type { PinRecord } from "../../model/types.ts"
+import type { PinRecord, PinStep } from "../../model/types.ts"
 
 // How long the app may take to render the pinned element after a load: the
 // 07.x/08.x shells mount client-side, after hydration, so the element is
@@ -39,9 +39,22 @@ function loaded(frame: HTMLIFrameElement): Promise<void> {
   })
 }
 
+// The app page a pin was made on. A tool pin records "(review tool)" as its
+// path; the shell's own URL, which mirrors the frame's, says where the app was.
+function appPathOf(step: PinStep): string | null {
+  if (!step.inTool) return step.path
+  try {
+    const url = new URL(step.url)
+    return url.pathname + url.search
+  } catch {
+    return null
+  }
+}
+
 // Takes the frame to the pin's page (a real navigation when the path
-// differs), scrolls the element into view and has `flash` outline it.
-// Pins inside the tool's own UI are only outlined.
+// differs), scrolls the element into view and has `flash` outline it. A pin
+// inside the tool's own UI also brings the app back to the page it was on,
+// then outlines the tool element if it is open.
 export async function goToPin(
   frame: HTMLIFrameElement,
   record: PinRecord,
@@ -51,26 +64,29 @@ export async function goToPin(
   if (!step) return "missing"
   const { selector } = step.element
 
+  const win = frame.contentWindow
+  const path = appPathOf(step)
+  if (win && path) {
+    let here = ""
+    try {
+      here = win.location.pathname + win.location.search
+    } catch {
+      // Cross-origin page in the frame: navigate away from it.
+    }
+    if (here !== path) {
+      const done = loaded(frame)
+      win.location.assign(path)
+      await done
+    }
+  }
+
   if (step.inTool) {
     const el = query(document, selector)
     if (!el) return "missing"
     flash(el)
     return "found"
   }
-
-  const win = frame.contentWindow
   if (!win) return "missing"
-  let here = ""
-  try {
-    here = win.location.pathname + win.location.search
-  } catch {
-    // Cross-origin page in the frame: navigate away from it.
-  }
-  if (here !== step.path) {
-    const done = loaded(frame)
-    win.location.assign(step.path)
-    await done
-  }
 
   const el = await waitFor(() => query(frame.contentDocument, selector))
   if (!el) return "missing"

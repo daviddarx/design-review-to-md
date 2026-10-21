@@ -17,6 +17,8 @@ export type RowItemProps = {
   onGoToPin(rowId: string, target: PinTarget): void
   onRestoreState(rowId: string, target: PinTarget): void
   onOpenSource(rowId: string, target: PinTarget): void
+  // The pin's owner row and its record; null when the hover ends.
+  onHoverPin(ownerRowId: string, record: PinRecord | null): void
 }
 
 // True while the user types: panel keys must not fire inside a field.
@@ -41,6 +43,7 @@ export function RowItem({
   onGoToPin,
   onRestoreState,
   onOpenSource,
+  onHoverPin,
 }: RowItemProps) {
   const [refining, setRefining] = useState<string | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
@@ -113,6 +116,23 @@ export function RowItem({
     if (liRef.current?.matches(":hover, :focus-within")) prefetch()
   })
 
+  // Hovering a pinned row shows its pin where the click landed. The record
+  // may still be loading; it is shown only if the pointer is still here.
+  const hoverIn = async () => {
+    prefetch()
+    if (!owner) return
+    const rec = record === undefined ? await onLoadRecord() : record
+    if (rec && liRef.current?.matches(":hover")) onHoverPin(owner.rowId, rec)
+  }
+  // A row that unmounts under the pointer (a reload) never sees mouseleave.
+  const hoverEnd = useRef(() => {})
+  hoverEnd.current = () => owner && onHoverPin(owner.rowId, null)
+  useEffect(() => () => hoverEnd.current(), [])
+  const hoverOut = () => {
+    setShotOpen(false)
+    if (owner) onHoverPin(owner.rowId, null)
+  }
+
   return (
     <li
       ref={liRef}
@@ -122,9 +142,9 @@ export function RowItem({
       data-row-id={row.rowId}
       tabIndex={0}
       onKeyDown={onKeyDown}
-      onMouseEnter={prefetch}
+      onMouseEnter={() => void hoverIn()}
       onFocus={prefetch}
-      onMouseLeave={() => setShotOpen(false)}
+      onMouseLeave={hoverOut}
     >
       {historyOpen && (
         <ol className="dr-history" aria-label={`History of ${row.rowId}`}>

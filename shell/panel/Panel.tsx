@@ -20,6 +20,7 @@ export type PanelProps = {
   onGoToPin(rowId: string, target: PinTarget): PinAction
   onRestoreState(rowId: string, target: PinTarget): PinAction
   onOpenSource(rowId: string, target: PinTarget): PinAction
+  onHoverPin(ownerRowId: string, record: PinRecord | null): void // a pinned row's hover, null when it ends
   onOpenCountChange(n: number): void // feeds the toolbar's List count
   drawer?: ReactNode // the point drawer, laid over everything but the resize edge
   reloadSignal?: number // a change refetches the topic (after a drawer save)
@@ -67,6 +68,7 @@ export function Panel({
   onGoToPin,
   onRestoreState,
   onOpenSource,
+  onHoverPin,
   onOpenCountChange,
   drawer,
   reloadSignal,
@@ -335,6 +337,7 @@ export function Panel({
             onGoToPin={withNotice(onGoToPin)}
             onRestoreState={withNotice(onRestoreState)}
             onOpenSource={withNotice(onOpenSource)}
+            onHoverPin={onHoverPin}
           />
         )}
       </div>

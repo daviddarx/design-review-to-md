@@ -240,13 +240,15 @@ export function usePicker(frame: HTMLIFrameElement | null): Picker {
           ? { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight }
           : frameBox(f)
       const outline = shellBox(picked.el, f)
+      const off = !picked.inTool && f ? frameBox(f) : { x: 0, y: 0 }
+      const click = { x: off.x + picked.mouse.x, y: off.y + picked.mouse.y }
       // Neither the outline layer nor the toolbar may be in the picture —
       // unless the picked element is the toolbar's.
       flushSync(() => setGrab({ keepToolbar: Boolean(picked.el.closest(".dr-toolbar")) }))
       await nextFrame()
       await nextFrame()
       try {
-        png = await grabPng(f, picked.inTool || !f, rect(crop), rect(outline))
+        png = await grabPng(f, picked.inTool || !f, rect(crop), rect(outline), click)
       } catch {
         png = undefined
       } finally {

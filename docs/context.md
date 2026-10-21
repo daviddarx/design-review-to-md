@@ -78,3 +78,14 @@ plan beside it.
   fidelity — the picture is a re-render, so a font, image or canvas the
   library cannot embed can differ from the screen. The app and the shell are
   rendered separately and composited; capped at 5 s.
+- **Pin markers** (`shell/pick/PinMarkers.tsx`): a red teardrop whose tip is
+  the click, for every pin made in the open drawer and for the hovered list
+  row's pin. It sits at the click's relative spot inside the element, so it
+  follows scrolling and resizing; with the element gone it falls back, faded
+  and dashed, to the click's recorded viewport position. A drawer reopened on
+  a saved point shows no markers for its saved pins (their records are not
+  loaded there). Screenshots carry a matching dot.
+- **Go to pin on a tool pin** first takes the app back to the page it was on
+  (from the step's shell `url`), then outlines the tool element if it is
+  open. A missing app element is no longer an error: the notice points at the
+  faded pin and at Restore state.

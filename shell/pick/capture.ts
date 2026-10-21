@@ -39,13 +39,14 @@ function renderViewport(doc: Document, scale: number, skip?: Element): Promise<H
 
 // The app's viewport, or with `withShell` the whole tool window with the
 // app's render laid over the frame's box (the library cannot see into it on
-// its own terms). Cropped to `crop` with `outline` stroked in red; both rects
-// are in the shell window's CSS pixels.
+// its own terms). Cropped to `crop` with `outline` stroked in red and a dot
+// where the click landed; all three are in the shell window's CSS pixels.
 export async function grabPng(
   frame: HTMLIFrameElement | null,
   withShell: boolean,
   crop: DOMRect,
-  outline: DOMRect
+  outline: DOMRect,
+  click: { x: number; y: number }
 ): Promise<string> {
   const scale = window.devicePixelRatio || 1
   const render = async () => {
@@ -88,6 +89,12 @@ export async function grabPng(
     outline.width * scale,
     outline.height * scale
   )
+  ctx.beginPath()
+  ctx.arc((click.x - crop.x) * scale, (click.y - crop.y) * scale, 5 * scale, 0, 2 * Math.PI)
+  ctx.fillStyle = OUTLINE
+  ctx.fill()
+  ctx.strokeStyle = "#fff"
+  ctx.stroke()
   return canvas.toDataURL("image/png").split(",")[1] ?? ""
 }
 

@@ -88,4 +88,18 @@ describe("goToPin in the frame", () => {
     expect(location.assign).not.toHaveBeenCalled()
     expect(flash).not.toHaveBeenCalled()
   }, 6000)
+
+  it("a tool pin brings the app back to the page it was on, then outlines", async () => {
+    document.body.innerHTML = `<aside><button data-slot="t">Pin</button></aside>`
+    const r = record('[data-slot="t"]', true)
+    r.steps[0].url = "http://localhost:3000/concept-08-4?x=1"
+    const { frame, location } = fakeFrame(
+      "/elsewhere",
+      document.implementation.createHTMLDocument("app")
+    )
+    const flash = vi.fn()
+    expect(await goToPin(frame, r, flash)).toBe("found")
+    expect(location.assign).toHaveBeenCalledWith("/concept-08-4?x=1")
+    expect(flash).toHaveBeenCalledWith(document.querySelector("button"))
+  })
 })

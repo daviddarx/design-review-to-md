@@ -788,3 +788,46 @@ body {
   white-space: nowrap;
   box-shadow: 0 4px 16px rgb(0 0 0 / 0.25);
 }
+
+/* Pins where the clicks landed: a teardrop whose tip is the click. Under
+   the picker, above the panel (a tool pin can sit on the drawer). A faded,
+   dashed pin is the click's recorded position — its element is not on
+   screen now. */
+.dr-markers {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483500;
+  pointer-events: none;
+}
+
+.dr-marker {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 24px;
+  height: 24px;
+  border: 2px solid #fff;
+  border-radius: 50% 50% 50% 0;
+  background: #e11d48;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.35);
+  transform: translateY(-100%) rotate(-45deg);
+  transform-origin: 0 100%;
+}
+
+.dr-marker span {
+  transform: rotate(45deg);
+  color: #fff;
+  font:
+    700 10px/1 system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+}
+
+.dr-marker-approx {
+  border-style: dashed;
+  opacity: 0.6;
+}

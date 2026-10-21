@@ -105,6 +105,7 @@ async function render(extra: Partial<PanelProps> = {}) {
         onGoToPin={() => {}}
         onRestoreState={() => {}}
         onOpenSource={() => {}}
+        onHoverPin={() => {}}
         onOpenCountChange={onOpenCountChange}
         {...extra}
       />

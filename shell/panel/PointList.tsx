@@ -15,6 +15,7 @@ type PointListProps = {
   onGoToPin(rowId: string, target: PinTarget): void
   onRestoreState(rowId: string, target: PinTarget): void
   onOpenSource(rowId: string, target: PinTarget): void
+  onHoverPin(ownerRowId: string, record: PinRecord | null): void
 }
 
 // The flat rows as one list; ↑/↓ move focus between rows, from a row or
