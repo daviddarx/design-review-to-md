@@ -26,9 +26,20 @@ export type PointDrawerProps = {
   pointNumber?: number // set: edit that saved point; unset: a new one
   initialCapture?: CapturedPin // Pin & add: the title row arrives pinned
   startPick?: (mode: "pin") => Promise<CapturedPin | null> // Task 8; no 📍 without it
+  focusSignal?: number // a change pulls focus back into the drawer (New point while open)
   onSaved?(): void
   onClose(): void
 }
+
+// The picker writes these names itself; an attachment may not take them.
+const RESERVED = new Set(["pin.png", "pin.json", "state.json"])
+
+// Focus target meaning "the row focused last, else the first editable row".
+const BACK = "\u0000back"
+
+// An IME is composing (Safari reports keyCode 229 without isComposing).
+const composing = (e: ReactKeyboardEvent) =>
+  e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err))
 
@@ -52,6 +63,7 @@ export function PointDrawer({
   pointNumber,
   initialCapture,
   startPick,
+  focusSignal,
   onSaved,
   onClose,
 }: PointDrawerProps) {
@@ -68,6 +80,8 @@ export function PointDrawer({
   const rootRef = useRef<HTMLElement>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   const attachTo = useRef<string | null>(null)
+  const lastFocused = useRef<string | null>(null)
+  const loadFailed = pointNumber !== undefined && !point && !loading
 
   const loadPoint = async (n: number) => {
     const data = await readTopic(topic)
@@ -85,24 +99,45 @@ export function PointDrawer({
         if (!live) return
         const found = data.points.find((p) => p.number === pointNumber)
         if (!found) return setError(`Point ${pointNumber} no longer exists.`)
-        const next = fromPoint(found)
         setPoint(found)
-        setTree(next)
-        if (!next.locked) setFocusId(next.id)
+        setTree(fromPoint(found))
       })
       .catch((err) => live && setError(message(err)))
-      .finally(() => live && setLoading(false))
+      .finally(() => {
+        if (!live) return
+        setLoading(false)
+        setFocusId(BACK)
+      })
     return () => {
       live = false
     }
   }, [topic, pointNumber])
 
+  // Focus never falls to <body>: the wanted row, else the first editable
+  // row, else the drawer itself.
   useEffect(() => {
     if (!focusId) return
-    const el = rootRef.current?.querySelector<HTMLElement>(`[data-node-input="${focusId}"]`)
-    el?.focus()
     setFocusId(null)
+    const root = rootRef.current
+    if (!root) return
+    const wanted = focusId === BACK ? lastFocused.current : focusId
+    const byId = (id: string | null) =>
+      id ? root.querySelector<HTMLElement>(`[data-node-input="${id}"]`) : null
+    const el = byId(wanted) ?? root.querySelector<HTMLElement>("[data-node-input]") ?? root
+    el.focus()
   }, [focusId, tree])
+
+  const seenSignal = useRef(focusSignal)
+  useEffect(() => {
+    if (focusSignal === seenSignal.current) return
+    seenSignal.current = focusSignal
+    setFocusId(BACK)
+  }, [focusSignal])
+
+  const keepEditing = () => {
+    setConfirmDiscard(false)
+    setFocusId(BACK)
+  }
 
   const edit = (next: DraftNode, focus?: string | null) => {
     setTree(next)
@@ -116,9 +151,14 @@ export function PointDrawer({
   }
 
   const save = async () => {
-    if (saving || loading) return
+    // An edit whose point never loaded must not fall through to createPoint.
+    if (saving || loading || (pointNumber !== undefined && !point)) return
     const blocked = problem(tree)
-    if (blocked) return setError(blocked)
+    if (blocked) {
+      setError(blocked)
+      setFocusId(BACK)
+      return
+    }
     setSaving(true)
     setError(null)
     try {
@@ -138,6 +178,7 @@ export function PointDrawer({
           onSaved?.()
           await loadPoint(point.number).catch(() => undefined)
           setError(`Saved ${done} of ${ops.length} changes; the rest failed: ${message(err)}`)
+          setFocusId(BACK)
           return
         }
       }
@@ -145,6 +186,7 @@ export function PointDrawer({
       onClose()
     } catch (err) {
       setError(message(err))
+      setFocusId(BACK)
     } finally {
       setSaving(false)
     }
@@ -170,8 +212,15 @@ export function PointDrawer({
 
   const onFiles = async (e: ChangeEvent<HTMLInputElement>) => {
     const id = attachTo.current
-    const picked = Array.from(e.target.files ?? [])
+    const all = Array.from(e.target.files ?? [])
     e.target.value = ""
+    const refused = all.filter((f) => RESERVED.has(f.name)).map((f) => f.name)
+    const picked = all.filter((f) => !RESERVED.has(f.name))
+    if (refused.length) {
+      setError(
+        `${refused.join(", ")}: this name is kept for pins — rename the file and attach it again.`
+      )
+    }
     if (!id || !picked.length) return
     try {
       const read = await Promise.all(
@@ -205,7 +254,7 @@ export function PointDrawer({
   }
 
   const onRowKey = (e: ReactKeyboardEvent<HTMLTextAreaElement>, node: DraftNode) => {
-    if (e.nativeEvent.isComposing) return
+    if (composing(e)) return
     if (e.key === "Enter" && !e.metaKey && !e.ctrlKey) {
       e.preventDefault()
       const next = insertSiblingAfter(tree, node.id)
@@ -228,10 +277,11 @@ export function PointDrawer({
   }
 
   const onRootKey = (e: ReactKeyboardEvent<HTMLElement>) => {
+    if (composing(e)) return
     if (e.key === "Escape") {
       e.preventDefault()
       e.stopPropagation()
-      if (confirmDiscard) setConfirmDiscard(false)
+      if (confirmDiscard) keepEditing()
       else requestClose()
     } else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault()
@@ -247,6 +297,7 @@ export function PointDrawer({
       className={["dr-drawer", picking && "dr-hidden"].filter(Boolean).join(" ")}
       role="dialog"
       aria-label={title}
+      tabIndex={-1}
       onKeyDown={onRootKey}
     >
       <header className="dr-drawer-head">
@@ -259,7 +310,7 @@ export function PointDrawer({
           type="button"
           className="dr-button dr-button-primary"
           onClick={() => void save()}
-          disabled={saving || loading}
+          disabled={saving || loading || loadFailed}
           title="Save (⌘Enter)"
         >
           {saving ? "Saving…" : "Save"}
@@ -277,7 +328,7 @@ export function PointDrawer({
             <button type="button" className="dr-button" onClick={onClose} autoFocus>
               Discard
             </button>
-            <button type="button" className="dr-button" onClick={() => setConfirmDiscard(false)}>
+            <button type="button" className="dr-button" onClick={keepEditing}>
               Keep editing
             </button>
           </span>
@@ -296,6 +347,8 @@ export function PointDrawer({
       <div className="dr-drawer-body">
         {loading ? (
           <p className="dr-empty">Loading…</p>
+        ) : loadFailed ? (
+          <p className="dr-empty">This point could not be loaded.</p>
         ) : (
           flatten(tree).map(({ node, depth }) => (
             <DrawerRow
@@ -306,6 +359,7 @@ export function PointDrawer({
               canPin={Boolean(startPick)}
               onText={(text) => edit(updateNode(tree, node.id, { text: oneLine(text) }))}
               onKeyDown={(e) => onRowKey(e, node)}
+              onFocus={() => (lastFocused.current = node.id)}
               onAddChild={() => {
                 const next = appendChild(tree, node.id)
                 edit(next, addedId(tree, next))
@@ -334,6 +388,7 @@ type DrawerRowProps = {
   canPin: boolean
   onText(text: string): void
   onKeyDown(e: ReactKeyboardEvent<HTMLTextAreaElement>): void
+  onFocus(): void
   onAddChild(): void
   onAttach(): void
   onPin(): void
@@ -348,6 +403,7 @@ function DrawerRow({
   canPin,
   onText,
   onKeyDown,
+  onFocus,
   onAddChild,
   onAttach,
   onPin,
@@ -378,6 +434,7 @@ function DrawerRow({
             disabled={busy}
             onChange={(e) => onText(e.target.value)}
             onKeyDown={onKeyDown}
+            onFocus={onFocus}
           />
         )}
         {pinned && (

@@ -48,8 +48,6 @@ describe("outline edits", () => {
     const saved = node("s", [], { savedRowId: "5.a.1", savedText: "s" })
     const tree3 = node("title", [node("a", [saved])])
     expect(outdent(tree3, saved.id)).toBe(tree3)
-    const tree4 = node("title", [node("a", [], { savedRowId: "5.a", savedText: "a" }), b])
-    expect(remove(tree4, b.id).children).toHaveLength(1)
   })
 
   it("a fourth level is refused", () => {
@@ -73,6 +71,9 @@ describe("outline edits", () => {
     const tree = node("title", [node("a"), b, node("c")])
     expect(texts(remove(tree, b.id))).toEqual({ title: [{ a: [] }, { c: [] }] })
     expect(remove(tree, tree.id)).toBe(tree)
+    const saved = node("s", [], { savedRowId: "5.a", savedText: "s" })
+    const fresh = node("f")
+    expect(remove(node("title", [saved, fresh]), fresh.id).children).toEqual([saved])
   })
 
   it("outdent moves a third-level node after its parent", () => {

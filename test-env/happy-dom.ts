@@ -12,7 +12,7 @@ const environment: Environment = {
   async setup(global) {
     const win = new GlobalWindow({
       url: "http://localhost:3000",
-      settings: { disableErrorCapturing: true },
+      settings: { disableErrorCapturing: true, disableIframePageLoading: true },
     })
     const { keys, originals } = populateGlobal(global, win, {
       bindFunctions: true,

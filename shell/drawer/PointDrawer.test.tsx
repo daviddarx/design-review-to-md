@@ -18,6 +18,8 @@ type Call = { url: string; method: string; body: unknown }
 let root: Root
 let host: HTMLDivElement
 let calls: Call[]
+let topicStatus: number
+let postStatus: number
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -28,14 +30,18 @@ function json(data: unknown, status = 200) {
 
 beforeEach(() => {
   calls = []
+  topicStatus = 200
+  postStatus = 200
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
       const method = init?.method ?? "GET"
       calls.push({ url, method, body: init?.body ? JSON.parse(String(init.body)) : undefined })
       if (url === "/__review/api/topics/08.4" && method === "GET") {
+        if (topicStatus !== 200) return json({ error: "cannot read" }, topicStatus)
         return json({ meta: { nextPoint: 6, retired: [] }, points: [parsePoint(SPEC)] })
       }
+      if (postStatus !== 200) return json({ error: "disk full" }, postStatus)
       return json({ number: 6, rowIds: [] })
     })
   )
@@ -132,6 +138,71 @@ describe("PointDrawer", () => {
         assets: [],
       },
     ])
+  })
+
+  it("ignores Enter, Esc and ⌘Enter while an IME composes (Safari: keyCode 229)", async () => {
+    const { onClose } = await render()
+    await type(fields()[0], "日本")
+    await act(async () => key(fields()[0], "Enter", { keyCode: 229 } as KeyboardEventInit))
+    await act(async () => key(fields()[0], "Escape", { keyCode: 229 } as KeyboardEventInit))
+    await act(async () =>
+      key(fields()[0], "Enter", { metaKey: true, keyCode: 229 } as KeyboardEventInit)
+    )
+    expect(fields()).toHaveLength(1)
+    expect(onClose).not.toHaveBeenCalled()
+    expect(posts()).toEqual([])
+  })
+
+  it("returns focus to the row after Keep editing and after a failed save", async () => {
+    await render()
+    await type(fields()[0], "Title")
+    await act(async () => key(fields()[0], "Enter"))
+    await type(fields()[1], "row")
+    await act(async () => key(fields()[1], "Escape"))
+    const keep = [...host.querySelectorAll("button")].find((b) => b.textContent === "Keep editing")!
+    await act(async () => keep.click())
+    expect(document.activeElement).toBe(fields()[1])
+    postStatus = 500
+    await act(async () => key(fields()[1], "Enter", { metaKey: true }))
+    expect(host.textContent).toContain("disk full")
+    expect(document.activeElement).toBe(fields()[1])
+  })
+
+  it("focuses the first editable row when an existing point opens", async () => {
+    await render(5)
+    expect(document.activeElement).toBe(fields()[0])
+  })
+
+  it("never saves when the point to edit could not be loaded", async () => {
+    topicStatus = 500
+    await render(5)
+    const save = [...host.querySelectorAll("button")].find((b) => b.textContent === "Save")!
+    expect(save.disabled).toBe(true)
+    expect(fields()).toHaveLength(0)
+    await act(async () =>
+      host
+        .querySelector("section")!
+        .dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", metaKey: true, bubbles: true }))
+    )
+    expect(posts()).toEqual([])
+    expect(document.activeElement).toBe(host.querySelector("section"))
+  })
+
+  it("refuses attachments named like pin assets", async () => {
+    await render()
+    const input = host.querySelector<HTMLInputElement>("input[type=file]")!
+    const files = [new File(["x"], "pin.png"), new File(["y"], "ok.txt")]
+    Object.defineProperty(input, "files", { value: files, configurable: true })
+    const attach = [...host.querySelectorAll("button")].find((b) =>
+      b.textContent?.includes("attach")
+    )!
+    await act(async () => attach.click())
+    await act(async () => {
+      input.dispatchEvent(new Event("change", { bubbles: true }))
+      await new Promise((r) => setTimeout(r, 10))
+    })
+    expect(host.textContent).toContain("pin.png: this name is kept for pins")
+    expect([...host.querySelectorAll(".dr-file")].map((f) => f.textContent)).toEqual(["📎 ok.txt×"])
   })
 
   it("hides the pin action without a picker", async () => {
