@@ -32,6 +32,11 @@ describe("topics", () => {
     await expect(storage.createTopic("../x")).rejects.toBeInstanceOf(StorageError)
   })
 
+  it("returns the sanitized name it created", async () => {
+    expect(await storage.createTopic("  my topic ")).toBe("my-topic")
+    expect(storage.root).toBe(path.resolve(root))
+  })
+
   it("turns spaces into dashes and lists sorted", async () => {
     await storage.createTopic("b topic")
     await storage.createTopic("a")

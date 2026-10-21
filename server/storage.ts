@@ -74,7 +74,7 @@ function holderOf(point: Point, rowId: string): { pin?: PinRef } | undefined {
 }
 
 export class Storage {
-  private root: string
+  readonly root: string
   private queue: Promise<unknown> = Promise.resolve()
 
   constructor(root: string) {
@@ -210,8 +210,9 @@ export class Storage {
     }
   }
 
-  async createTopic(name: string): Promise<void> {
-    const dir = this.topicDir(name)
+  async createTopic(name: string): Promise<string> {
+    const safe = safeTopic(name)
+    const dir = path.join(this.root, safe)
     return this.serial(async () => {
       await fs.mkdir(this.root, { recursive: true })
       try {
@@ -223,6 +224,7 @@ export class Storage {
         throw err
       }
       await this.writeMeta(dir, { nextPoint: 1, retired: [] })
+      return safe
     })
   }
 
