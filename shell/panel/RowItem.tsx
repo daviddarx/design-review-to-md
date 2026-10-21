@@ -241,6 +241,18 @@ export function RowItem({
         </div>
       )}
 
+      {row.attachments.length > 0 && (
+        <ul className="dr-files" aria-label="Attachments">
+          {row.attachments.map((a) => (
+            <li key={a.path} className="dr-file">
+              <a href={fileUrl(topic, a.path)} target="_blank" rel="noreferrer">
+                📎 {a.name}
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
+
       {shotOpen && owner && (
         <a
           className="dr-shot"

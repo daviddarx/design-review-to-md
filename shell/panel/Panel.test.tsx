@@ -16,6 +16,7 @@ const SPEC = `# 5. Main navigation
 - c. Search field next to it is misaligned \`review\`
   📍 /concept-08-4/tickets — ![](05-main-navigation/5.c-pin.png)
 - d. Compare with [5.d-reference.png](05-main-navigation/5.d-reference.png) \`open\`
+  📎 [5.d-my shot.png](05-main-navigation/5.d-my%20shot.png)
 `
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -119,6 +120,16 @@ function key(el: HTMLElement, k: string, extra: KeyboardEventInit = {}) {
 }
 
 describe("Panel", () => {
+  it("renders a row's attachment lines as links to the file", async () => {
+    await render()
+    const link = row("5.d").querySelector<HTMLAnchorElement>(".dr-files a")!
+    expect(link.textContent).toBe("📎 5.d-my shot.png")
+    expect(link.getAttribute("href")).toBe(
+      "/__review/files/08.4/05-main-navigation/5.d-my%20shot.png"
+    )
+    expect(link.target).toBe("_blank")
+  })
+
   it("lists the topic's rows with counts and reports the open count", async () => {
     const { onOpenCountChange } = await render()
     const ids = [...host.querySelectorAll("[data-row-id]")].map((el) =>

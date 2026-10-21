@@ -157,6 +157,57 @@ describe("applyOp", () => {
     expect(existsSync(path.join(root, "t", "01-nav", "1.b.1-b.png"))).toBe(true)
   })
 
+  it("links every attachment under its row, and the link round-trips", async () => {
+    await storage.createTopic("t")
+    await storage.createPoint("t", "Nav", [row("one", [row("kid")]), row("two")], undefined, [
+      { rowId: "$point", name: "overview.pdf", dataBase64: PNG },
+      { rowId: "$0", name: "pin.png", dataBase64: PNG },
+      { rowId: "$0", name: "pin.json", dataBase64: PNG },
+      { rowId: "$0", name: "state.json", dataBase64: PNG },
+      { rowId: "$0.0", name: "my shot.png", dataBase64: PNG },
+      { rowId: "$1", name: "ref.png", dataBase64: PNG },
+    ])
+    const file = path.join(root, "t", "01-nav.md")
+    const md = await fs.readFile(file, "utf8")
+    expect(md).toBe(
+      [
+        "# 1. Nav",
+        "",
+        "📎 [1-overview.pdf](01-nav/1-overview.pdf)",
+        "",
+        "- a. one `open`",
+        "  - 1. kid `open`",
+        "    📎 [1.a.1-my shot.png](01-nav/1.a.1-my%20shot.png)",
+        "- b. two `open`",
+        "  📎 [1.b-ref.png](01-nav/1.b-ref.png)",
+        "",
+      ].join("\n")
+    )
+    expect(existsSync(path.join(root, "t", "01-nav", "1.a.1-my shot.png"))).toBe(true)
+    // the row text is untouched, and a re-upload adds no second line
+    await storage.applyOp("t", 1, { kind: "editText", rowId: "1.b", text: "two!" }, [
+      { rowId: "1.b", name: "ref.png", dataBase64: PNG },
+      { rowId: "1.b", name: "more.txt", dataBase64: PNG },
+    ])
+    const [{ point }] = (await storage.readTopic("t")).points
+    expect(point.rows[1].text).toBe("two!")
+    expect(point.rows[1].extra).toEqual([
+      "  📎 [1.b-ref.png](01-nav/1.b-ref.png)",
+      "  📎 [1.b-more.txt](01-nav/1.b-more.txt)",
+    ])
+    expect(point.preamble).toEqual(["📎 [1-overview.pdf](01-nav/1-overview.pdf)"])
+  })
+
+  it("links an attachment of a row added with addChild", async () => {
+    await storage.createTopic("t")
+    await storage.createPoint("t", "Nav", [row("one")], undefined, [])
+    await storage.applyOp("t", 1, { kind: "addChild", rowId: "1.a", row: row("kid") }, [
+      { rowId: "$0", name: "a.png", dataBase64: PNG },
+    ])
+    const md = await fs.readFile(path.join(root, "t", "01-nav.md"), "utf8")
+    expect(md).toContain("  - 1. kid `open`\n    📎 [1.a.1-a.png](01-nav/1.a.1-a.png)\n")
+  })
+
   it("deleteRow removes the row's assets and retires its id", async () => {
     await storage.createTopic("t")
     await storage.createPoint("t", "Nav", [row("one"), row("two")], undefined, [

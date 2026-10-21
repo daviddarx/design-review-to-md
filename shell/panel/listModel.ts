@@ -10,6 +10,27 @@ export type FlatRow = {
   pin?: PinRef
   history: HistoryEntry[]
   inheritedPinFrom?: string // nearest pinned ancestor, when the row has no pin of its own
+  attachments: Attachment[] // the row's `📎 [name](path)` lines
+}
+
+export type Attachment = { name: string; path: string } // path relative to the topic
+
+const ATTACHMENT = /^\s*📎 \[(.+?)\]\((.+)\)\s*$/
+
+function decode(s: string): string {
+  try {
+    return decodeURIComponent(s)
+  } catch {
+    return s
+  }
+}
+
+// Attachment lines the server writes under a row (or in a point's preamble).
+export function attachmentsOf(lines: string[]): Attachment[] {
+  return lines.flatMap((line) => {
+    const m = ATTACHMENT.exec(line)
+    return m ? [{ name: m[1], path: m[2].split("/").map(decode).join("/") }] : []
+  })
 }
 
 // What a pinned row's actions (Go to pin, Restore state, Open in VS Code)
@@ -35,6 +56,7 @@ function rowNode(row: Row, id: string, depth: 1 | 2, pinnedAbove?: string): Node
     status: row.status,
     ...(row.pin ? { pin: row.pin } : {}),
     history: row.history,
+    attachments: attachmentsOf(row.extra),
     ...(!row.pin && pinnedAbove ? { inheritedPinFrom: pinnedAbove } : {}),
   }
   const next = row.pin ? id : pinnedAbove
@@ -54,6 +76,7 @@ function pointNode(p: Point): Node {
       status: p.status,
       ...(p.pin ? { pin: p.pin } : {}),
       history: p.history,
+      attachments: attachmentsOf(p.preamble),
     },
     children: p.rows.map((r) => rowNode(r, `${id}.${r.label}`, 1, p.pin ? id : undefined)),
   }

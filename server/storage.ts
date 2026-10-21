@@ -73,6 +73,36 @@ function holderOf(point: Point, rowId: string): { pin?: PinRef } | undefined {
   return holder
 }
 
+// Names the pin capture writes; every other asset is an attachment.
+const PIN_ASSETS = new Set(["pin.png", "pin.json", "state.json"])
+
+// Each attachment gets a `📎 [file](folder/file)` line under its row, at the
+// row's text indent (the point's own go in the preamble). The row's text is
+// never touched, and a line already present is not added twice.
+function linkAttachments(point: Point, folder: string, assets: Asset[]) {
+  for (const a of assets) {
+    if (PIN_ASSETS.has(a.name)) continue
+    const file = `${a.rowId}-${a.name}`
+    const link = `📎 [${file}](${folder}/${encodeURIComponent(file)})`
+    const [, ...labels] = a.rowId.split(".")
+    if (!labels.length) {
+      if (!point.preamble.some((l) => l.trim() === link)) point.preamble.push(link)
+      continue
+    }
+    let row: Row | undefined
+    let level = point.rows
+    for (const label of labels) {
+      row = level.find((r) => r.label === label)
+      if (!row) break
+      level = row.children
+    }
+    if (!row) continue
+    if (!row.extra.some((l) => l.trim() === link)) {
+      row.extra.push(" ".repeat(labels.length * 2) + link)
+    }
+  }
+}
+
 export class Storage {
   readonly root: string
   private queue: Promise<unknown> = Promise.resolve()
@@ -263,6 +293,7 @@ export class Storage {
       const mapped = this.mapAssets(assets, number, draftMap)
       const base = pointFileBase(number, point.title)
       this.linkPins(point, base, [String(number), ...rowIds], mapped)
+      linkAttachments(point, base, mapped)
       await this.writeMeta(dir, { ...meta, nextPoint: number + 1 })
       await this.writeAssets(dir, base, mapped)
       await this.atomicWrite(path.join(dir, `${base}.md`), serializePoint(point))
@@ -292,6 +323,7 @@ export class Storage {
       const touched = [...result.addedRowIds]
       if (op.kind === "setPin") touched.push(op.rowId)
       this.linkPins(result.point, folder, touched, mapped)
+      linkAttachments(result.point, folder, mapped)
       await this.writeAssets(dir, folder, mapped)
       if (op.kind === "setPin" && !op.pin) {
         await this.removeAssets(dir, folder, [`${op.rowId}-pin.`])
