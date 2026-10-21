@@ -116,3 +116,11 @@ plan beside it.
   header's buttons, bottom right. Drawer rows keep the old look.
 - **Never commit `docs/review/`** — his feedback files are his to commit,
   unlike the briefs CLAUDE.md asks to be committed with their fixes.
+- **Drawer motion copies the app's sheets** (`src/components/ui/sheet.tsx` +
+  08.4's `c084-overlay`): it slides in from the right over 300ms ease-in-out,
+  no fade, over a slate-500/45% backdrop with a 2px blur that fades in 150ms;
+  on close both run backwards. The panel keeps the closed drawer rendered
+  (inert, same tree position) until the slide-out's `animationend`.
+- **Drawer row actions** are the list's icon buttons (`ActionButton` in
+  `shell/panel/icons.tsx`) at the right of the field. Every icon action, list
+  and drawer, is a bordered 28px square, the height of `.dr-button`.

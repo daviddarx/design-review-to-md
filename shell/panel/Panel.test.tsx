@@ -295,6 +295,19 @@ describe("Panel", () => {
     expect(row("5.c").querySelector(".dr-confirm")).toBeNull()
   })
 
+  it("a closed drawer slides out before it unmounts, over a fading backdrop", async () => {
+    await render({ drawer: <section className="dr-drawer">Draft</section> })
+    expect(host.querySelector(".dr-drawer-layer .dr-drawer-backdrop")).not.toBeNull()
+    await render({ drawer: null })
+    const layer = host.querySelector(".dr-drawer-layer")!
+    expect(layer.classList.contains("dr-leaving")).toBe(true)
+    expect(layer.textContent).toBe("Draft")
+    await act(async () => {
+      layer.querySelector(".dr-drawer")!.dispatchEvent(new Event("animationend", { bubbles: true }))
+    })
+    expect(host.querySelector(".dr-drawer-layer")).toBeNull()
+  })
+
   it("a narrow window shows a narrower panel but keeps the stored width", async () => {
     localStorage.setItem("design-review:panel-width", "600")
     const innerWidth = window.innerWidth

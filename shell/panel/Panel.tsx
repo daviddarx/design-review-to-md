@@ -146,6 +146,18 @@ export function Panel({
   // pickable then).
   const covered = Boolean(drawer)
 
+  // The drawer slides in over a dimming backdrop and slides back out before
+  // it goes: the closed drawer stays rendered (inert, same tree position, so
+  // not remounted) until its exit animation ends.
+  const lastDrawer = useRef<ReactNode>(null)
+  if (drawer) lastDrawer.current = drawer
+  const [leaving, setLeaving] = useState<ReactNode>(null)
+  const [wasOpen, setWasOpen] = useState(covered)
+  if (covered !== wasOpen) {
+    setWasOpen(covered)
+    setLeaving(covered ? null : lastDrawer.current)
+  }
+
   const tally = useMemo(() => counts(points), [points])
   const rows = useMemo(() => flattenRows(points, filter), [points, filter])
 
@@ -339,7 +351,18 @@ export function Panel({
       <footer className="dr-panel-foot" inert={covered}>
         <ShortcutHelp />
       </footer>
-      {drawer}
+      {(drawer || leaving) && (
+        <div
+          className={["dr-drawer-layer", !drawer && "dr-leaving"].filter(Boolean).join(" ")}
+          inert={!drawer}
+          onAnimationEnd={(e) => {
+            if (!drawer && (e.target as Element).classList.contains("dr-drawer")) setLeaving(null)
+          }}
+        >
+          <div className="dr-drawer-backdrop" />
+          {drawer ?? leaving}
+        </div>
+      )}
     </aside>
   )
 }

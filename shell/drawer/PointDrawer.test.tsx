@@ -145,7 +145,7 @@ describe("PointDrawer", () => {
     vi.stubGlobal("confirm", confirm)
     const { onClose, onSaved } = await render(5)
     const trash = () =>
-      host.querySelector<HTMLButtonElement>('button[title^="Delete this feedback"]')!
+      host.querySelector<HTMLButtonElement>('button[aria-label^="Delete this feedback"]')!
     const button = (label: string) =>
       [...host.querySelectorAll("button")].find((b) => b.textContent === label)!
     const deletes = () => calls.filter((c) => c.method === "DELETE")
@@ -166,7 +166,7 @@ describe("PointDrawer", () => {
 
   it("offers no point delete on a new point", async () => {
     await render()
-    expect(host.querySelector('button[title^="Delete this feedback"]')).toBeNull()
+    expect(host.querySelector('button[aria-label^="Delete this feedback"]')).toBeNull()
   })
 
   it("ignores Enter, Esc and ⌘Enter while an IME composes (Safari: keyCode 229)", async () => {
@@ -227,7 +227,7 @@ describe("PointDrawer", () => {
     ]
     Object.defineProperty(input, "files", { value: files, configurable: true })
     const attach = [...host.querySelectorAll("button")].find((b) =>
-      b.textContent?.includes("attach")
+      b.getAttribute("aria-label")?.includes("Attach")
     )!
     await act(async () => attach.click())
     await act(async () => {

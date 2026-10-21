@@ -1,5 +1,5 @@
-// 16px stroke icons for the row actions (Lucide's shapes, inlined: the shell
-// bundles no icon library).
+// 16px stroke icons for the list's and the drawer's row actions (Lucide's
+// shapes, inlined: the shell bundles no icon library).
 const PATHS = {
   edit: "M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z",
   validate: "M20 6 9 17l-5-5",
@@ -10,6 +10,10 @@ const PATHS = {
     "M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z M9 11a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z M21 15l-3-3a2 2 0 0 0-3 0l-9 9",
   restore: "M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8 M3 3v5h5",
   source: "m16 18 6-6-6-6 M8 6l-6 6 6 6",
+  addRow: "M12 5v14 M5 12h14",
+  attach:
+    "m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48",
+  remove: "M3 6h18 M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6 M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2",
 } as const
 
 export type IconName = keyof typeof PATHS
@@ -29,5 +33,33 @@ export function Icon({ name }: { name: IconName }) {
     >
       <path d={PATHS[name]} />
     </svg>
+  )
+}
+
+// An icon action; its name shows in a tooltip on hover or keyboard focus.
+export function ActionButton({
+  icon,
+  label,
+  tip = label,
+  pressed,
+  onClick,
+}: {
+  icon: IconName
+  label: string
+  tip?: string
+  pressed?: boolean
+  onClick(): void
+}) {
+  return (
+    <button
+      type="button"
+      className="dr-action"
+      aria-label={label}
+      aria-pressed={pressed}
+      data-tip={tip}
+      onClick={onClick}
+    >
+      <Icon name={icon} />
+    </button>
   )
 }

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import type { Op } from "../../model/ops.ts"
 import type { PinRecord, PinRef } from "../../model/types.ts"
 import { fileUrl } from "../api.ts"
-import { Icon, type IconName } from "./icons.tsx"
+import { ActionButton } from "./icons.tsx"
 import { pinRecordPath, singleLine } from "./listModel.ts"
 import type { FlatRow, PinTarget } from "./listModel.ts"
 
@@ -29,34 +29,6 @@ export function isTyping(target: EventTarget | null): boolean {
     target.tagName === "INPUT" ||
     target.tagName === "TEXTAREA" ||
     target.tagName === "SELECT"
-  )
-}
-
-// An icon action; its name shows in a tooltip on hover or keyboard focus.
-function ActionButton({
-  icon,
-  label,
-  tip = label,
-  pressed,
-  onClick,
-}: {
-  icon: IconName
-  label: string
-  tip?: string
-  pressed?: boolean
-  onClick(): void
-}) {
-  return (
-    <button
-      type="button"
-      className="dr-action"
-      aria-label={label}
-      aria-pressed={pressed}
-      data-tip={tip}
-      onClick={onClick}
-    >
-      <Icon name={icon} />
-    </button>
   )
 }
 

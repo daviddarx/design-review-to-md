@@ -126,6 +126,15 @@ body {
   min-width: 0;
 }
 
+/* Our own chevron: the native one sits flush against the border. */
+select.dr-topic {
+  appearance: none;
+  padding-right: 28px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23737373' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-position: right 8px center;
+  background-repeat: no-repeat;
+}
+
 .dr-button {
   flex: 0 0 auto;
   height: 28px;
@@ -492,21 +501,23 @@ body {
 /* Always-visible icon actions; the name shows as a tooltip below. */
 .dr-row-actions {
   display: flex;
-  gap: 2px;
+  gap: 4px;
   margin-left: auto;
 }
 
 .dr-action {
   position: relative;
+  box-sizing: border-box;
   display: inline-flex;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: center;
   width: 28px;
   height: 28px;
   padding: 0;
-  border: 0;
+  border: 1px solid #d4d4d4;
   border-radius: 6px;
-  background: transparent;
+  background: #fff;
   color: var(--dr-text-muted) !important;
   cursor: pointer;
 }
@@ -572,21 +583,63 @@ body {
   gap: 6px;
 }
 
-/* Point drawer: over the panel's list at full panel width, below the
-   resize edge (z-index 2) so the panel stays resizable. */
-.dr-drawer {
+/* Point drawer, as the app's own sheets do it: it slides in from the right
+   over a slate backdrop that fades in, and both run backwards on close. The
+   layer sits below the resize edge (z-index 2) so the panel stays
+   resizable. */
+.dr-drawer-layer {
   position: absolute;
   inset: 0;
   z-index: 1;
+  overflow: hidden;
+}
+
+.dr-drawer-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgb(100 116 139 / 0.45);
+  backdrop-filter: blur(2px);
+  animation: dr-fade-in 150ms ease-out both;
+}
+
+.dr-leaving .dr-drawer-backdrop {
+  animation: dr-fade-out 150ms ease-in both;
+}
+
+.dr-drawer {
+  position: absolute;
+  inset: 0;
   display: flex;
   flex-direction: column;
   background: var(--dr-surface);
-  animation: dr-drawer-in 160ms ease-out;
+  box-shadow: -8px 0 24px rgb(0 0 0 / 0.12);
+  animation: dr-slide-in 300ms ease-in-out;
 }
 
-@keyframes dr-drawer-in {
+.dr-leaving .dr-drawer {
+  animation: dr-slide-out 300ms ease-in-out forwards;
+}
+
+@keyframes dr-slide-in {
   from {
-    transform: translateX(24px);
+    transform: translateX(100%);
+  }
+}
+
+@keyframes dr-slide-out {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes dr-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes dr-fade-out {
+  to {
     opacity: 0;
   }
 }
@@ -640,6 +693,21 @@ body {
 
 .dr-drawer-row.dr-depth-0 {
   font-weight: 600;
+}
+
+/* Number, field, tags, then the icon actions at the right; all top-aligned
+   on the field's first line, so a growing field pushes nothing around. */
+.dr-drawer-row .dr-row-main {
+  align-items: flex-start;
+}
+
+.dr-drawer-row .dr-row-num,
+.dr-drawer-row .dr-row-text {
+  line-height: 28px;
+}
+
+.dr-drawer-row .dr-row-tags {
+  height: 28px;
 }
 
 .dr-drawer-input {

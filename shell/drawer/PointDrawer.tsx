@@ -22,6 +22,7 @@ import {
 } from "./draft.ts"
 import type { CapturedPin, DraftNode } from "./draft.ts"
 import type { Marker } from "../pick/PinMarkers.tsx"
+import { ActionButton } from "../panel/icons.tsx"
 
 export type PointDrawerProps = {
   topic: string
@@ -534,6 +535,26 @@ function DrawerRow({
             </span>
           </span>
         )}
+        <span className="dr-row-actions">
+          {depth < 2 && (
+            <ActionButton icon="addRow" label="Add a row at the end" onClick={onAddChild} />
+          )}
+          <ActionButton icon="attach" label="Attach a file" onClick={onAttach} />
+          {canPin && (
+            <ActionButton
+              icon="pin"
+              label={pinned ? "Re-pin this row" : "Pin this row to an element"}
+              onClick={onPin}
+            />
+          )}
+          {onDelete && (
+            <ActionButton
+              icon="remove"
+              label={depth === 0 ? "Delete this feedback and its files" : "Delete this row"}
+              onClick={onDelete}
+            />
+          )}
+        </span>
       </div>
       {node.locked && (
         <p className="dr-drawer-hint">Claude has worked on this — use Refine in the list.</p>
@@ -554,30 +575,6 @@ function DrawerRow({
           ))}
         </ul>
       )}
-      <div className="dr-row-actions">
-        {depth < 2 && (
-          <button type="button" onClick={onAddChild} title="Add a row at the end">
-            ＋ sub
-          </button>
-        )}
-        <button type="button" onClick={onAttach} title="Attach a file">
-          📎 attach
-        </button>
-        {canPin && (
-          <button type="button" onClick={onPin} title="Pick an element to pin this row to">
-            📍 {pinned ? "re-pin" : "pin"}
-          </button>
-        )}
-        {onDelete && (
-          <button
-            type="button"
-            onClick={onDelete}
-            title={depth === 0 ? "Delete this feedback and its files" : "Delete this row"}
-          >
-            🗑 delete
-          </button>
-        )}
-      </div>
     </div>
   )
 }
