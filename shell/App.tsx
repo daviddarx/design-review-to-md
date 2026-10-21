@@ -1,15 +1,29 @@
 import { useEffect, useRef, useState } from "react"
+import { fileUrl } from "./api.ts"
 import { PointDrawer } from "./drawer/PointDrawer.tsx"
 import type { CapturedPin } from "./drawer/draft.ts"
+import { statePathOf } from "./panel/listModel.ts"
+import type { PinTarget } from "./panel/listModel.ts"
 import { Panel } from "./panel/Panel.tsx"
+import { restoreLocalStorage } from "./pick/capture.ts"
+import { goToPin } from "./pick/goToPin.ts"
+import { usePicker } from "./pick/Picker.tsx"
 import { readKey, writeKey } from "./prefs.ts"
 import { Toolbar } from "./Toolbar.tsx"
 import { useFrameUrl, initialFrameSrc } from "./useFrameUrl.ts"
 import { useReviewMode } from "./useReviewMode.ts"
+import { useShortcut } from "./useShortcut.ts"
 
 const noop = () => {}
 
 type DrawerState = { key: number; pointNumber?: number; capture?: CapturedPin }
+
+export const PIN_MISSING = "Pinned element not found — the page changed since."
+
+// ⌃P — Control, never Command (⌘P stays the browser's print).
+export function isPinAndAdd(e: KeyboardEvent): boolean {
+  return e.ctrlKey && !e.metaKey && e.key.toLowerCase() === "p"
+}
 
 // The app in a same-origin frame. Review off: the frame fills the window
 // and nothing else shows. Review on: frame + panel side by side, the
@@ -29,8 +43,16 @@ export function App() {
   const [drawerFocus, setDrawerFocus] = useState(0)
   const [panelMounted, setPanelMounted] = useState(review)
   if (review && !panelMounted) setPanelMounted(true)
+  const [appendCapture, setAppendCapture] = useState<{ seq: number; capture: CapturedPin }>()
   const drawerSeq = useRef(0)
+  const appendSeq = useRef(0)
+  const drawerRef = useRef(drawer)
   useFrameUrl(frame)
+  const picker = usePicker(frame)
+
+  useEffect(() => {
+    drawerRef.current = drawer
+  }, [drawer])
 
   // The drawer lives inside the panel, so opening it shows the panel. With
   // no topic yet, New point only reveals the panel, which asks for one. An
@@ -45,6 +67,51 @@ export function App() {
 
   // One drawer belongs to one topic.
   useEffect(() => setDrawer(null), [topic])
+
+  // Pin & add: pick first, then a new point whose title row carries the
+  // pin — or, with a drawer already open, a new row in it (never a remount,
+  // which would throw the draft away). The pick starts synchronously inside
+  // the gesture, as screen capture requires.
+  const pinAndAdd = () => {
+    if (!topic) return setListOpen(true)
+    void picker.startPick().then((capture) => {
+      if (!capture) return
+      setListOpen(true)
+      if (drawerRef.current) setAppendCapture({ seq: ++appendSeq.current, capture })
+      else setDrawer({ key: ++drawerSeq.current, capture })
+    })
+  }
+
+  useShortcut(frame, review, isPinAndAdd, pinAndAdd)
+
+  // Leaving review mode ends a pick.
+  useEffect(() => {
+    if (!review) picker.cancel()
+  }, [review, picker.cancel])
+
+  const onGoToPin = async (_rowId: string, target: PinTarget) => {
+    if (!frame) return
+    if (!target.record) return `No pin record for ${target.ownerRowId} — it cannot be found again.`
+    const result = await goToPin(frame, target.record, picker.flash)
+    return result === "missing" ? PIN_MISSING : null
+  }
+
+  // After the panel's own confirm. The snapshot is gitignored, so a pin
+  // made on another machine has none.
+  const onRestoreState = async (_rowId: string, target: PinTarget) => {
+    if (!topic || !frame) return
+    const res = await fetch(fileUrl(topic, statePathOf(target.recordPath))).catch(() => null)
+    if (!res?.ok) {
+      return `No saved state for ${target.ownerRowId} on this machine — state files are not committed.`
+    }
+    const snapshot: unknown = await res.json().catch(() => null)
+    if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) {
+      return `The saved state of ${target.ownerRowId} is unreadable.`
+    }
+    restoreLocalStorage(snapshot as Record<string, unknown>)
+    frame.contentWindow?.location.reload()
+    return null
+  }
 
   useEffect(() => {
     if (topic) writeKey("topic", topic)
@@ -64,11 +131,12 @@ export function App() {
             onTopicChange={setTopic}
             onNewPoint={() => openDrawer()}
             onEditPoint={(n) => openDrawer({ pointNumber: n })}
-            onGoToPin={noop}
-            onRestoreState={noop}
+            onGoToPin={onGoToPin}
+            onRestoreState={onRestoreState}
             onOpenSource={noop}
             onOpenCountChange={setOpenCount}
             reloadSignal={reloadSignal}
+            picking={picker.picking}
             drawer={
               drawer &&
               topic && (
@@ -77,6 +145,9 @@ export function App() {
                   topic={topic}
                   pointNumber={drawer.pointNumber}
                   initialCapture={drawer.capture}
+                  startPick={() => picker.startPick()}
+                  appendCapture={appendCapture}
+                  hidden={picker.picking}
                   focusSignal={drawerFocus}
                   onSaved={() => setReloadSignal((n) => n + 1)}
                   onClose={() => setDrawer(null)}
@@ -89,13 +160,15 @@ export function App() {
       {review && (
         <Toolbar
           bounds={frame}
-          onPinAndAdd={noop}
+          hidden={picker.hideToolbar}
+          onPinAndAdd={pinAndAdd}
           onNewPoint={() => openDrawer()}
           onToggleList={() => setListOpen((v) => !v)}
           onExit={() => setReview(false)}
           listCount={openCount}
         />
       )}
+      {picker.layer}
     </div>
   )
 }

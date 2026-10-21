@@ -3,7 +3,7 @@ import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { parsePoint } from "../../model/markdown.ts"
-import { Panel } from "./Panel.tsx"
+import { Panel, type PanelProps } from "./Panel.tsx"
 
 const SPEC = `# 5. Main navigation
 
@@ -93,7 +93,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-async function render() {
+async function render(extra: Partial<PanelProps> = {}) {
   const onOpenCountChange = vi.fn()
   await act(async () => {
     root.render(
@@ -106,6 +106,7 @@ async function render() {
         onRestoreState={() => {}}
         onOpenSource={() => {}}
         onOpenCountChange={onOpenCountChange}
+        {...extra}
       />
     )
   })
@@ -231,6 +232,24 @@ describe("Panel", () => {
     expect(host.querySelector(".dr-error")?.textContent).toContain("cannot read topic")
     topicStatus = 200
     await act(async () => FakeEventSource.last!.onmessage!({ data: '{"topic":"08.4"}' }))
+    expect(host.querySelector(".dr-error")).toBeNull()
+  })
+
+  it("Go to pin's notice shows inline and can be dismissed", async () => {
+    const onGoToPin = vi.fn(async () => "Pinned element not found — the page changed since.")
+    await render({ onGoToPin })
+    const go = [...row("5.c").querySelectorAll("button")].find(
+      (b) => b.textContent === "Go to pin"
+    )!
+    await act(async () => go.click())
+    await act(async () => {})
+    expect(onGoToPin).toHaveBeenCalledWith(
+      "5.c",
+      expect.objectContaining({ ownerRowId: "5.c", recordPath: "05-main-navigation/5.c-pin.json" })
+    )
+    const alert = host.querySelector(".dr-error")!
+    expect(alert.textContent).toContain("Pinned element not found — the page changed since.")
+    await act(async () => alert.querySelector("button")!.click())
     expect(host.querySelector(".dr-error")).toBeNull()
   })
 

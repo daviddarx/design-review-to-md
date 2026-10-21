@@ -1,11 +1,11 @@
 // Pure editor state of the point drawer: one tree per point, the title row
 // at the root. Every edit returns a new tree (or the same one when refused).
 import type { DraftRow, Op } from "../../model/ops.ts"
-import type { PinRecord, PinRef, Point, Row } from "../../model/types.ts"
+import type { PinRef, Point, Row } from "../../model/types.ts"
 import type { Asset } from "../api.ts"
+import type { CapturedPin } from "../pick/capture.ts"
 
-// What the picker hands back (Task 8 produces it).
-export type CapturedPin = { pin: PinRef; record: PinRecord; png?: string; state: string }
+export type { CapturedPin }
 
 export type DraftFile = { name: string; dataBase64: string }
 
@@ -86,6 +86,16 @@ function withChild(children: DraftNode[], node: DraftNode, at: number): DraftNod
 
 export function newDraft(capture?: CapturedPin): DraftNode {
   return { ...blank(), ...(capture ? { capture, pin: capture.pin } : {}) }
+}
+
+// Pin & add on an open drawer: a new top-level row carrying the capture,
+// after every saved one. Returns the tree and the new row's id.
+export function appendCaptured(
+  tree: DraftNode,
+  capture: CapturedPin
+): { tree: DraftNode; id: string } {
+  const row = { ...blank(), capture, pin: capture.pin }
+  return { tree: { ...tree, children: [...tree.children, row] }, id: row.id }
 }
 
 function fromRow(row: Row, id: string): DraftNode {

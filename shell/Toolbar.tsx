@@ -4,6 +4,7 @@ import { readKey, writeKey } from "./prefs.ts"
 
 export type ToolbarProps = {
   bounds: HTMLElement | null // the area the toolbar stays inside (the app frame)
+  hidden?: boolean // out of a screenshot being taken
   onPinAndAdd(): void
   onNewPoint(): void
   onToggleList(): void
@@ -49,6 +50,7 @@ function clamp(pos: Pos, el: HTMLElement, area: Area): Pos {
 // the frame, re-clamped whenever the frame resizes (the panel's drag).
 export function Toolbar({
   bounds,
+  hidden,
   onPinAndAdd,
   onNewPoint,
   onToggleList,
@@ -103,7 +105,9 @@ export function Toolbar({
   return (
     <div
       ref={ref}
-      className={pos ? "dr-toolbar" : "dr-toolbar dr-toolbar-default"}
+      className={["dr-toolbar", !pos && "dr-toolbar-default", hidden && "dr-hidden"]
+        .filter(Boolean)
+        .join(" ")}
       style={pos ? { left: pos.x, top: pos.y } : { left: (area.left + area.right) / 2 }}
       role="toolbar"
       aria-label="Design review"
@@ -117,7 +121,12 @@ export function Toolbar({
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
       />
-      <button type="button" className="dr-tool-button" onClick={onPinAndAdd}>
+      <button
+        type="button"
+        className="dr-tool-button"
+        onClick={onPinAndAdd}
+        title="Pick an element and add a point (⌃P)"
+      >
         Pin &amp; add
       </button>
       <button type="button" className="dr-tool-button" onClick={onNewPoint}>

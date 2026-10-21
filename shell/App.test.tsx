@@ -94,3 +94,75 @@ describe("App drawer", () => {
     expect(title()!.value).toBe("Half-written")
   })
 })
+
+const ctrlP = () =>
+  act(async () => {
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "p", ctrlKey: true, bubbles: true }))
+  })
+
+// Hover then click `el` while a pick runs; the shell's own UI is pickable.
+async function pick(el: Element) {
+  await act(async () => {
+    el.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 5, clientY: 6 }))
+  })
+  await act(async () => {
+    el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }))
+  })
+  // capture → state → drawer
+  await act(async () => {})
+}
+
+const pins = () => [...host.querySelectorAll(".dr-drawer .dr-pin")].map((p) => p.textContent)
+
+describe("Pin & add", () => {
+  it("⌃P picks, and the click opens a new point whose title row is pinned", async () => {
+    await act(async () => root.render(<App />))
+    await ctrlP()
+    expect(host.querySelector(".dr-picker-hint")).not.toBeNull()
+    // The click is the pick's: Exit must not run.
+    await pick(toolbarButton("Exit"))
+    expect(host.querySelector(".dr-toolbar")).not.toBeNull()
+    expect(host.querySelector(".dr-picker-hint")).toBeNull()
+    expect(host.querySelector(".dr-drawer")).not.toBeNull()
+    expect(pins()).toEqual(["📍 new"])
+    expect(host.querySelector(".dr-drawer .dr-pin")!.getAttribute("title")).toBe(
+      "New pin: (review tool)"
+    )
+  })
+
+  it("Esc cancels the pick", async () => {
+    await act(async () => root.render(<App />))
+    await act(async () => toolbarButton("Pin & add").click())
+    expect(host.querySelector(".dr-picker-hint")).not.toBeNull()
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))
+    })
+    await act(async () => {})
+    expect(host.querySelector(".dr-picker-hint")).toBeNull()
+    expect(host.querySelector(".dr-drawer")).toBeNull()
+  })
+
+  it("with a drawer open, adds a pinned row to it instead of replacing it", async () => {
+    await act(async () => root.render(<App />))
+    await act(async () => toolbarButton("New point").click())
+    await type(title()!, "Half-written")
+    const drawer = host.querySelector(".dr-drawer")!
+    await ctrlP()
+    expect(drawer.classList.contains("dr-hidden")).toBe(true)
+    await pick(toolbarButton("List"))
+    expect(host.querySelector(".dr-drawer")).toBe(drawer)
+    expect(drawer.classList.contains("dr-hidden")).toBe(false)
+    expect(title()!.value).toBe("Half-written")
+    const inputs = drawer.querySelectorAll("textarea")
+    expect(inputs).toHaveLength(2)
+    expect(pins()).toEqual(["📍 new"])
+    expect(document.activeElement).toBe(inputs[1])
+  })
+
+  it("⌃P does nothing outside review mode", async () => {
+    localStorage.setItem("design-review:mode", "off")
+    await act(async () => root.render(<App />))
+    await ctrlP()
+    expect(host.querySelector(".dr-picker-hint")).toBeNull()
+  })
+})

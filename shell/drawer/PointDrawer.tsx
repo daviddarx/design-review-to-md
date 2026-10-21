@@ -3,6 +3,7 @@ import type { ChangeEvent, KeyboardEvent as ReactKeyboardEvent } from "react"
 import type { Point } from "../../model/types.ts"
 import { applyOp, createPoint, readTopic } from "../api.ts"
 import {
+  appendCaptured,
   appendChild,
   buildCreate,
   buildOps,
@@ -25,7 +26,11 @@ export type PointDrawerProps = {
   topic: string
   pointNumber?: number // set: edit that saved point; unset: a new one
   initialCapture?: CapturedPin // Pin & add: the title row arrives pinned
-  startPick?: (mode: "pin") => Promise<CapturedPin | null> // Task 8; no 📍 without it
+  startPick?: (mode: "pin") => Promise<CapturedPin | null> // no 📍 without it
+  // Pin & add while this drawer is open: each new `seq` appends a top-level
+  // row carrying the capture, and focuses it.
+  appendCapture?: { seq: number; capture: CapturedPin }
+  hidden?: boolean // a pick started elsewhere is running: out of the way, still mounted
   focusSignal?: number // a change pulls focus back into the drawer (New point while open)
   onSaved?(): void
   onClose(): void
@@ -63,6 +68,8 @@ export function PointDrawer({
   pointNumber,
   initialCapture,
   startPick,
+  appendCapture,
+  hidden,
   focusSignal,
   onSaved,
   onClose,
@@ -133,6 +140,18 @@ export function PointDrawer({
     seenSignal.current = focusSignal
     setFocusId(BACK)
   }, [focusSignal])
+
+  // A capture arriving while the point still loads waits for it: the load
+  // replaces the whole tree.
+  const seenAppend = useRef(appendCapture?.seq)
+  useEffect(() => {
+    if (!appendCapture || appendCapture.seq === seenAppend.current || loading) return
+    seenAppend.current = appendCapture.seq
+    const added = appendCaptured(tree, appendCapture.capture)
+    setTree(added.tree)
+    setConfirmDiscard(false)
+    setFocusId(added.id)
+  }, [appendCapture, loading, tree])
 
   const keepEditing = () => {
     setConfirmDiscard(false)
@@ -294,7 +313,7 @@ export function PointDrawer({
   return (
     <section
       ref={rootRef}
-      className={["dr-drawer", picking && "dr-hidden"].filter(Boolean).join(" ")}
+      className={["dr-drawer", (picking || hidden) && "dr-hidden"].filter(Boolean).join(" ")}
       role="dialog"
       aria-label={title}
       tabIndex={-1}

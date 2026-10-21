@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { parsePoint } from "../../model/markdown.ts"
 import {
+  appendCaptured,
   appendChild,
   buildCreate,
   buildOps,
@@ -158,6 +159,27 @@ describe("saving", () => {
       "$point state.json",
     ])
     expect(atob(payload.assets[2].dataBase64)).toBe("{}")
+  })
+
+  it("Pin & add on an open drawer appends a pinned top-level row after the saved ones", () => {
+    const capture = {
+      pin: { path: "/y" },
+      record: { version: 1 as const, at: "t", steps: [] },
+      state: "{}",
+    }
+    const point = parsePoint(POINT)
+    const { tree, id } = appendCaptured(fromPoint(point), capture)
+    expect(tree.children.at(-1)).toMatchObject({ id, text: "", capture, pin: { path: "/y" } })
+    const added = buildOps(point, updateNode(tree, id, { text: "New" })).at(-1)!
+    expect(added.op).toEqual({
+      kind: "addChild",
+      rowId: "5",
+      row: { text: "New", pin: { path: "/y" }, children: [] },
+    })
+    expect(added.assets.map((a) => `${a.rowId} ${a.name}`)).toEqual([
+      "$0 pin.json",
+      "$0 state.json",
+    ])
   })
 
   it("marks saved rows with a Claude note or a non-open status read-only", () => {

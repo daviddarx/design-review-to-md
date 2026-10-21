@@ -15,13 +15,18 @@ export type PanelProps = {
   onTopicChange(t: string): void
   onNewPoint(): void
   onEditPoint(n: number): void
-  onGoToPin(rowId: string, target: PinTarget): void
-  onRestoreState(rowId: string, target: PinTarget): void
+  // Go to pin / Restore state may answer with a notice for the panel to show
+  // (the element is gone, the state file is missing).
+  onGoToPin(rowId: string, target: PinTarget): PinAction
+  onRestoreState(rowId: string, target: PinTarget): PinAction
   onOpenSource(rowId: string, target: PinTarget): void
   onOpenCountChange(n: number): void // feeds the toolbar's List count
   drawer?: ReactNode // the point drawer, laid over everything but the resize edge
   reloadSignal?: number // a change refetches the topic (after a drawer save)
+  picking?: boolean // a pick is running: the list behind a hidden drawer is pickable
 }
+
+type PinAction = void | Promise<string | null | void>
 
 const DEFAULT_WIDTH = 440
 const MIN_WIDTH = 320
@@ -66,6 +71,7 @@ export function Panel({
   onOpenCountChange,
   drawer,
   reloadSignal,
+  picking,
 }: PanelProps) {
   const preferred = useRef(readPreferredWidth())
   const [width, setWidth] = useState(() => clampWidth(preferred.current))
@@ -138,6 +144,9 @@ export function Panel({
     load()
   }, [reloadSignal, load])
 
+  // The drawer covers the list, except while a pick has it hidden.
+  const covered = Boolean(drawer) && !picking
+
   const tally = useMemo(() => counts(points), [points])
   const rows = useMemo(() => flattenRows(points, filter), [points, filter])
 
@@ -182,6 +191,14 @@ export function Panel({
     },
     [topic, load]
   )
+
+  const withNotice =
+    (action: (rowId: string, t: PinTarget) => PinAction) => (rowId: string, t: PinTarget) => {
+      Promise.resolve(action(rowId, t)).then(
+        (notice) => notice && setError(notice),
+        (err) => setError(message(err))
+      )
+    }
 
   const onCreateTopic = async (name: string) => {
     try {
@@ -244,7 +261,7 @@ export function Panel({
         }}
       />
 
-      <header className="dr-panel-head" inert={Boolean(drawer)}>
+      <header className="dr-panel-head" inert={covered}>
         <TopicSelect
           topics={topics}
           topic={topic}
@@ -267,12 +284,7 @@ export function Panel({
         <ShortcutHelp />
       </header>
 
-      <div
-        className="dr-filters"
-        role="radiogroup"
-        aria-label="Filter by status"
-        inert={Boolean(drawer)}
-      >
+      <div className="dr-filters" role="radiogroup" aria-label="Filter by status" inert={covered}>
         {FILTERS.map((f) => (
           <button
             key={f.value}
@@ -306,7 +318,7 @@ export function Panel({
         </div>
       )}
 
-      <div className="dr-panel-body" inert={Boolean(drawer)}>
+      <div className="dr-panel-body" inert={covered}>
         {!topic ? (
           <p className="dr-empty">Choose a topic, or create one from the menu above.</p>
         ) : !loaded ? null : points.length === 0 ? (
@@ -321,8 +333,8 @@ export function Panel({
             onLoadRecord={loadRecord}
             onOp={onOp}
             onEditPoint={onEditPoint}
-            onGoToPin={onGoToPin}
-            onRestoreState={onRestoreState}
+            onGoToPin={withNotice(onGoToPin)}
+            onRestoreState={withNotice(onRestoreState)}
             onOpenSource={onOpenSource}
           />
         )}
