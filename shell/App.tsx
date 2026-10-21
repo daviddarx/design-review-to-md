@@ -142,7 +142,6 @@ export function App() {
             onOpenSource={onOpenSource}
             onOpenCountChange={setOpenCount}
             reloadSignal={reloadSignal}
-            picking={picker.picking}
             drawer={
               drawer &&
               topic && (
@@ -153,7 +152,6 @@ export function App() {
                   initialCapture={drawer.capture}
                   startPick={() => picker.startPick()}
                   appendCapture={appendCapture}
-                  hidden={picker.picking}
                   focusSignal={drawerFocus}
                   onSaved={() => setReloadSignal((n) => n + 1)}
                   onClose={() => setDrawer(null)}

@@ -30,7 +30,6 @@ export type PointDrawerProps = {
   // Pin & add while this drawer is open: each new `seq` appends a top-level
   // row carrying the capture, and focuses it.
   appendCapture?: { seq: number; capture: CapturedPin }
-  hidden?: boolean // a pick started elsewhere is running: out of the way, still mounted
   focusSignal?: number // a change pulls focus back into the drawer (New point while open)
   onSaved?(): void
   onClose(): void
@@ -71,7 +70,6 @@ export function PointDrawer({
   initialCapture,
   startPick,
   appendCapture,
-  hidden,
   focusSignal,
   onSaved,
   onClose,
@@ -81,7 +79,6 @@ export function PointDrawer({
   const [loading, setLoading] = useState(pointNumber !== undefined)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
-  const [picking, setPicking] = useState(false)
   const [confirmDiscard, setConfirmDiscard] = useState(false)
   const [focusId, setFocusId] = useState<string | null>(() =>
     pointNumber === undefined ? tree.id : null
@@ -215,14 +212,13 @@ export function PointDrawer({
 
   const pin = async (id: string) => {
     if (!startPick) return
-    setPicking(true)
+    // The drawer stays on screen while the pick runs: its own elements can
+    // be pinned (the picker swallows the click, so nothing here acts on it).
     try {
       const captured = await startPick("pin")
       if (captured) setTree((t) => updateNode(t, id, { capture: captured, pin: captured.pin }))
     } catch (err) {
       setError(message(err))
-    } finally {
-      setPicking(false)
     }
   }
 
@@ -315,7 +311,7 @@ export function PointDrawer({
   return (
     <section
       ref={rootRef}
-      className={["dr-drawer", (picking || hidden) && "dr-hidden"].filter(Boolean).join(" ")}
+      className="dr-drawer"
       role="dialog"
       aria-label={title}
       tabIndex={-1}

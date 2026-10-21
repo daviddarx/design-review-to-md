@@ -148,7 +148,8 @@ describe("Pin & add", () => {
     await type(title()!, "Half-written")
     const drawer = host.querySelector(".dr-drawer")!
     await ctrlP()
-    expect(drawer.classList.contains("dr-hidden")).toBe(true)
+    // Stays on screen during the pick, so its own elements can be pinned.
+    expect(drawer.classList.contains("dr-hidden")).toBe(false)
     await pick(toolbarButton("List"))
     expect(host.querySelector(".dr-drawer")).toBe(drawer)
     expect(drawer.classList.contains("dr-hidden")).toBe(false)
@@ -157,6 +158,24 @@ describe("Pin & add", () => {
     expect(inputs).toHaveLength(2)
     expect(pins()).toEqual(["📍 new"])
     expect(document.activeElement).toBe(inputs[1])
+  })
+
+  it("an element of the open drawer is pinned, not acted on", async () => {
+    await act(async () => root.render(<App />))
+    await act(async () => toolbarButton("New point").click())
+    await type(title()!, "Half-written")
+    const drawer = host.querySelector(".dr-drawer")!
+    const cancel = [...drawer.querySelectorAll("button")].find((b) => b.textContent === "Cancel")!
+    await ctrlP()
+    await pick(cancel)
+    // Cancel did not run: no discard prompt, the drawer and its draft remain.
+    expect(host.querySelector(".dr-drawer")).toBe(drawer)
+    expect(drawer.querySelector(".dr-drawer-confirm")).toBeNull()
+    expect(title()!.value).toBe("Half-written")
+    expect(pins()).toEqual(["📍 new"])
+    expect(host.querySelector(".dr-drawer .dr-pin")!.getAttribute("title")).toBe(
+      "New pin: (review tool)"
+    )
   })
 
   it("⌃P does nothing outside review mode", async () => {

@@ -23,7 +23,6 @@ export type PanelProps = {
   onOpenCountChange(n: number): void // feeds the toolbar's List count
   drawer?: ReactNode // the point drawer, laid over everything but the resize edge
   reloadSignal?: number // a change refetches the topic (after a drawer save)
-  picking?: boolean // a pick is running: the list behind a hidden drawer is pickable
 }
 
 type PinAction = void | Promise<string | null | void>
@@ -71,7 +70,6 @@ export function Panel({
   onOpenCountChange,
   drawer,
   reloadSignal,
-  picking,
 }: PanelProps) {
   const preferred = useRef(readPreferredWidth())
   const [width, setWidth] = useState(() => clampWidth(preferred.current))
@@ -144,8 +142,9 @@ export function Panel({
     load()
   }, [reloadSignal, load])
 
-  // The drawer covers the list, except while a pick has it hidden.
-  const covered = Boolean(drawer) && !picking
+  // The drawer covers the list, a pick included (the drawer is what is
+  // pickable then).
+  const covered = Boolean(drawer)
 
   const tally = useMemo(() => counts(points), [points])
   const rows = useMemo(() => flattenRows(points, filter), [points, filter])
