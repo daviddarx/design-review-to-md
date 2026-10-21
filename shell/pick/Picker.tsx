@@ -148,6 +148,9 @@ export function usePicker(frame: HTMLIFrameElement | null): Picker {
   }, [flashKey])
 
   // Resolves with the clicked (or arrow-walked) element, or null on Esc.
+  // Only clicks (the whole pointer sequence), Esc and ↑/↓ are kept from the
+  // app: hover and every other key still reach it, so hover styles show
+  // during a pick and the app's own shortcuts still fire.
   const pickElement = useCallback(
     () =>
       new Promise<Picked | null>((resolve) => {

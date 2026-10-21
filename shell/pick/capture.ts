@@ -48,22 +48,39 @@ function nextFrame(): Promise<void> {
   return new Promise((resolve) => requestAnimationFrame(() => resolve()))
 }
 
+// How long a video may take to show the stream's first frame. A share
+// stopped mid-pick never gets there; the pick then goes on without a picture
+// instead of freezing the tool.
+export const VIDEO_READY_MS = 1500
+
+function withTimeout<T>(promise: Promise<T>, ms: number, what: string): Promise<T> {
+  let id: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<never>((_, reject) => {
+    id = setTimeout(() => reject(new Error(`${what} timed out`)), ms)
+  })
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(id))
+}
+
 async function playing(s: MediaStream): Promise<HTMLVideoElement> {
   if (!video) {
     video = document.createElement("video")
     video.muted = true
     video.playsInline = true
   }
-  if (video.srcObject !== s) video.srcObject = s
-  if (video.readyState < 2 || video.paused) {
-    await new Promise<void>((resolve) => {
-      const v = video!
-      if (v.readyState >= 2) return resolve()
-      v.addEventListener("loadeddata", () => resolve(), { once: true })
-    })
-    await video.play().catch(() => undefined)
+  const v = video
+  if (v.srcObject !== s) v.srcObject = s
+  if (v.readyState < 2 || v.paused) {
+    const ready = (async () => {
+      if (v.readyState < 2) {
+        await new Promise<void>((resolve) =>
+          v.addEventListener("loadeddata", () => resolve(), { once: true })
+        )
+      }
+      await v.play().catch(() => undefined)
+    })()
+    await withTimeout(ready, VIDEO_READY_MS, "Screen capture")
   }
-  return video
+  return v
 }
 
 // A frame captured after the caller's last paint. The tab only produces
@@ -94,6 +111,7 @@ async function freshFrame(v: HTMLVideoElement) {
 // `innerWidth`, so device pixels stay sharp), crops it to `crop` and strokes
 // `outline` in red. Both rects are in the shell window's CSS pixels.
 export async function grabPng(s: MediaStream, crop: DOMRect, outline: DOMRect): Promise<string> {
+  if (!live(s)) throw new Error("Screen sharing has stopped")
   const v = await playing(s)
   await freshFrame(v)
   const scale = v.videoWidth / window.innerWidth || 1
@@ -113,6 +131,7 @@ export async function grabPng(s: MediaStream, crop: DOMRect, outline: DOMRect): 
     canvas.width,
     canvas.height
   )
+  v.pause() // nothing decodes between picks
   ctx.strokeStyle = OUTLINE
   ctx.lineWidth = 2 * scale
   ctx.strokeRect(

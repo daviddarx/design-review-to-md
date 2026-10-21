@@ -195,7 +195,7 @@ export function Panel({
   const withNotice =
     (action: (rowId: string, t: PinTarget) => PinAction) => (rowId: string, t: PinTarget) => {
       Promise.resolve(action(rowId, t)).then(
-        (notice) => notice && setError(notice),
+        (notice) => setError(notice || null), // success clears an old notice
         (err) => setError(message(err))
       )
     }

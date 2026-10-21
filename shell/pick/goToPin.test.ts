@@ -39,3 +39,53 @@ describe("goToPin", () => {
     expect(flash).not.toHaveBeenCalled()
   })
 })
+
+// A frame stand-in: `assign` "navigates" and fires `load` on the next tick.
+function fakeFrame(pathname: string, doc: Document) {
+  const listeners = new Set<() => void>()
+  const location = {
+    pathname,
+    search: "",
+    assign: vi.fn((to: string) => {
+      location.pathname = to
+      setTimeout(() => listeners.forEach((l) => l()), 0)
+    }),
+  }
+  const frame = {
+    contentWindow: { location },
+    contentDocument: doc,
+    addEventListener: (_: string, l: () => void) => listeners.add(l),
+    removeEventListener: (_: string, l: () => void) => listeners.delete(l),
+  }
+  return { frame: frame as unknown as HTMLIFrameElement, location }
+}
+
+describe("goToPin in the frame", () => {
+  const appRecord = (selector: string, path: string): PinRecord => {
+    const r = record(selector, false)
+    r.steps[0].path = path
+    return r
+  }
+
+  it("navigates to another path, waits for load, then finds and outlines", async () => {
+    const doc = document.implementation.createHTMLDocument("app")
+    doc.body.innerHTML = `<button data-slot="go">Go</button>`
+    const el = doc.querySelector("button")!
+    el.scrollIntoView = vi.fn()
+    const { frame, location } = fakeFrame("/elsewhere", doc)
+    const flash = vi.fn()
+    expect(await goToPin(frame, appRecord('[data-slot="go"]', "/tickets"), flash)).toBe("found")
+    expect(location.assign).toHaveBeenCalledWith("/tickets")
+    expect(el.scrollIntoView).toHaveBeenCalledWith({ block: "center" })
+    expect(flash).toHaveBeenCalledWith(el)
+  })
+
+  it("stays on the same path and reports a vanished element as missing", async () => {
+    const doc = document.implementation.createHTMLDocument("app")
+    const { frame, location } = fakeFrame("/tickets", doc)
+    const flash = vi.fn()
+    expect(await goToPin(frame, appRecord("#gone", "/tickets"), flash)).toBe("missing")
+    expect(location.assign).not.toHaveBeenCalled()
+    expect(flash).not.toHaveBeenCalled()
+  }, 6000)
+})

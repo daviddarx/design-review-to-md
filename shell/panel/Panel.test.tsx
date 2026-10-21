@@ -253,6 +253,20 @@ describe("Panel", () => {
     expect(host.querySelector(".dr-error")).toBeNull()
   })
 
+  it("a successful Go to pin clears an earlier notice", async () => {
+    const answers = ["Pinned element not found — the page changed since.", null]
+    await render({ onGoToPin: async () => answers.shift() })
+    const go = [...row("5.c").querySelectorAll("button")].find(
+      (b) => b.textContent === "Go to pin"
+    )!
+    await act(async () => go.click())
+    await act(async () => {})
+    expect(host.querySelector(".dr-error")).not.toBeNull()
+    await act(async () => go.click())
+    await act(async () => {})
+    expect(host.querySelector(".dr-error")).toBeNull()
+  })
+
   it("the restore confirm takes Esc from anywhere inside and blocks V/R/H", async () => {
     await render()
     const restore = [...row("5.c").querySelectorAll("button")].find(

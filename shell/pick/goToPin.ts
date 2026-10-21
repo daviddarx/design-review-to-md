@@ -25,8 +25,18 @@ async function waitFor(find: () => Element | null): Promise<Element | null> {
   }
 }
 
+// The frame's next `load`, or RENDER_WAIT_MS — a navigation that never
+// loads must not hang Go to pin (the element then reads as missing).
 function loaded(frame: HTMLIFrameElement): Promise<void> {
-  return new Promise((resolve) => frame.addEventListener("load", () => resolve(), { once: true }))
+  return new Promise((resolve) => {
+    const done = () => {
+      clearTimeout(id)
+      frame.removeEventListener("load", done)
+      resolve()
+    }
+    const id = setTimeout(done, RENDER_WAIT_MS)
+    frame.addEventListener("load", done)
+  })
 }
 
 // Takes the frame to the pin's page (a real navigation when the path
