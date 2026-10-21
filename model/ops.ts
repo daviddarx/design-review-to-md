@@ -182,5 +182,8 @@ export function newPoint(
   }
   const rowIds: string[] = []
   append(point.rows, rows, String(number), 1, [], rowIds)
+  // A feedback that is only a title is itself the thing to do: it carries
+  // the tag, so it counts, filters and reaches Claude like a row.
+  if (point.rows.length === 0) point.status = "open"
   return { point, rowIds }
 }

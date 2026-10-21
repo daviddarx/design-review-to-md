@@ -79,6 +79,13 @@ describe("ops", () => {
     const b = applyOp(a.point, { kind: "setPin", rowId: "5.a", pin: undefined }, [])
     expect(b.point.rows[0].pin).toBeUndefined()
   })
+  it("newPoint tags a title-only feedback open, and leaves a title with rows untagged", () => {
+    const bare = newPoint(1, "Font weights", []).point
+    expect(bare.status).toBe("open")
+    expect(serializePoint(bare).split("\n")[0]).toBe("# 1. Font weights `open`")
+    expect(newPoint(2, "Nav", [{ text: "a", children: [] }]).point.status).toBeUndefined()
+  })
+
   it("newPoint labels rows and children", () => {
     const { point, rowIds } = newPoint(7, "T", [
       { text: "x", children: [{ text: "y", children: [] }] },

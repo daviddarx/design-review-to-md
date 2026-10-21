@@ -44,6 +44,7 @@ A row with no pin of its own belongs to the pin of its nearest parent.
 ```
 
 - Row line: ``- <label>. <text> `open|review|done` ``. Sub-rows nest two spaces deeper.
+- A feedback with no rows carries the tag on its title line (``# 6. Font weights `open` ``); treat that title as a row.
 - Pin line: `📍 <path> — ![](<folder>/<rowId>-pin.png)`, or just `📍 <path>` when there is no screenshot. A pin on the review tool itself has the path `(review tool)`.
 - `📎 [<file>](<folder>/<file>)` lines are attachments.
 - `Before:` is his earlier wording, `Claude:` is yours. Oldest first, under the row.
