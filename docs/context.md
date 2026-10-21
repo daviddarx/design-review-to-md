@@ -97,3 +97,10 @@ plan beside it.
   "review" for a `docs/review/<name>/` folder and "feedback" for one numbered
   item (＋ New feedback, Feedback 3, Delete feedback). The code, the API
   routes (`/topics`, `/points`) and this record keep `topic` / `point`.
+- **No floating toolbar** (his call: "not useful"). Review mode shows the
+  panel only; ⌃R enters and leaves it, ⌃P is Pin & add (no button for it
+  outside the drawer's 📍). ＋ New feedback sits at the right end of the
+  status filter bar; the shortcut reminder is at the panel's bottom right and
+  opens upward. The panel's open-count callback went with the toolbar.
+- **A title-only feedback is tagged `open` on its title line** at creation,
+  so it counts, filters and reaches Claude like a row (AGENTS.md says so).

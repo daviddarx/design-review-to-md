@@ -62,7 +62,6 @@ describe("usePicker", () => {
     expect(result!.record.steps[0].path).toBe("(review tool)")
     expect(result!.pin).toEqual({ path: "(review tool)" })
     expect(picker.picking).toBe(false)
-    expect(picker.hideToolbar).toBe(false)
     expect(host.querySelector(".dr-picker")!.classList.contains("dr-hidden")).toBe(false)
 
     // Not stuck: the next pick starts.

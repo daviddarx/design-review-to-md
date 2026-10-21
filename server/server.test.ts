@@ -335,7 +335,7 @@ describe("shellBuild", () => {
     const build = createShellBuild()
     try {
       const { js, css } = await build.assets()
-      expect(js).toContain("Design review")
+      expect(js).toContain("New feedback")
       expect(typeof css).toBe("string")
     } finally {
       await build.dispose()

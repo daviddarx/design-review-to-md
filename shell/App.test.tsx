@@ -50,9 +50,9 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-const toolbarButton = (label: string) =>
-  [...host.querySelectorAll<HTMLButtonElement>(".dr-toolbar button")].find((b) =>
-    b.textContent?.startsWith(label)
+const newFeedback = () =>
+  [...host.querySelectorAll<HTMLButtonElement>(".dr-filters button")].find(
+    (b) => b.textContent === "＋ New feedback"
   )!
 const title = () => host.querySelector<HTMLTextAreaElement>(".dr-drawer textarea")
 
@@ -72,10 +72,10 @@ const toggleReview = () =>
 describe("App drawer", () => {
   it("New feedback on an open drawer keeps the draft and focuses it", async () => {
     await act(async () => root.render(<App />))
-    await act(async () => toolbarButton("New feedback").click())
+    await act(async () => newFeedback().click())
     await type(title()!, "Half-written")
     const drawer = host.querySelector(".dr-drawer")
-    await act(async () => toolbarButton("New feedback").click())
+    await act(async () => newFeedback().click())
     expect(host.querySelector(".dr-drawer")).toBe(drawer)
     expect(title()!.value).toBe("Half-written")
     expect(document.activeElement).toBe(title())
@@ -83,10 +83,9 @@ describe("App drawer", () => {
 
   it("leaving review mode hides the drawer without losing the draft", async () => {
     await act(async () => root.render(<App />))
-    await act(async () => toolbarButton("New feedback").click())
+    await act(async () => newFeedback().click())
     await type(title()!, "Half-written")
     await toggleReview()
-    expect(host.querySelector(".dr-toolbar")).toBeNull()
     expect(host.querySelector(".dr-panel-host")!.classList.contains("dr-hidden")).toBe(true)
     expect(title()!.value).toBe("Half-written")
     await toggleReview()
@@ -119,9 +118,10 @@ describe("Pin & add", () => {
     await act(async () => root.render(<App />))
     await ctrlP()
     expect(host.querySelector(".dr-picker-hint")).not.toBeNull()
-    // The click is the pick's: Exit must not run.
-    await pick(toolbarButton("Exit"))
-    expect(host.querySelector(".dr-toolbar")).not.toBeNull()
+    // The click is the pick's: Copy prompt must not run.
+    const copy = [...host.querySelectorAll("button")].find((b) => b.textContent === "Copy prompt")!
+    await pick(copy)
+    expect(copy.textContent).toBe("Copy prompt")
     expect(host.querySelector(".dr-picker-hint")).toBeNull()
     expect(host.querySelector(".dr-drawer")).not.toBeNull()
     expect(pins()).toEqual(["📍 new"])
@@ -132,7 +132,7 @@ describe("Pin & add", () => {
 
   it("Esc cancels the pick", async () => {
     await act(async () => root.render(<App />))
-    await act(async () => toolbarButton("Pin & add").click())
+    await ctrlP()
     expect(host.querySelector(".dr-picker-hint")).not.toBeNull()
     await act(async () => {
       window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))
@@ -144,13 +144,13 @@ describe("Pin & add", () => {
 
   it("with a drawer open, adds a pinned row to it instead of replacing it", async () => {
     await act(async () => root.render(<App />))
-    await act(async () => toolbarButton("New feedback").click())
+    await act(async () => newFeedback().click())
     await type(title()!, "Half-written")
     const drawer = host.querySelector(".dr-drawer")!
     await ctrlP()
     // Stays on screen during the pick, so its own elements can be pinned.
     expect(drawer.classList.contains("dr-hidden")).toBe(false)
-    await pick(toolbarButton("List"))
+    await pick(host.querySelector(".dr-resize")!)
     expect(host.querySelector(".dr-drawer")).toBe(drawer)
     expect(drawer.classList.contains("dr-hidden")).toBe(false)
     expect(title()!.value).toBe("Half-written")
@@ -162,7 +162,7 @@ describe("Pin & add", () => {
 
   it("an element of the open drawer is pinned, not acted on", async () => {
     await act(async () => root.render(<App />))
-    await act(async () => toolbarButton("New feedback").click())
+    await act(async () => newFeedback().click())
     await type(title()!, "Half-written")
     const drawer = host.querySelector(".dr-drawer")!
     const cancel = [...drawer.querySelectorAll("button")].find((b) => b.textContent === "Cancel")!

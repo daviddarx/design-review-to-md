@@ -13,8 +13,6 @@ type Picked = { el: Element; inTool: boolean; mouse: { x: number; y: number } }
 
 export type Picker = {
   picking: boolean
-  // While a frame is grabbed: the toolbar hides unless the pick is inside it.
-  hideToolbar: boolean
   startPick(): Promise<CapturedPin | null>
   cancel(): void
   flash(el: Element): void // Go to pin: outline `el` for FLASH_MS
@@ -95,7 +93,7 @@ function stepOf({ el, inTool, mouse }: Picked): PinStep {
 // DOM is only ever read, never changed.
 export function usePicker(frame: HTMLIFrameElement | null): Picker {
   const [picking, setPicking] = useState(false)
-  const [grab, setGrab] = useState<{ keepToolbar: boolean } | null>(null)
+  const [grab, setGrab] = useState(false)
   const [shown, setShown] = useState<Shown | null>(null)
   const [flashing, setFlashing] = useState(false)
   const [flashKey, setFlashKey] = useState(0)
@@ -242,9 +240,8 @@ export function usePicker(frame: HTMLIFrameElement | null): Picker {
       const outline = shellBox(picked.el, f)
       const off = !picked.inTool && f ? frameBox(f) : { x: 0, y: 0 }
       const click = { x: off.x + picked.mouse.x, y: off.y + picked.mouse.y }
-      // Neither the outline layer nor the toolbar may be in the picture —
-      // unless the picked element is the toolbar's.
-      flushSync(() => setGrab({ keepToolbar: Boolean(picked.el.closest(".dr-toolbar")) }))
+      // The outline layer may not be in the picture.
+      flushSync(() => setGrab(true))
       await nextFrame()
       await nextFrame()
       try {
@@ -252,7 +249,7 @@ export function usePicker(frame: HTMLIFrameElement | null): Picker {
       } catch {
         png = undefined
       } finally {
-        setGrab(null)
+        setGrab(false)
       }
     }
     const found = await source
@@ -319,7 +316,6 @@ export function usePicker(frame: HTMLIFrameElement | null): Picker {
 
   return {
     picking,
-    hideToolbar: Boolean(grab && !grab.keepToolbar),
     startPick,
     cancel,
     flash,

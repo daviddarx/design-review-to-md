@@ -21,7 +21,6 @@ export type PanelProps = {
   onRestoreState(rowId: string, target: PinTarget): PinAction
   onOpenSource(rowId: string, target: PinTarget): PinAction
   onHoverPin(ownerRowId: string, record: PinRecord | null): void // a pinned row's hover, null when it ends
-  onOpenCountChange(n: number): void // feeds the toolbar's List count
   drawer?: ReactNode // the point drawer, laid over everything but the resize edge
   reloadSignal?: number // a change refetches the topic (after a drawer save)
 }
@@ -69,7 +68,6 @@ export function Panel({
   onRestoreState,
   onOpenSource,
   onHoverPin,
-  onOpenCountChange,
   drawer,
   reloadSignal,
 }: PanelProps) {
@@ -150,10 +148,6 @@ export function Panel({
 
   const tally = useMemo(() => counts(points), [points])
   const rows = useMemo(() => flattenRows(points, filter), [points, filter])
-
-  useEffect(() => {
-    onOpenCountChange(tally.open)
-  }, [tally.open, onOpenCountChange])
 
   const loadRecord = useCallback(
     (path: string): Promise<PinRecord | null> => {
@@ -270,9 +264,6 @@ export function Panel({
           onCreate={onCreateTopic}
           onOpen={refreshTopics}
         />
-        <button type="button" className="dr-button" onClick={onNewPoint} disabled={!topic}>
-          ＋ New feedback
-        </button>
         <button
           type="button"
           className="dr-button"
@@ -282,7 +273,6 @@ export function Panel({
         >
           {copied ? "Copied" : "Copy prompt"}
         </button>
-        <ShortcutHelp />
       </header>
 
       <div className="dr-filters" role="radiogroup" aria-label="Filter by status" inert={covered}>
@@ -301,6 +291,14 @@ export function Panel({
             </span>
           </button>
         ))}
+        <button
+          type="button"
+          className="dr-button dr-filters-new"
+          onClick={onNewPoint}
+          disabled={!topic}
+        >
+          ＋ New feedback
+        </button>
       </div>
 
       {(error ?? loadError) && (
@@ -323,9 +321,7 @@ export function Panel({
         {!topic ? (
           <p className="dr-empty">Choose a review, or create one from the menu above.</p>
         ) : !loaded ? null : points.length === 0 ? (
-          <p className="dr-empty">
-            No feedback yet. Add some with ＋ New feedback or Pin &amp; add.
-          </p>
+          <p className="dr-empty">No feedback yet</p>
         ) : rows.length === 0 ? (
           <p className="dr-empty">Nothing here with this status.</p>
         ) : (
@@ -343,6 +339,9 @@ export function Panel({
           />
         )}
       </div>
+      <footer className="dr-panel-foot" inert={covered}>
+        <ShortcutHelp />
+      </footer>
       {drawer}
     </aside>
   )

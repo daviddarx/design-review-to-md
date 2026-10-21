@@ -1,6 +1,6 @@
 const GROUPS: { title: string; keys: [string, string][] }[] = [
   {
-    title: "Toolbar",
+    title: "Review",
     keys: [
       ["⌃R", "Review mode"],
       ["⌃P", "Pin & add"],

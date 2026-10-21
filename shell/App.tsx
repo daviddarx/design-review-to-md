@@ -12,7 +12,6 @@ import { PinMarkers } from "./pick/PinMarkers.tsx"
 import type { Marker } from "./pick/PinMarkers.tsx"
 import { usePicker } from "./pick/Picker.tsx"
 import { readKey, writeKey } from "./prefs.ts"
-import { Toolbar } from "./Toolbar.tsx"
 import { useFrameUrl, initialFrameSrc } from "./useFrameUrl.ts"
 import { useReviewMode } from "./useReviewMode.ts"
 import { useShortcut } from "./useShortcut.ts"
@@ -29,18 +28,15 @@ export function isPinAndAdd(e: KeyboardEvent): boolean {
 }
 
 // The app in a same-origin frame. Review off: the frame fills the window
-// and nothing else shows. Review on: frame + panel side by side, the
-// toolbar floating above the frame. The frame is always the first child,
-// so toggling review mode never remounts (reloads) the app. Once shown, the
-// panel stays mounted — hidden by List and by leaving review mode — so the
-// toolbar's count stays live and an open drawer keeps its draft.
+// and nothing else shows. Review on: frame + panel side by side. The frame
+// is always the first child, so toggling review mode never remounts
+// (reloads) the app. Once shown, the panel stays mounted — hidden when
+// leaving review mode — so an open drawer keeps its draft.
 export function App() {
   const [frame, setFrame] = useState<HTMLIFrameElement | null>(null)
   const [src] = useState(initialFrameSrc)
   const [review, setReview] = useReviewMode(frame)
-  const [listOpen, setListOpen] = useState(true)
   const [topic, setTopic] = useState(() => readKey("topic"))
-  const [openCount, setOpenCount] = useState(0)
   const [drawer, setDrawer] = useState<DrawerState | null>(null)
   const [reloadSignal, setReloadSignal] = useState(0)
   const [drawerFocus, setDrawerFocus] = useState(0)
@@ -59,12 +55,9 @@ export function App() {
     drawerRef.current = drawer
   }, [drawer])
 
-  // The drawer lives inside the panel, so opening it shows the panel. With
-  // no topic yet, New point only reveals the panel, which asks for one. An
-  // open drawer is never replaced (that would throw its draft away): it is
-  // focused instead.
+  // Needs a topic. An open drawer is never replaced (that would throw its
+  // draft away): it is focused instead.
   const openDrawer = (open: { pointNumber?: number; capture?: CapturedPin } = {}) => {
-    setListOpen(true)
     if (drawer) return setDrawerFocus((n) => n + 1)
     if (!topic) return
     setDrawer({ key: ++drawerSeq.current, ...open })
@@ -77,10 +70,9 @@ export function App() {
   // pin — or, with a drawer already open, a new row in it (never a remount,
   // which would throw the draft away).
   const pinAndAdd = () => {
-    if (!topic) return setListOpen(true)
+    if (!topic) return
     void picker.startPick().then((capture) => {
       if (!capture) return
-      setListOpen(true)
       if (drawerRef.current) setAppendCapture({ seq: ++appendSeq.current, capture })
       else setDrawer({ key: ++drawerSeq.current, capture })
     })
@@ -146,11 +138,7 @@ export function App() {
     <div className={review ? "dr-root dr-review" : "dr-root"}>
       <iframe ref={setFrame} className="dr-frame" src={src} title="App under review" />
       {panelMounted && (
-        <div
-          className={["dr-panel-host", !(review && listOpen) && "dr-hidden"]
-            .filter(Boolean)
-            .join(" ")}
-        >
+        <div className={["dr-panel-host", !review && "dr-hidden"].filter(Boolean).join(" ")}>
           <Panel
             topic={topic}
             onTopicChange={setTopic}
@@ -160,7 +148,6 @@ export function App() {
             onRestoreState={onRestoreState}
             onOpenSource={onOpenSource}
             onHoverPin={onHoverPin}
-            onOpenCountChange={setOpenCount}
             reloadSignal={reloadSignal}
             drawer={
               drawer &&
@@ -181,17 +168,6 @@ export function App() {
             }
           />
         </div>
-      )}
-      {review && (
-        <Toolbar
-          bounds={frame}
-          hidden={picker.hideToolbar}
-          onPinAndAdd={pinAndAdd}
-          onNewPoint={() => openDrawer()}
-          onToggleList={() => setListOpen((v) => !v)}
-          onExit={() => setReview(false)}
-          listCount={openCount}
-        />
       )}
       <PinMarkers frame={frame} markers={markers} hidden={!review || picker.picking} />
       {picker.layer}

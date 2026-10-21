@@ -94,7 +94,6 @@ afterEach(() => {
 })
 
 async function render(extra: Partial<PanelProps> = {}) {
-  const onOpenCountChange = vi.fn()
   await act(async () => {
     root.render(
       <Panel
@@ -106,12 +105,10 @@ async function render(extra: Partial<PanelProps> = {}) {
         onRestoreState={() => {}}
         onOpenSource={() => {}}
         onHoverPin={() => {}}
-        onOpenCountChange={onOpenCountChange}
         {...extra}
       />
     )
   })
-  return { onOpenCountChange }
 }
 
 const row = (id: string) => host.querySelector<HTMLElement>(`[data-row-id="${id}"]`)!
@@ -132,15 +129,16 @@ describe("Panel", () => {
     expect(link.target).toBe("_blank")
   })
 
-  it("lists the topic's rows with counts and reports the open count", async () => {
-    const { onOpenCountChange } = await render()
+  it("lists the topic's rows with counts", async () => {
+    await render()
     const ids = [...host.querySelectorAll("[data-row-id]")].map((el) =>
       el.getAttribute("data-row-id")
     )
     expect(ids).toEqual(["5", "5.a", "5.b", "5.c", "5.d"])
-    expect(host.querySelector(".dr-filters")?.textContent).toBe("All 4Open 2To review 1Done 1")
+    expect(host.querySelector(".dr-filters")?.textContent).toBe(
+      "All 4Open 2To review 1Done 1＋ New feedback"
+    )
     expect(row("5.a").textContent).toContain("📍 from 5")
-    expect(onOpenCountChange).toHaveBeenLastCalledWith(2)
   })
 
   it("V on a focused row validates it, then refetches", async () => {
