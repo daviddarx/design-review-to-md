@@ -29,7 +29,15 @@ function safeTopic(name: string): string {
   return trimmed.replace(/ /g, "-")
 }
 
+// Names the pin capture writes; every other asset is an attachment.
+const PIN_ASSETS = new Set(["pin.png", "pin.json", "state.json"])
+
 function safeAssetName(name: string): string {
+  // The picker sends these names exactly; any other spelling of one is an
+  // attachment that would land on (or, case-insensitively, over) a pin file.
+  if (PIN_ASSETS.has(name.toLowerCase()) && !PIN_ASSETS.has(name)) {
+    throw new StorageError(400, `${name}: this name is kept for pins`)
+  }
   if (
     !name ||
     name.includes("/") ||
@@ -72,9 +80,6 @@ function holderOf(point: Point, rowId: string): { pin?: PinRef } | undefined {
   }
   return holder
 }
-
-// Names the pin capture writes; every other asset is an attachment.
-const PIN_ASSETS = new Set(["pin.png", "pin.json", "state.json"])
 
 // Each attachment gets a `📎 [file](folder/file)` line under its row, at the
 // row's text indent (the point's own go in the preamble). The row's text is

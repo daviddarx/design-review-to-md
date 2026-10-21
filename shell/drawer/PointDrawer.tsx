@@ -36,8 +36,10 @@ export type PointDrawerProps = {
   onClose(): void
 }
 
-// The picker writes these names itself; an attachment may not take them.
+// The picker writes these names itself; an attachment may not take them in
+// any case (on a case-insensitive disk "PIN.png" would overwrite "pin.png").
 const RESERVED = new Set(["pin.png", "pin.json", "state.json"])
+const reserved = (f: File) => RESERVED.has(f.name.toLowerCase())
 
 // Focus target meaning "the row focused last, else the first editable row".
 const BACK = "\u0000back"
@@ -233,8 +235,8 @@ export function PointDrawer({
     const id = attachTo.current
     const all = Array.from(e.target.files ?? [])
     e.target.value = ""
-    const refused = all.filter((f) => RESERVED.has(f.name)).map((f) => f.name)
-    const picked = all.filter((f) => !RESERVED.has(f.name))
+    const refused = all.filter(reserved).map((f) => f.name)
+    const picked = all.filter((f) => !reserved(f))
     if (refused.length) {
       setError(
         `${refused.join(", ")}: this name is kept for pins — rename the file and attach it again.`

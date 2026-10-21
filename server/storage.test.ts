@@ -104,6 +104,22 @@ describe("points", () => {
     expect(await fs.readFile(file, "utf8")).toContain("- a. uno `open`")
   })
 
+  it("refuses an attachment spelled like a pin file in another case", async () => {
+    await storage.createTopic("t")
+    for (const name of ["PIN.png", "Pin.Json", "STATE.JSON"]) {
+      await expect(
+        storage.createPoint("t", "Nav", [], undefined, [{ rowId: "$point", name, dataBase64: PNG }])
+      ).rejects.toMatchObject({ status: 400 })
+    }
+    // the picker's own names still go through
+    await storage.createPoint("t", "Nav", [], { path: "/a" }, [
+      { rowId: "$point", name: "pin.png", dataBase64: PNG },
+      { rowId: "$point", name: "pin.json", dataBase64: PNG },
+      { rowId: "$point", name: "state.json", dataBase64: PNG },
+    ])
+    expect(existsSync(path.join(root, "t", "01-nav", "1-state.json"))).toBe(true)
+  })
+
   it("createPoint writes the file and assets", async () => {
     await storage.createTopic("t")
     await fs.writeFile(

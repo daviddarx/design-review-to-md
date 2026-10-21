@@ -191,7 +191,11 @@ describe("PointDrawer", () => {
   it("refuses attachments named like pin assets", async () => {
     await render()
     const input = host.querySelector<HTMLInputElement>("input[type=file]")!
-    const files = [new File(["x"], "pin.png"), new File(["y"], "ok.txt")]
+    const files = [
+      new File(["x"], "pin.png"),
+      new File(["z"], "State.JSON"),
+      new File(["y"], "ok.txt"),
+    ]
     Object.defineProperty(input, "files", { value: files, configurable: true })
     const attach = [...host.querySelectorAll("button")].find((b) =>
       b.textContent?.includes("attach")
@@ -201,7 +205,7 @@ describe("PointDrawer", () => {
       input.dispatchEvent(new Event("change", { bubbles: true }))
       await new Promise((r) => setTimeout(r, 10))
     })
-    expect(host.textContent).toContain("pin.png: this name is kept for pins")
+    expect(host.textContent).toContain("pin.png, State.JSON: this name is kept for pins")
     expect([...host.querySelectorAll(".dr-file")].map((f) => f.textContent)).toEqual(["📎 ok.txt×"])
   })
 
