@@ -93,7 +93,8 @@ export function RowItem({
   }
 
   const onKeyDown = (e: ReactKeyboardEvent<HTMLLIElement>) => {
-    if (isTyping(e.target) || e.ctrlKey || e.metaKey || e.altKey) return
+    // The restore confirm owns the keyboard while it is open.
+    if (confirming || isTyping(e.target) || e.ctrlKey || e.metaKey || e.altKey) return
     const key = e.key.toLowerCase()
     if (key === "v") validate()
     else if (key === "r") startRefine()
@@ -115,7 +116,9 @@ export function RowItem({
   return (
     <li
       ref={liRef}
-      className={`dr-row dr-depth-${row.depth}${busy ? "dr-busy" : ""}`}
+      // Joined, not concatenated: prettier-plugin-tailwindcss trims the
+      // leading space of a class string inside a template literal.
+      className={["dr-row", `dr-depth-${row.depth}`, busy && "dr-busy"].filter(Boolean).join(" ")}
       data-row-id={row.rowId}
       tabIndex={0}
       onKeyDown={onKeyDown}
@@ -251,7 +254,18 @@ export function RowItem({
       )}
 
       {confirming && owner && (
-        <div className="dr-confirm" role="alertdialog" aria-label="Restore state">
+        <div
+          className="dr-confirm"
+          role="alertdialog"
+          aria-label="Restore state"
+          onKeyDown={(e) => {
+            if (e.key !== "Escape") return
+            e.preventDefault()
+            e.stopPropagation()
+            setConfirming(false)
+            e.currentTarget.closest("li")?.focus()
+          }}
+        >
           <span>Replace the app's current localStorage with the state saved at {owner.rowId}?</span>
           <span className="dr-confirm-actions">
             <button
@@ -269,7 +283,6 @@ export function RowItem({
               className="dr-button"
               autoFocus
               onClick={() => setConfirming(false)}
-              onKeyDown={(e) => e.key === "Escape" && setConfirming(false)}
             >
               Cancel
             </button>

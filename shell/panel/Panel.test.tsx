@@ -21,6 +21,10 @@ const SPEC = `# 5. Main navigation
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 class FakeEventSource {
+  static last: FakeEventSource | null = null
+  constructor() {
+    FakeEventSource.last = this
+  }
   onopen: (() => void) | null = null
   onmessage: ((e: { data: string }) => void) | null = null
   close() {}
@@ -32,6 +36,15 @@ let root: Root
 let host: HTMLDivElement
 let calls: Call[]
 let opStatus: number
+let topicStatus: number
+// One-shot: the next request to a URL answers with this promise instead.
+let held: Map<string, Promise<Response>>
+
+function deferred() {
+  let resolve!: (r: Response) => void
+  const promise = new Promise<Response>((r) => (resolve = r))
+  return { promise, resolve }
+}
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -43,14 +56,23 @@ function json(data: unknown, status = 200) {
 beforeEach(() => {
   calls = []
   opStatus = 200
+  topicStatus = 200
+  held = new Map()
+  localStorage.clear()
   vi.stubGlobal("EventSource", FakeEventSource)
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
       const method = init?.method ?? "GET"
       calls.push({ url, method, body: init?.body ? JSON.parse(String(init.body)) : undefined })
+      const hold = held.get(url)
+      if (hold) {
+        held.delete(url)
+        return hold
+      }
       if (url === "/__review/api/topics") return json(["08.4"])
       if (url === "/__review/api/topics/08.4") {
+        if (topicStatus !== 200) return json({ error: "cannot read topic" }, topicStatus)
         return json({ meta: { nextPoint: 6, retired: [] }, points: [parsePoint(SPEC)] })
       }
       if (url.endsWith("/ops")) {
@@ -166,5 +188,83 @@ describe("Panel", () => {
     row("5.a").focus()
     await act(async () => key(row("5.a"), "ArrowDown"))
     expect(document.activeElement).toBe(row("5.b"))
+  })
+
+  it("a busy row keeps its depth class and gains dr-busy", async () => {
+    await render()
+    const op = deferred()
+    held.set("/__review/api/topics/08.4/points/5/ops", op.promise)
+    await act(async () => key(row("5.b"), "v"))
+    expect(row("5.b").classList.contains("dr-depth-1")).toBe(true)
+    expect(row("5.b").classList.contains("dr-busy")).toBe(true)
+    await act(async () => op.resolve(json({})))
+    expect(row("5.b").classList.contains("dr-busy")).toBe(false)
+  })
+
+  it("a pin-record fetch overtaken by a reload does not refill the cache", async () => {
+    await render()
+    const record = deferred()
+    held.set("/__review/files/08.4/05-main-navigation/5.c-pin.json", record.promise)
+    await act(async () => row("5.c").dispatchEvent(new MouseEvent("mouseover", { bubbles: true })))
+    expect(calls.some((c) => c.url.endsWith("5.c-pin.json"))).toBe(true)
+    await act(async () => FakeEventSource.last!.onmessage!({ data: '{"topic":"08.4"}' }))
+    const source = { file: "src/x.tsx", line: 3 }
+    const step = { element: { source } }
+    await act(async () => record.resolve(json({ version: 1, at: "", steps: [step] })))
+    expect(row("5.c").textContent).not.toContain("Open in VS Code")
+  })
+
+  it("a successful load clears an earlier load error", async () => {
+    topicStatus = 500
+    await render()
+    expect(host.querySelector(".dr-error")?.textContent).toContain("cannot read topic")
+    topicStatus = 200
+    await act(async () => FakeEventSource.last!.onmessage!({ data: '{"topic":"08.4"}' }))
+    expect(host.querySelector(".dr-error")).toBeNull()
+  })
+
+  it("the restore confirm takes Esc from anywhere inside and blocks V/R/H", async () => {
+    await render()
+    const restore = [...row("5.c").querySelectorAll("button")].find(
+      (b) => b.textContent === "Restore state"
+    )!
+    await act(async () => restore.click())
+    const confirm = row("5.c").querySelector<HTMLElement>(".dr-confirm")!
+    const primary = confirm.querySelector<HTMLElement>(".dr-button-primary")!
+    await act(async () => key(primary, "v"))
+    await act(async () => key(primary, "r"))
+    expect(opCalls()).toEqual([])
+    expect(row("5.c").querySelector("textarea")).toBeNull()
+    await act(async () => key(primary, "Escape"))
+    expect(row("5.c").querySelector(".dr-confirm")).toBeNull()
+  })
+
+  it("a narrow window shows a narrower panel but keeps the stored width", async () => {
+    localStorage.setItem("design-review:panel-width", "600")
+    const innerWidth = window.innerWidth
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 500 })
+    try {
+      await render()
+      await act(async () => window.dispatchEvent(new Event("resize")))
+      expect(host.querySelector<HTMLElement>(".dr-panel")!.style.width).toBe("350px")
+      expect(localStorage.getItem("design-review:panel-width")).toBe("600")
+    } finally {
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: innerWidth })
+    }
+  })
+
+  it("a drag stores the new width", async () => {
+    await render()
+    const handle = host.querySelector<HTMLElement>(".dr-resize")!
+    const pointer = (type: string, clientX: number) =>
+      handle.dispatchEvent(
+        new PointerEvent(type, { bubbles: true, button: 0, pointerId: 1, clientX })
+      )
+    await act(async () => {
+      pointer("pointerdown", window.innerWidth - 400)
+      pointer("pointermove", window.innerWidth - 500)
+      pointer("pointerup", window.innerWidth - 500)
+    })
+    expect(localStorage.getItem("design-review:panel-width")).toBe("500")
   })
 })

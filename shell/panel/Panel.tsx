@@ -32,9 +32,11 @@ function clampWidth(w: number) {
   return Math.min(Math.max(MIN_WIDTH, Math.round(w)), maxWidth())
 }
 
-function readWidth(): number {
+// The width he chose; the window only ever narrows what is shown, never
+// what is stored.
+function readPreferredWidth(): number {
   const stored = Number(readKey("panel-width"))
-  return clampWidth(Number.isFinite(stored) && stored > 0 ? stored : DEFAULT_WIDTH)
+  return Number.isFinite(stored) && stored > 0 ? stored : DEFAULT_WIDTH
 }
 
 const FILTERS: { value: Filter; label: string }[] = [
@@ -61,24 +63,29 @@ export function Panel({
   onOpenSource,
   onOpenCountChange,
 }: PanelProps) {
-  const [width, setWidth] = useState(readWidth)
+  const preferred = useRef(readPreferredWidth())
+  const [width, setWidth] = useState(() => clampWidth(preferred.current))
   const [topics, setTopics] = useState<string[]>([])
   const [points, setPoints] = useState<Point[]>([])
   const [loaded, setLoaded] = useState(false)
   const [filter, setFilter] = useState<Filter>("all")
   const [error, setError] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null) // cleared by the next good load
   const [copied, setCopied] = useState(false)
   const [records, setRecords] = useState<Record<string, PinRecord | null>>({})
   const inflight = useRef(new Map<string, Promise<PinRecord | null>>())
   const loadSeq = useRef(0)
+  const cacheGen = useRef(0) // bumped whenever the pin-record cache is dropped
   const drag = useRef(false)
 
-  useEffect(() => {
-    writeKey("panel-width", String(width))
-  }, [width])
+  const setPreferredWidth = (w: number) => {
+    preferred.current = clampWidth(w)
+    setWidth(preferred.current)
+  }
+  const persistWidth = () => writeKey("panel-width", String(preferred.current))
 
   useEffect(() => {
-    const onResize = () => setWidth((w) => clampWidth(w))
+    const onResize = () => setWidth(clampWidth(preferred.current))
     window.addEventListener("resize", onResize)
     return () => window.removeEventListener("resize", onResize)
   }, [])
@@ -98,11 +105,13 @@ export function Panel({
         if (seq !== loadSeq.current) return
         setPoints(data.points)
         setLoaded(true)
+        setLoadError(null)
+        cacheGen.current++
         setRecords({})
         inflight.current.clear()
       },
       (err) => {
-        if (seq === loadSeq.current) setError(message(err))
+        if (seq === loadSeq.current) setLoadError(message(err))
       }
     )
   }, [topic])
@@ -112,6 +121,7 @@ export function Panel({
     setPoints([])
     setLoaded(false)
     setError(null)
+    setLoadError(null)
     load()
   }, [load])
 
@@ -129,11 +139,13 @@ export function Panel({
       if (!topic) return Promise.resolve(null)
       const pending = inflight.current.get(path)
       if (pending) return pending
+      // A fetch overtaken by a reload must not refill the cache it cleared.
+      const gen = cacheGen.current
       const promise = fetch(fileUrl(topic, path))
         .then((res) => (res.ok ? (res.json() as Promise<PinRecord>) : null))
         .catch(() => null)
         .then((record) => {
-          setRecords((r) => ({ ...r, [path]: record }))
+          if (gen === cacheGen.current) setRecords((r) => ({ ...r, [path]: record }))
           return record
         })
       inflight.current.set(path, promise)
@@ -194,9 +206,10 @@ export function Panel({
     e.currentTarget.setPointerCapture(e.pointerId)
   }
   const onResizeMove = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (drag.current) setWidth(clampWidth(window.innerWidth - e.clientX))
+    if (drag.current) setPreferredWidth(window.innerWidth - e.clientX)
   }
   const onResizeEnd = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (drag.current) persistWidth()
     drag.current = false
     if (e.currentTarget.hasPointerCapture(e.pointerId)) {
       e.currentTarget.releasePointerCapture(e.pointerId)
@@ -214,7 +227,10 @@ export function Panel({
         onPointerMove={onResizeMove}
         onPointerUp={onResizeEnd}
         onPointerCancel={onResizeEnd}
-        onDoubleClick={() => setWidth(clampWidth(DEFAULT_WIDTH))}
+        onDoubleClick={() => {
+          setPreferredWidth(DEFAULT_WIDTH)
+          persistWidth()
+        }}
       />
 
       <header className="dr-panel-head">
@@ -258,10 +274,17 @@ export function Panel({
         ))}
       </div>
 
-      {error && (
+      {(error ?? loadError) && (
         <div className="dr-error" role="alert">
-          <span>{error}</span>
-          <button type="button" aria-label="Dismiss" onClick={() => setError(null)}>
+          <span>{error ?? loadError}</span>
+          <button
+            type="button"
+            aria-label="Dismiss"
+            onClick={() => {
+              setError(null)
+              setLoadError(null)
+            }}
+          >
             ×
           </button>
         </div>
