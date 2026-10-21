@@ -3,7 +3,7 @@ import type { HistoryEntry, PinRef, Point, Row, Status } from "./types.ts"
 const TITLE = /^# (\d+)\. (.*?)(?: `(open|review|done)`)?$/
 const ROW = /^(\s*)- ([a-z]+|\d+)\. (.*?)(?: `(open|review|done)`)?$/
 const HISTORY = /^(\s*)- (Before|Claude): (.*)$/
-const PIN = /^(\s*)📍 (.*?) — !\[\]\((.*)\)$/
+const PIN = /^(\s*)📍 (.*?)(?: — !\[\]\((.*)\))?$/
 
 type Open = { row: Row; indent: number }
 
@@ -63,7 +63,7 @@ export function parsePoint(md: string): Point {
     const history = HISTORY.exec(line)
     const owner = ownerOf(pin ? pin[1].length : (history?.[1].length ?? 0))
     if (pin) {
-      const ref: PinRef = { path: pin[2], screenshot: pin[3] }
+      const ref: PinRef = pin[3] ? { path: pin[2], screenshot: pin[3] } : { path: pin[2] }
       if (owner) owner.pin = ref
       else point.pin = ref
     } else if (history) {
@@ -88,7 +88,7 @@ export function parsePoint(md: string): Point {
 }
 
 function pinLine(pin: PinRef, indent: string): string {
-  return `${indent}📍 ${pin.path} — ![](${pin.screenshot})`
+  return `${indent}📍 ${pin.path}${pin.screenshot ? ` — ![](${pin.screenshot})` : ""}`
 }
 
 function historyLines(history: HistoryEntry[], indent: string): string[] {

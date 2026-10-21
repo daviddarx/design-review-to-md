@@ -157,6 +157,23 @@ describe("applyOp", () => {
     expect(existsSync(path.join(root, "t", "01-nav", "1.b.1-b.png"))).toBe(true)
   })
 
+  it("a re-pin without a picture writes a bare pin line and drops the old png", async () => {
+    await storage.createTopic("t")
+    await storage.createPoint("t", "Nav", [], { path: "/a" }, [
+      { rowId: "$point", name: "pin.png", dataBase64: PNG },
+    ])
+    expect(await fs.readFile(path.join(root, "t", "01-nav.md"), "utf8")).toContain(
+      "📍 /a — ![](01-nav/1-pin.png)"
+    )
+    await storage.applyOp("t", 1, { kind: "setPin", rowId: "1", pin: { path: "/b" } }, [
+      { rowId: "1", name: "pin.json", dataBase64: PNG },
+    ])
+    const md = await fs.readFile(path.join(root, "t", "01-nav.md"), "utf8")
+    expect(md).toContain("📍 /b\n")
+    expect(existsSync(path.join(root, "t", "01-nav", "1-pin.png"))).toBe(false)
+    expect(existsSync(path.join(root, "t", "01-nav", "1-pin.json"))).toBe(true)
+  })
+
   it("links every attachment under its row, and the link round-trips", async () => {
     await storage.createTopic("t")
     await storage.createPoint("t", "Nav", [row("one", [row("kid")]), row("two")], undefined, [

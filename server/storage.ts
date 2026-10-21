@@ -327,6 +327,13 @@ export class Storage {
       await this.writeAssets(dir, folder, mapped)
       if (op.kind === "setPin" && !op.pin) {
         await this.removeAssets(dir, folder, [`${op.rowId}-pin.`])
+      } else if (
+        op.kind === "setPin" &&
+        !op.pin?.screenshot &&
+        !mapped.some((a) => a.rowId === op.rowId && a.name === "pin.png")
+      ) {
+        // Re-pinned without a picture: the old one shows somewhere else.
+        await this.removeAssets(dir, folder, [`${op.rowId}-pin.png`])
       }
       if (result.deletedRowIds.length) {
         await this.removeAssets(

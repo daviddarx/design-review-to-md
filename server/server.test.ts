@@ -178,7 +178,11 @@ describe("api", () => {
     const topic = JSON.parse((await request("GET", "/__review/api/topics/my-topic")).body)
     expect(topic.meta).toEqual({ nextPoint: 2, retired: [] })
     expect(topic.points).toHaveLength(1)
-    expect(topic.points[0]).toMatchObject({ number: 1, title: "Header spacing" })
+    expect(topic.points[0]).toMatchObject({
+      number: 1,
+      title: "Header spacing",
+      folder: "01-header-spacing",
+    })
     expect(topic.points[0].rows[0]).toMatchObject({ label: "a", text: "Too tight" })
 
     const file = await request("GET", "/__review/files/my-topic/01-header-spacing/1.a-note.txt")

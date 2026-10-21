@@ -1,6 +1,8 @@
 export type Status = "open" | "review" | "done"
 export type HistoryEntry = { kind: "before" | "claude"; text: string }
-export type PinRef = { path: string; screenshot: string } // as written on the 📍 line
+// As written on the 📍 line. No screenshot when screen capture was refused:
+// the line is then `📍 <path>` alone.
+export type PinRef = { path: string; screenshot?: string }
 export type Row = {
   label: string // "a" | "1" — the row's own segment
   text: string
@@ -18,6 +20,7 @@ export type Point = {
   history: HistoryEntry[]
   preamble: string[] // unrecognised lines between title/pin and the first row
   rows: Row[]
+  folder?: string // the point's asset folder; set by the API, never in the markdown
 }
 export type TopicMeta = { nextPoint: number; retired: string[] }
 export type PinStep = {

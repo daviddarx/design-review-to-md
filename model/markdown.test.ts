@@ -79,4 +79,18 @@ A note before the rows.
     expect(p.rows[1].children[1].status).toBe("review")
     expect(serializePoint(p)).toBe(md)
   })
+
+  it("a pin without a screenshot round-trips", () => {
+    const md = `# 1. T
+
+📍 /concept-08-4/tickets
+
+- a. one \`open\`
+  📍 (review tool)
+`
+    const p = parsePoint(md)
+    expect(p.pin).toEqual({ path: "/concept-08-4/tickets" })
+    expect(p.rows[0].pin).toEqual({ path: "(review tool)" })
+    expect(serializePoint(p)).toBe(md)
+  })
 })

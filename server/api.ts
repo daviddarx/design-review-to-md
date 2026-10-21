@@ -119,7 +119,12 @@ export async function handleApi(
 
   if (parts.length === 2 && method === "GET") {
     const { meta, points } = await storage.readTopic(topic)
-    return sendJson(res, 200, { meta, points: points.map((p) => p.point) })
+    // `folder` lets the shell find a pin's record and state when the pin
+    // line has no screenshot to derive it from.
+    return sendJson(res, 200, {
+      meta,
+      points: points.map((p) => ({ ...p.point, folder: p.file.replace(/\.md$/, "") })),
+    })
   }
   if (sub === "points") {
     if (parts.length === 3 && method === "POST") {

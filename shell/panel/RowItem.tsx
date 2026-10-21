@@ -83,7 +83,7 @@ export function RowItem({
     return {
       ownerRowId: owner.rowId,
       pin: owner.pin,
-      recordPath: pinRecordPath(owner.pin, owner.rowId),
+      recordPath: pinRecordPath(owner.pin, owner.rowId, row.folder),
       record: rec,
     }
   }
@@ -216,14 +216,16 @@ export function RowItem({
               <button type="button" title="Go to pin" onClick={withTarget(onGoToPin)}>
                 Go to pin
               </button>
-              <button
-                type="button"
-                title="Screenshot"
-                aria-expanded={shotOpen}
-                onClick={() => setShotOpen((v) => !v)}
-              >
-                Screenshot
-              </button>
+              {owner.pin.screenshot && (
+                <button
+                  type="button"
+                  title="Screenshot"
+                  aria-expanded={shotOpen}
+                  onClick={() => setShotOpen((v) => !v)}
+                >
+                  Screenshot
+                </button>
+              )}
               <button type="button" title="Restore state" onClick={() => setConfirming(true)}>
                 Restore state
               </button>
@@ -253,7 +255,7 @@ export function RowItem({
         </ul>
       )}
 
-      {shotOpen && owner && (
+      {shotOpen && owner?.pin.screenshot && (
         <a
           className="dr-shot"
           href={fileUrl(topic, owner.pin.screenshot)}

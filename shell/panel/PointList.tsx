@@ -40,7 +40,7 @@ export function PointList({ rows, records, onLoadRecord, onOp, ...rest }: PointL
         const ownerId = row.pin ? row.rowId : row.inheritedPinFrom
         const ownerPin = ownerId ? byId.get(ownerId)?.pin : undefined
         const owner = ownerId && ownerPin ? { rowId: ownerId, pin: ownerPin } : undefined
-        const path = owner ? pinRecordPath(owner.pin, owner.rowId) : ""
+        const path = owner ? pinRecordPath(owner.pin, owner.rowId, row.folder) : ""
         return (
           <RowItem
             key={row.rowId}

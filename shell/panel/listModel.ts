@@ -11,6 +11,7 @@ export type FlatRow = {
   history: HistoryEntry[]
   inheritedPinFrom?: string // nearest pinned ancestor, when the row has no pin of its own
   attachments: Attachment[] // the row's `📎 [name](path)` lines
+  folder?: string // the point's asset folder, when the API sent it
 }
 
 export type Attachment = { name: string; path: string } // path relative to the topic
@@ -66,9 +67,14 @@ function rowNode(row: Row, id: string, depth: 1 | 2, pinnedAbove?: string): Node
   }
 }
 
+function withFolder(node: Node, folder: string) {
+  node.row.folder = folder
+  node.children.forEach((c) => withFolder(c, folder))
+}
+
 function pointNode(p: Point): Node {
   const id = String(p.number)
-  return {
+  const node: Node = {
     row: {
       rowId: id,
       depth: 0,
@@ -80,6 +86,8 @@ function pointNode(p: Point): Node {
     },
     children: p.rows.map((r) => rowNode(r, `${id}.${r.label}`, 1, p.pin ? id : undefined)),
   }
+  if (p.folder) withFolder(node, p.folder)
+  return node
 }
 
 // A node survives a status filter when it matches or any descendant does,
@@ -112,12 +120,17 @@ export function counts(points: Point[]): Record<Status, number> {
 }
 
 // The md carries only the screenshot; the pin record sits beside it in the
-// point's asset folder, named after the row that owns the pin.
-export function pinRecordPath(pin: PinRef, ownerRowId: string): string {
-  const slash = pin.screenshot.lastIndexOf("/")
-  const folder = slash === -1 ? "" : pin.screenshot.slice(0, slash + 1)
-  return `${folder}${ownerRowId}-pin.json`
+// point's asset folder, named after the row that owns the pin. A pin with
+// no screenshot falls back on the folder the API reported.
+export function pinRecordPath(pin: PinRef, ownerRowId: string, folder?: string): string {
+  const shot = pin.screenshot ?? ""
+  const slash = shot.lastIndexOf("/")
+  const dir = slash !== -1 ? shot.slice(0, slash + 1) : folder ? `${folder}/` : ""
+  return `${dir}${ownerRowId}-pin.json`
 }
+
+// The localStorage snapshot beside a pin record.
+export const statePathOf = (recordPath: string) => recordPath.replace(/-pin\.json$/, "-state.json")
 
 // "New topic…" suggestion from the frame's first path segment:
 // `/concept-08-4/x` → `08.4`.
