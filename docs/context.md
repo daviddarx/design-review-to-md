@@ -44,7 +44,7 @@ plan beside it.
 - **Shortcuts: ⌃R** toggles review mode (caught in the shell and the iframe
   document); **⌃P** is Pin & add, works in text fields too, and with a drawer
   open it appends a pinned top-level row instead of opening a second drawer.
-- **Pin line without image.** If screen capture is refused or unsupported the pin
+- **Pin line without image.** If the screenshot render fails or times out the pin
   is still recorded: `📍 <path>` alone. `(review tool)` is the path for pins on
   the tool's own UI.
 - **Attachments** are linked by the server as `📎 [<file>](<folder>/<file>)` on
@@ -72,3 +72,9 @@ plan beside it.
   `CLAUDE.md` points to it. This tool gets no `version-history.md` section.
 - **Self-review topic:** `docs/review/design-review-tool/` holds the tool's own
   feedback, starting from an empty `topic.json`.
+- **Screenshots are rendered from the DOM** (`modern-screenshot`), not captured
+  from the screen: `getDisplayMedia` made Chrome ask to share the tab and then
+  pin a "Sharing this tab" bar to the window, which he ruled out. The cost is
+  fidelity — the picture is a re-render, so a font, image or canvas the
+  library cannot embed can differ from the screen. The app and the shell are
+  rendered separately and composited; capped at 5 s.

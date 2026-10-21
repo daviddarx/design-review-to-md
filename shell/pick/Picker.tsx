@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import type { ReactNode } from "react"
 import { flushSync } from "react-dom"
 import type { PinRecord, PinStep } from "../../model/types.ts"
-import { ensureStream, grabPng, snapshotLocalStorage } from "./capture.ts"
+import { grabPng, snapshotLocalStorage } from "./capture.ts"
 import type { CapturedPin } from "./capture.ts"
 import { componentName, describe, uniqueSelector } from "./inspect.ts"
 import { clearSourceCache, sourceOf } from "../source/sourceLookup.ts"
@@ -224,7 +224,7 @@ export function usePicker(frame: HTMLIFrameElement | null): Picker {
     []
   )
 
-  const capture = useCallback(async (picked: Picked, stream: MediaStream | null) => {
+  const capture = useCallback(async (picked: Picked) => {
     const step = stepOf(picked)
     // Runs beside the screenshot; bounded, so it never holds the pin up.
     // Fresh maps every pick: the app may have changed since the last one.
@@ -234,7 +234,7 @@ export function usePicker(frame: HTMLIFrameElement | null): Picker {
     const state = snapshotLocalStorage()
     let png: string | undefined
     const f = frameRef.current
-    if (stream && (picked.inTool || f)) {
+    if (picked.inTool || f) {
       const crop: Box =
         picked.inTool || !f
           ? { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight }
@@ -246,7 +246,7 @@ export function usePicker(frame: HTMLIFrameElement | null): Picker {
       await nextFrame()
       await nextFrame()
       try {
-        png = await grabPng(stream, rect(crop), rect(outline))
+        png = await grabPng(f, picked.inTool || !f, rect(crop), rect(outline))
       } catch {
         png = undefined
       } finally {
@@ -261,21 +261,12 @@ export function usePicker(frame: HTMLIFrameElement | null): Picker {
   const startPick = useCallback((): Promise<CapturedPin | null> => {
     if (active.current) return Promise.resolve(null)
     active.current = true
-    // Asked inside the gesture that started the pick (getDisplayMedia
-    // needs it); refused or unsupported, pins go on without a picture.
-    const streamReady = ensureStream()
-    let cancelled = false
-    cancelRef.current = () => {
-      cancelled = true
-    }
     return (async () => {
       try {
-        const stream = await streamReady
-        if (cancelled) return null
         hovered.current = null
         setPicking(true)
         const picked = await pickElement()
-        return picked ? await capture(picked, stream) : null
+        return picked ? await capture(picked) : null
       } finally {
         hovered.current = null
         setPicking(false)

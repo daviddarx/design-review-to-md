@@ -1,6 +1,6 @@
 export type Status = "open" | "review" | "done"
 export type HistoryEntry = { kind: "before" | "claude"; text: string }
-// As written on the 📍 line. No screenshot when screen capture was refused:
+// As written on the 📍 line. No screenshot when the render failed:
 // the line is then `📍 <path>` alone.
 export type PinRef = { path: string; screenshot?: string }
 export type Row = {

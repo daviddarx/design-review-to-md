@@ -68,8 +68,7 @@ export function App() {
 
   // Pin & add: pick first, then a new point whose title row carries the
   // pin — or, with a drawer already open, a new row in it (never a remount,
-  // which would throw the draft away). The pick starts synchronously inside
-  // the gesture, as screen capture requires.
+  // which would throw the draft away).
   const pinAndAdd = () => {
     if (!topic) return setListOpen(true)
     void picker.startPick().then((capture) => {

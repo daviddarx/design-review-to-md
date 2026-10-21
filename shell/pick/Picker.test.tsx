@@ -1,9 +1,16 @@
 // @vitest-environment dr-happy-dom
 import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { CapturedPin } from "./capture.ts"
 import { usePicker, type Picker } from "./Picker.tsx"
+
+// A render that fails — a stalled font or image fetch ends the same way.
+vi.mock("modern-screenshot", () => ({
+  domToCanvas: async () => {
+    throw new Error("render failed")
+  },
+}))
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 let root: Root
@@ -23,14 +30,6 @@ function Harness() {
 }
 
 beforeEach(() => {
-  // A share that looks live but whose video never shows a frame — what a
-  // "Stop sharing" between pick start and click leaves behind.
-  const stream = new MediaStream()
-  Object.assign(stream, { getVideoTracks: () => [{ readyState: "live" }] })
-  Object.defineProperty(navigator, "mediaDevices", {
-    configurable: true,
-    value: { getDisplayMedia: async () => stream },
-  })
   host = document.createElement("div")
   document.body.append(host)
   root = createRoot(host)
@@ -39,11 +38,10 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   host.remove()
-  delete (navigator as { mediaDevices?: unknown }).mediaDevices
 })
 
 describe("usePicker", () => {
-  it("a video that never loads yields a pin without png, and the picker recovers", async () => {
+  it("a failed render yields a pin without png, and the picker recovers", async () => {
     await act(async () => root.render(<Harness />))
     let pending!: Promise<CapturedPin | null>
     await act(async () => {

@@ -1,57 +1,17 @@
-// Real pixels of the tab via getDisplayMedia, and the app's localStorage.
+// A picture of what is on screen, rendered from the DOM, and the app's
+// localStorage.
+import { domToCanvas } from "modern-screenshot"
 import type { PinRecord, PinRef } from "../../model/types.ts"
 
-// What a pick hands back. No `png` when screen capture was refused or is
-// unavailable: the pin still records where and what, just without a picture.
+// What a pick hands back. No `png` when the render failed or timed out: the
+// pin still records where and what, just without a picture.
 export type CapturedPin = { pin: PinRef; record: PinRecord; png?: string; state: string }
 
 const OUTLINE = "#e11d48"
 
-let stream: MediaStream | null = null
-let pending: Promise<MediaStream | null> | null = null
-let refused = false
-let video: HTMLVideoElement | null = null
-
-const live = (s: MediaStream | null) =>
-  Boolean(s && s.getVideoTracks().some((t) => t.readyState === "live"))
-
-// One getDisplayMedia per shell session, kept for reuse (it survives frame
-// reloads and HMR, since it lives in the shell). Must be called inside the
-// click or keydown that started the pick: the browser wants a user gesture.
-// A refusal is remembered for the session; a stream he stopped sharing is
-// asked for again.
-export function ensureStream(): Promise<MediaStream | null> {
-  if (live(stream)) return Promise.resolve(stream)
-  if (pending) return pending
-  if (refused || !navigator.mediaDevices?.getDisplayMedia) return Promise.resolve(null)
-  stream = null
-  const options = { video: true, audio: false, preferCurrentTab: true } as DisplayMediaStreamOptions
-  pending = navigator.mediaDevices
-    .getDisplayMedia(options)
-    .then(
-      (s) => {
-        stream = s
-        return s
-      },
-      () => {
-        refused = true
-        return null
-      }
-    )
-    .finally(() => {
-      pending = null
-    })
-  return pending
-}
-
-function nextFrame(): Promise<void> {
-  return new Promise((resolve) => requestAnimationFrame(() => resolve()))
-}
-
-// How long a video may take to show the stream's first frame. A share
-// stopped mid-pick never gets there; the pick then goes on without a picture
-// instead of freezing the tool.
-export const VIDEO_READY_MS = 1500
+// A capture that has not finished by then (a stalled image or font fetch) is
+// given up: the pin goes on without a picture instead of freezing the tool.
+export const CAPTURE_MS = 5000
 
 function withTimeout<T>(promise: Promise<T>, ms: number, what: string): Promise<T> {
   let id: ReturnType<typeof setTimeout> | undefined
@@ -61,69 +21,58 @@ function withTimeout<T>(promise: Promise<T>, ms: number, what: string): Promise<
   return Promise.race([promise, timeout]).finally(() => clearTimeout(id))
 }
 
-async function playing(s: MediaStream): Promise<HTMLVideoElement> {
-  if (!video) {
-    video = document.createElement("video")
-    video.muted = true
-    video.playsInline = true
-  }
-  const v = video
-  if (v.srcObject !== s) v.srcObject = s
-  if (v.readyState < 2 || v.paused) {
-    const ready = (async () => {
-      if (v.readyState < 2) {
-        await new Promise<void>((resolve) =>
-          v.addEventListener("loadeddata", () => resolve(), { once: true })
-        )
-      }
-      await v.play().catch(() => undefined)
-    })()
-    await withTimeout(ready, VIDEO_READY_MS, "Screen capture")
-  }
-  return v
+// What `doc` shows in its window, rendered from the DOM rather than from the
+// screen (screen capture made Chrome ask to share the tab and then pinned its
+// "Sharing this tab" bar to the window). Inner scroll positions are kept.
+function renderViewport(doc: Document, scale: number, skip?: Element): Promise<HTMLCanvasElement> {
+  const win = doc.defaultView
+  if (!win) return Promise.reject(new Error("Document has no window"))
+  return domToCanvas(doc.documentElement, {
+    width: win.innerWidth,
+    height: win.innerHeight,
+    scale,
+    timeout: CAPTURE_MS,
+    features: { restoreScrollPosition: true },
+    filter: skip ? (node) => node !== skip : null,
+  })
 }
 
-// A frame captured after the caller's last paint. The tab only produces
-// frames when something changes on screen, so a still page may never call
-// back: the wait is bounded by a few animation frames instead.
-async function freshFrame(v: HTMLVideoElement) {
-  const withCallback = v as HTMLVideoElement & {
-    requestVideoFrameCallback?: (cb: () => void) => number
+// The app's viewport, or with `withShell` the whole tool window with the
+// app's render laid over the frame's box (the library cannot see into it on
+// its own terms). Cropped to `crop` with `outline` stroked in red; both rects
+// are in the shell window's CSS pixels.
+export async function grabPng(
+  frame: HTMLIFrameElement | null,
+  withShell: boolean,
+  crop: DOMRect,
+  outline: DOMRect
+): Promise<string> {
+  const scale = window.devicePixelRatio || 1
+  const render = async () => {
+    const app = frame?.contentDocument ? await renderViewport(frame.contentDocument, scale) : null
+    if (!withShell) {
+      if (!app) throw new Error("No app document")
+      return { canvas: app, origin: crop }
+    }
+    const shell = await renderViewport(document, scale, frame ?? undefined)
+    if (app && frame) {
+      const box = frame.getBoundingClientRect()
+      shell
+        .getContext("2d")
+        ?.drawImage(app, box.x * scale, box.y * scale, box.width * scale, box.height * scale)
+    }
+    return { canvas: shell, origin: new DOMRect(0, 0, window.innerWidth, window.innerHeight) }
   }
-  if (!withCallback.requestVideoFrameCallback) {
-    await nextFrame()
-    return
-  }
-  let done = false
-  const callback = new Promise<void>((resolve) =>
-    withCallback.requestVideoFrameCallback!(() => {
-      done = true
-      resolve()
-    })
-  )
-  const bounded = (async () => {
-    for (let i = 0; i < 6 && !done; i++) await nextFrame()
-  })()
-  await Promise.race([callback, bounded])
-}
-
-// Draws the current frame into a canvas (scaled by the track's width over
-// `innerWidth`, so device pixels stay sharp), crops it to `crop` and strokes
-// `outline` in red. Both rects are in the shell window's CSS pixels.
-export async function grabPng(s: MediaStream, crop: DOMRect, outline: DOMRect): Promise<string> {
-  if (!live(s)) throw new Error("Screen sharing has stopped")
-  const v = await playing(s)
-  await freshFrame(v)
-  const scale = v.videoWidth / window.innerWidth || 1
+  const { canvas: source, origin } = await withTimeout(render(), CAPTURE_MS, "Screenshot")
   const canvas = document.createElement("canvas")
   canvas.width = Math.max(1, Math.round(crop.width * scale))
   canvas.height = Math.max(1, Math.round(crop.height * scale))
   const ctx = canvas.getContext("2d")
   if (!ctx) throw new Error("No 2D canvas")
   ctx.drawImage(
-    v,
-    crop.x * scale,
-    crop.y * scale,
+    source,
+    (crop.x - origin.x) * scale,
+    (crop.y - origin.y) * scale,
     crop.width * scale,
     crop.height * scale,
     0,
@@ -131,7 +80,6 @@ export async function grabPng(s: MediaStream, crop: DOMRect, outline: DOMRect): 
     canvas.width,
     canvas.height
   )
-  v.pause() // nothing decodes between picks
   ctx.strokeStyle = OUTLINE
   ctx.lineWidth = 2 * scale
   ctx.strokeRect(
