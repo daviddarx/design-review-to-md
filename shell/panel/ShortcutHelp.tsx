@@ -25,12 +25,7 @@ const GROUPS: { title: string; keys: [string, string][] }[] = [
   },
   {
     title: "Panel",
-    keys: [
-      ["↑ / ↓", "Move"],
-      ["V", "Validate"],
-      ["R", "Refine"],
-      ["H", "History"],
-    ],
+    keys: [["↑ / ↓", "Move"]],
   },
 ]
 

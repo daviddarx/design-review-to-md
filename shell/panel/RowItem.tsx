@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react"
-import type { KeyboardEvent as ReactKeyboardEvent } from "react"
 import type { Op } from "../../model/ops.ts"
 import type { PinRecord, PinRef } from "../../model/types.ts"
 import { fileUrl } from "../api.ts"
@@ -80,7 +79,6 @@ export function RowItem({
   const [confirming, setConfirming] = useState(false)
   const [busy, setBusy] = useState(false)
 
-  const label = row.rowId.split(".").at(-1)
   const pointNumber = Number(row.rowId.split(".")[0])
   const source = record?.steps.at(-1)?.element.source
 
@@ -94,9 +92,10 @@ export function RowItem({
     }
   }
 
-  const validate = () => {
-    if (row.status !== "done") void run({ kind: "setStatus", rowId: row.rowId, status: "done" })
-  }
+  // Validate and Refine answer Claude's work, so only a row waiting for
+  // review offers them; History only shows on a row that has some.
+  const reviewing = row.status === "review"
+  const validate = () => void run({ kind: "setStatus", rowId: row.rowId, status: "done" })
   const startRefine = () => setRefining(row.text)
   const toggleHistory = () => setHistoryOpen((v) => !v)
 
@@ -122,17 +121,6 @@ export function RowItem({
   const withTarget = (fn: (rowId: string, t: PinTarget) => void) => async () => {
     const t = await target()
     if (t) fn(row.rowId, t)
-  }
-
-  const onKeyDown = (e: ReactKeyboardEvent<HTMLLIElement>) => {
-    // The restore confirm owns the keyboard while it is open.
-    if (confirming || isTyping(e.target) || e.ctrlKey || e.metaKey || e.altKey) return
-    const key = e.key.toLowerCase()
-    if (key === "v") validate()
-    else if (key === "r") startRefine()
-    else if (key === "h") toggleHistory()
-    else return
-    e.preventDefault()
   }
 
   // The pin record is fetched when the row is first hovered or focused, and
@@ -170,25 +158,12 @@ export function RowItem({
       className={["dr-row", `dr-depth-${row.depth}`, busy && "dr-busy"].filter(Boolean).join(" ")}
       data-row-id={row.rowId}
       tabIndex={0}
-      onKeyDown={onKeyDown}
       onMouseEnter={() => void hoverIn()}
       onFocus={prefetch}
       onMouseLeave={hoverOut}
     >
-      {historyOpen && (
-        <ol className="dr-history" aria-label={`History of ${row.rowId}`}>
-          {row.history.length === 0 && <li className="dr-history-empty">No earlier versions</li>}
-          {row.history.map((h, i) => (
-            <li key={i}>
-              <span className="dr-history-kind">{h.kind === "before" ? "Before:" : "Claude:"}</span>{" "}
-              {h.text}
-            </li>
-          ))}
-        </ol>
-      )}
-
+      <span className="dr-row-num">{row.rowId}</span>
       <div className="dr-row-head">
-        <span className="dr-row-num">{label}.</span>
         {row.status && <span className={`dr-status dr-status-${row.status}`}>{row.status}</span>}
         {row.pin && (
           <span className="dr-pin" title="Pinned">
@@ -203,9 +178,6 @@ export function RowItem({
             📍 from {row.inheritedPinFrom}
           </span>
         )}
-        {row.history.length > 0 && !historyOpen && (
-          <span className="dr-history-dot" title="Has history (H)" aria-hidden="true" />
-        )}
         {refining === null && (
           <span className="dr-row-actions">
             {row.depth === 0 && (
@@ -215,16 +187,16 @@ export function RowItem({
                 onClick={() => onEditPoint(pointNumber)}
               />
             )}
-            {row.status !== "done" && (
-              <ActionButton icon="validate" label="Validate (V)" onClick={validate} />
+            {reviewing && <ActionButton icon="validate" label="Validate" onClick={validate} />}
+            {reviewing && <ActionButton icon="refine" label="Refine" onClick={startRefine} />}
+            {row.history.length > 0 && (
+              <ActionButton
+                icon="history"
+                label="History"
+                pressed={historyOpen}
+                onClick={toggleHistory}
+              />
             )}
-            <ActionButton icon="refine" label="Refine (R)" onClick={startRefine} />
-            <ActionButton
-              icon="history"
-              label="History (H)"
-              pressed={historyOpen}
-              onClick={toggleHistory}
-            />
             {owner && (
               <>
                 <ActionButton icon="pin" label="Go to pin" onClick={withTarget(onGoToPin)} />
@@ -254,6 +226,17 @@ export function RowItem({
           </span>
         )}
       </div>
+
+      {historyOpen && (
+        <ol className="dr-history" aria-label={`History of ${row.rowId}`}>
+          {row.history.map((h, i) => (
+            <li key={i}>
+              <span className="dr-history-kind">{h.kind === "before" ? "Before:" : "Claude:"}</span>{" "}
+              {h.text}
+            </li>
+          ))}
+        </ol>
+      )}
 
       {refining === null ? (
         <div className="dr-row-text">{row.text}</div>

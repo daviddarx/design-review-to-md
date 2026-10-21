@@ -261,9 +261,11 @@ body {
   border-top: 1px solid var(--dr-line);
 }
 
+/* Same box as the header's buttons. */
 .dr-panel-foot .dr-icon-button {
-  width: 32px;
-  height: 32px;
+  box-sizing: border-box;
+  width: 28px;
+  height: 28px;
   border: 1px solid #d4d4d4;
   background: #fff;
 }
@@ -341,15 +343,29 @@ body {
   list-style: none;
 }
 
+/* Number in its own column, at least as wide as "0.0.0"; everything else
+   (tags, text, history, files) starts at the tag's left edge. */
 .dr-row {
   position: relative;
   padding: 6px 12px 8px;
   border-bottom: 1px solid var(--dr-line);
 }
 
-.dr-row:hover,
-.dr-row:focus-within {
-  background: var(--dr-hover);
+.dr-list > .dr-row {
+  display: grid;
+  grid-template-columns: minmax(5ch, max-content) minmax(0, 1fr);
+  column-gap: 6px;
+}
+
+.dr-list > .dr-row > :not(.dr-row-num) {
+  grid-column: 2;
+}
+
+/* The column already indents them. */
+.dr-list > .dr-row > .dr-history,
+.dr-list > .dr-row > .dr-shot,
+.dr-list > .dr-row > .dr-files {
+  margin-left: 0;
 }
 
 .dr-depth-0 .dr-row-text {
@@ -394,6 +410,8 @@ body {
 .dr-row-num {
   flex: 0 0 auto;
   min-width: 18px;
+  align-self: center;
+  grid-row: 1;
   color: var(--dr-text-muted);
   font-variant-numeric: tabular-nums;
 }
@@ -453,13 +471,6 @@ body {
 .dr-pin-inherited {
   border-style: dashed;
   color: var(--dr-text-muted);
-}
-
-.dr-history-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #a3a3a3;
 }
 
 .dr-history {

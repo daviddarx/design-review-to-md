@@ -112,6 +112,8 @@ async function render(extra: Partial<PanelProps> = {}) {
 }
 
 const row = (id: string) => host.querySelector<HTMLElement>(`[data-row-id="${id}"]`)!
+const action = (id: string, label: string) =>
+  row(id).querySelector<HTMLButtonElement>(`.dr-action[aria-label="${label}"]`)
 const opCalls = () => calls.filter((c) => c.url.endsWith("/ops"))
 
 function key(el: HTMLElement, k: string, extra: KeyboardEventInit = {}) {
@@ -141,56 +143,71 @@ describe("Panel", () => {
     expect(row("5.a").textContent).toContain("📍 from 5")
   })
 
-  it("V on a focused row validates it, then refetches", async () => {
+  it("Validate on a row to review validates it, then refetches", async () => {
     await render()
     const before = calls.filter((c) => c.url === "/__review/api/topics/08.4").length
-    await act(async () => key(row("5.b"), "v"))
+    await act(async () => action("5.c", "Validate")!.click())
     expect(opCalls()).toEqual([
       {
         url: "/__review/api/topics/08.4/points/5/ops",
         method: "POST",
-        body: { op: { kind: "setStatus", rowId: "5.b", status: "done" }, assets: [] },
+        body: { op: { kind: "setStatus", rowId: "5.c", status: "done" }, assets: [] },
       },
     ])
     expect(calls.filter((c) => c.url === "/__review/api/topics/08.4").length).toBe(before + 1)
   })
 
-  it("R opens the refine field; Enter sends one line", async () => {
+  it("Refine opens the field; Enter sends one line", async () => {
     await render()
-    await act(async () => key(row("5.d"), "r"))
-    const field = row("5.d").querySelector("textarea")!
-    expect(field.value).toContain("Compare with")
+    await act(async () => action("5.c", "Refine")!.click())
+    const field = row("5.c").querySelector("textarea")!
+    expect(field.value).toContain("Search field")
     await act(async () => {
       const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!
-      setter.call(field, "Use the\nreference")
+      setter.call(field, "Align the\nsearch field")
       field.dispatchEvent(new Event("input", { bubbles: true }))
     })
     await act(async () => key(field, "Enter"))
     expect(opCalls()[0].body).toEqual({
-      op: { kind: "refine", rowId: "5.d", text: "Use the reference" },
+      op: { kind: "refine", rowId: "5.c", text: "Align the search field" },
       assets: [],
     })
   })
 
-  it("keys typed inside a field do not act on the row", async () => {
+  it("only a row to review offers Validate and Refine; only a row with history offers History", async () => {
     await render()
-    await act(async () => key(row("5.d"), "r"))
-    await act(async () => key(row("5.d").querySelector("textarea")!, "v"))
-    expect(opCalls()).toEqual([])
+    const labels = (id: string) =>
+      [...row(id).querySelectorAll(".dr-action")].map((b) => b.getAttribute("aria-label"))
+    expect(labels("5.a")).toEqual(["Go to pin", "Screenshot", "Restore state"])
+    expect(labels("5.b")).toEqual(["History", "Go to pin", "Screenshot", "Restore state"])
+    expect(labels("5.c")).toEqual([
+      "Validate",
+      "Refine",
+      "Go to pin",
+      "Screenshot",
+      "Restore state",
+    ])
   })
 
-  it("H shows the history above the text", async () => {
+  it("letters typed on a row do nothing", async () => {
     await render()
-    await act(async () => key(row("5.b"), "h"))
+    for (const k of ["v", "r", "h"]) await act(async () => key(row("5.c"), k))
+    expect(opCalls()).toEqual([])
+    expect(row("5.c").querySelector("textarea")).toBeNull()
+  })
+
+  it("History shows the history above the text", async () => {
+    await render()
+    await act(async () => action("5.b", "History")!.click())
     const history = row("5.b").querySelector(".dr-history")!
     expect(history.textContent).toContain("Before: Active state is hard to see")
-    expect(row("5.b").firstElementChild).toBe(history)
+    expect(history.nextElementSibling?.classList.contains("dr-row-text")).toBe(true)
   })
 
   it("an API error shows inline", async () => {
     await render()
     opStatus = 409
-    await act(async () => key(row("5.b"), "v"))
+    await act(async () => action("5.c", "Validate")!.click())
     expect(host.querySelector(".dr-error")?.textContent).toContain("5.b is locked")
   })
 
@@ -205,11 +222,11 @@ describe("Panel", () => {
     await render()
     const op = deferred()
     held.set("/__review/api/topics/08.4/points/5/ops", op.promise)
-    await act(async () => key(row("5.b"), "v"))
-    expect(row("5.b").classList.contains("dr-depth-1")).toBe(true)
-    expect(row("5.b").classList.contains("dr-busy")).toBe(true)
+    await act(async () => action("5.c", "Validate")!.click())
+    expect(row("5.c").classList.contains("dr-depth-1")).toBe(true)
+    expect(row("5.c").classList.contains("dr-busy")).toBe(true)
     await act(async () => op.resolve(json({})))
-    expect(row("5.b").classList.contains("dr-busy")).toBe(false)
+    expect(row("5.c").classList.contains("dr-busy")).toBe(false)
   })
 
   it("a pin-record fetch overtaken by a reload does not refill the cache", async () => {
@@ -266,7 +283,7 @@ describe("Panel", () => {
     expect(host.querySelector(".dr-error")).toBeNull()
   })
 
-  it("the restore confirm takes Esc from anywhere inside and blocks V/R/H", async () => {
+  it("the restore confirm takes Esc from anywhere inside", async () => {
     await render()
     const restore = [...row("5.c").querySelectorAll("button")].find(
       (b) => b.getAttribute("aria-label") === "Restore state"
@@ -274,10 +291,6 @@ describe("Panel", () => {
     await act(async () => restore.click())
     const confirm = row("5.c").querySelector<HTMLElement>(".dr-confirm")!
     const primary = confirm.querySelector<HTMLElement>(".dr-button-primary")!
-    await act(async () => key(primary, "v"))
-    await act(async () => key(primary, "r"))
-    expect(opCalls()).toEqual([])
-    expect(row("5.c").querySelector("textarea")).toBeNull()
     await act(async () => key(primary, "Escape"))
     expect(row("5.c").querySelector(".dr-confirm")).toBeNull()
   })
