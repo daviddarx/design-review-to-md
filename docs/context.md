@@ -31,7 +31,10 @@ plan beside it.
   applies one operation, and writes it back, so Claude's and hand edits are
   never clobbered by a stale panel. Unknown lines round-trip verbatim.
 - **Numbers and labels are never reused** — `topic.json` keeps `nextPoint` and
-  the retired ids.
+  the retired ids. It is **gitignored** (his call: no counter noise in the
+  working copy). The next number is never below the highest point file + 1,
+  so a fresh checkout only risks reusing the number of a point deleted on
+  another machine.
 - **`*-state.json` is gitignored** (localStorage snapshots, ~2 MB on 07.x/08.x).
 - **Open in VS Code is a spike** (plan Task 9): React-only via `_debugStack` +
   source maps, dropped if unreliable. Next's dev endpoints are off-limits — the
