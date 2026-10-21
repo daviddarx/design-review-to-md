@@ -230,6 +230,12 @@ describe("api", () => {
     expect(cross.status).toBe(403)
   })
 
+  it("names the repo root", async () => {
+    const res = await request("GET", "/__review/api/repo-root")
+    expect(res.status).toBe(200)
+    expect(JSON.parse(res.body)).toEqual({ root: path.resolve(process.cwd()) })
+  })
+
   it("rejects path traversal on /__review/files", async () => {
     const res = await request("GET", "/__review/files/t/../../package.json")
     expect(res.status).toBe(400)

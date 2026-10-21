@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { fileUrl } from "./api.ts"
+import { fileUrl, openEditor } from "./api.ts"
 import { PointDrawer } from "./drawer/PointDrawer.tsx"
 import type { CapturedPin } from "./drawer/draft.ts"
 import { statePathOf } from "./panel/listModel.ts"
@@ -13,8 +13,6 @@ import { Toolbar } from "./Toolbar.tsx"
 import { useFrameUrl, initialFrameSrc } from "./useFrameUrl.ts"
 import { useReviewMode } from "./useReviewMode.ts"
 import { useShortcut } from "./useShortcut.ts"
-
-const noop = () => {}
 
 type DrawerState = { key: number; pointNumber?: number; capture?: CapturedPin }
 
@@ -113,6 +111,14 @@ export function App() {
     return null
   }
 
+  // A failure (no `code` on the PATH is only logged by the server) shows
+  // as the panel's notice.
+  const onOpenSource = async (_rowId: string, target: PinTarget) => {
+    const source = target.record?.steps.at(-1)?.element.source
+    if (source) await openEditor(source.file, source.line)
+    return null
+  }
+
   useEffect(() => {
     if (topic) writeKey("topic", topic)
   }, [topic])
@@ -133,7 +139,7 @@ export function App() {
             onEditPoint={(n) => openDrawer({ pointNumber: n })}
             onGoToPin={onGoToPin}
             onRestoreState={onRestoreState}
-            onOpenSource={noop}
+            onOpenSource={onOpenSource}
             onOpenCountChange={setOpenCount}
             reloadSignal={reloadSignal}
             picking={picker.picking}

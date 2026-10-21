@@ -100,6 +100,11 @@ export async function handleApi(
   if (method !== "GET") guardWrite(req)
   const [head, rawTopic, sub, rawN, tail] = parts
 
+  // The shell strips it from a source map's absolute `file://` paths to
+  // record a pin's source repo-relative.
+  if (head === "repo-root" && parts.length === 1 && method === "GET") {
+    return sendJson(res, 200, { root: path.resolve(ctx.repoRoot) })
+  }
   if (head === "open-editor" && parts.length === 1 && method === "POST") {
     const body = await readJson(req)
     openEditor(ctx.repoRoot, body.file, body.line)

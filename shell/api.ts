@@ -69,6 +69,10 @@ export function openEditor(file: string, line: number): Promise<{ ok: true }> {
   return request("POST", "/open-editor", { file, line })
 }
 
+export function repoRoot(): Promise<{ root: string }> {
+  return request("GET", "/repo-root")
+}
+
 // URL of a topic asset (screenshot, attachment, pin record).
 export function fileUrl(topic: string, relative: string): string {
   const rest = relative.split("/").map(encodeURIComponent).join("/")

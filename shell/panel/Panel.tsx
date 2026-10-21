@@ -19,7 +19,7 @@ export type PanelProps = {
   // (the element is gone, the state file is missing).
   onGoToPin(rowId: string, target: PinTarget): PinAction
   onRestoreState(rowId: string, target: PinTarget): PinAction
-  onOpenSource(rowId: string, target: PinTarget): void
+  onOpenSource(rowId: string, target: PinTarget): PinAction
   onOpenCountChange(n: number): void // feeds the toolbar's List count
   drawer?: ReactNode // the point drawer, laid over everything but the resize edge
   reloadSignal?: number // a change refetches the topic (after a drawer save)
@@ -335,7 +335,7 @@ export function Panel({
             onEditPoint={onEditPoint}
             onGoToPin={withNotice(onGoToPin)}
             onRestoreState={withNotice(onRestoreState)}
-            onOpenSource={onOpenSource}
+            onOpenSource={withNotice(onOpenSource)}
           />
         )}
       </div>
