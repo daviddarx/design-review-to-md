@@ -144,7 +144,8 @@ describe("PointDrawer", () => {
     const confirm = vi.fn(() => true)
     vi.stubGlobal("confirm", confirm)
     const { onClose, onSaved } = await render(5)
-    const trash = () => host.querySelector<HTMLButtonElement>('button[title^="Delete this feedback"]')!
+    const trash = () =>
+      host.querySelector<HTMLButtonElement>('button[title^="Delete this feedback"]')!
     const button = (label: string) =>
       [...host.querySelectorAll("button")].find((b) => b.textContent === label)!
     const deletes = () => calls.filter((c) => c.method === "DELETE")
