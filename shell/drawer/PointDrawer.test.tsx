@@ -140,6 +140,34 @@ describe("PointDrawer", () => {
     ])
   })
 
+  it("deletes a saved point after an inline confirm, then closes", async () => {
+    const confirm = vi.fn(() => true)
+    vi.stubGlobal("confirm", confirm)
+    const { onClose, onSaved } = await render(5)
+    const trash = () => host.querySelector<HTMLButtonElement>('button[title^="Delete this point"]')!
+    const button = (label: string) =>
+      [...host.querySelectorAll("button")].find((b) => b.textContent === label)!
+    const deletes = () => calls.filter((c) => c.method === "DELETE")
+
+    await act(async () => trash().click())
+    expect(host.textContent).toContain("Delete point 5? Its files go too.")
+    await act(async () => button("Keep").click())
+    expect(host.querySelector('[aria-label="Delete point?"]')).toBeNull()
+    expect(deletes()).toEqual([])
+
+    await act(async () => trash().click())
+    await act(async () => button("Delete").click())
+    expect(deletes().map((c) => c.url)).toEqual(["/__review/api/topics/08.4/points/5"])
+    expect(onSaved).toHaveBeenCalledTimes(1)
+    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(confirm).not.toHaveBeenCalled()
+  })
+
+  it("offers no point delete on a new point", async () => {
+    await render()
+    expect(host.querySelector('button[title^="Delete this point"]')).toBeNull()
+  })
+
   it("ignores Enter, Esc and ⌘Enter while an IME composes (Safari: keyCode 229)", async () => {
     const { onClose } = await render()
     await type(fields()[0], "日本")

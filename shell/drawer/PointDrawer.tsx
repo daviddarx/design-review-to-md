@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import type { ChangeEvent, KeyboardEvent as ReactKeyboardEvent } from "react"
 import type { Point } from "../../model/types.ts"
-import { applyOp, createPoint, readTopic } from "../api.ts"
+import { applyOp, createPoint, deletePoint, readTopic } from "../api.ts"
 import {
   appendCaptured,
   appendChild,
@@ -80,6 +80,7 @@ export function PointDrawer({
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [confirmDiscard, setConfirmDiscard] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const [focusId, setFocusId] = useState<string | null>(() =>
     pointNumber === undefined ? tree.id : null
   )
@@ -154,16 +155,19 @@ export function PointDrawer({
 
   const keepEditing = () => {
     setConfirmDiscard(false)
+    setConfirmDelete(false)
     setFocusId(BACK)
   }
 
   const edit = (next: DraftNode, focus?: string | null) => {
     setTree(next)
     setConfirmDiscard(false)
+    setConfirmDelete(false)
     if (focus) setFocusId(focus)
   }
 
   const requestClose = () => {
+    setConfirmDelete(false)
     if (!saving && hasChanges(tree, point)) setConfirmDiscard(true)
     else onClose()
   }
@@ -203,6 +207,24 @@ export function PointDrawer({
       onSaved?.()
       onClose()
     } catch (err) {
+      setError(message(err))
+      setFocusId(BACK)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // After the inline confirm: the point's file and asset folder go.
+  const removePoint = async () => {
+    if (!point || saving) return
+    setSaving(true)
+    setError(null)
+    try {
+      await deletePoint(topic, point.number)
+      onSaved?.()
+      onClose()
+    } catch (err) {
+      setConfirmDelete(false)
       setError(message(err))
       setFocusId(BACK)
     } finally {
@@ -298,7 +320,7 @@ export function PointDrawer({
     if (e.key === "Escape") {
       e.preventDefault()
       e.stopPropagation()
-      if (confirmDiscard) keepEditing()
+      if (confirmDiscard || confirmDelete) keepEditing()
       else requestClose()
     } else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault()
@@ -352,6 +374,26 @@ export function PointDrawer({
         </div>
       )}
 
+      {confirmDelete && point && (
+        <div className="dr-confirm dr-drawer-confirm" role="alertdialog" aria-label="Delete point?">
+          <span>Delete point {point.number}? Its files go too.</span>
+          <span className="dr-confirm-actions">
+            <button
+              type="button"
+              className="dr-button"
+              onClick={() => void removePoint()}
+              disabled={saving}
+              autoFocus
+            >
+              Delete
+            </button>
+            <button type="button" className="dr-button" onClick={keepEditing}>
+              Keep
+            </button>
+          </span>
+        </div>
+      )}
+
       {error && (
         <div className="dr-error" role="alert">
           <span>{error}</span>
@@ -383,7 +425,16 @@ export function PointDrawer({
               }}
               onAttach={() => attach(node.id)}
               onPin={() => void pin(node.id)}
-              onDelete={depth === 0 ? undefined : () => removeRow(node.id)}
+              onDelete={
+                depth > 0
+                  ? () => removeRow(node.id)
+                  : point
+                    ? () => {
+                        setConfirmDiscard(false)
+                        setConfirmDelete(true)
+                      }
+                    : undefined
+              }
               onRemoveFile={(name) => removeFile(node.id, name)}
             />
           ))
@@ -499,7 +550,11 @@ function DrawerRow({
           </button>
         )}
         {onDelete && (
-          <button type="button" onClick={onDelete} title="Delete this row">
+          <button
+            type="button"
+            onClick={onDelete}
+            title={depth === 0 ? "Delete this point and its files" : "Delete this row"}
+          >
             🗑 delete
           </button>
         )}
