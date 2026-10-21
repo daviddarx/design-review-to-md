@@ -113,18 +113,27 @@ export function applyOp(point: Point, op: Op, retired: string[]): OpResult {
       break
     }
     case "refine": {
-      const row = target(next, op.rowId)
-      row.history.push({ kind: "before", text: row.text })
-      row.text = op.text
-      row.status = "open"
+      const row = resolve(next, op.rowId).at(-1)
+      if (row) {
+        row.history.push({ kind: "before", text: row.text })
+        row.text = op.text
+        row.status = "open"
+      } else {
+        next.history.push({ kind: "before", text: next.title })
+        next.title = op.text
+        next.status = "open"
+      }
       break
     }
     case "editText": {
-      const row = target(next, op.rowId)
-      if (row.status !== "open" || row.history.some((h) => h.kind === "claude")) {
+      const row = resolve(next, op.rowId).at(-1)
+      const holder = row ?? next
+      const status = row ? row.status : (next.status ?? "open")
+      if (status !== "open" || holder.history.some((h) => h.kind === "claude")) {
         throw new OpError("locked", `${op.rowId} can no longer be edited silently`)
       }
-      row.text = op.text
+      if (row) row.text = op.text
+      else next.title = op.text
       break
     }
     case "addChild": {

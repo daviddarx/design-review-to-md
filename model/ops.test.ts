@@ -24,11 +24,9 @@ describe("ops", () => {
     expect(() =>
       applyOp(parsePoint(MD), { kind: "editText", rowId: "5.c", text: "x" }, [])
     ).toThrowError(OpError)
-    try {
+    expect(() =>
       applyOp(parsePoint(MD), { kind: "editText", rowId: "5.c", text: "x" }, [])
-    } catch (e) {
-      expect((e as OpError).code).toBe("locked")
-    }
+    ).toThrow(expect.objectContaining({ code: "locked" }))
     const ok = applyOp(parsePoint(MD), { kind: "editText", rowId: "5.d", text: "x" }, [])
     expect(ok.point.rows[3].text).toBe("x")
   })
@@ -89,5 +87,29 @@ describe("ops", () => {
     expect(rowIds).toEqual(["7.a", "7.a.1", "7.b"])
     expect(point.rows[0].status).toBe("open")
     expect(point.rows[0].children[0].label).toBe("1")
+  })
+  it("refine on the point id moves the title into Before and reopens", () => {
+    const md = "# 5. Nav `done`\n\n- a. one `open`\n"
+    const { point } = applyOp(parsePoint(md), { kind: "refine", rowId: "5", text: "New" }, [])
+    expect(point.title).toBe("New")
+    expect(point.history).toEqual([{ kind: "before", text: "Nav" }])
+    expect(point.status).toBe("open")
+  })
+  it("editText on the point id is silent while open and locked otherwise", () => {
+    const ok = applyOp(parsePoint(MD), { kind: "editText", rowId: "5", text: "Z" }, [])
+    expect(ok.point.title).toBe("Z")
+    const reviewed = parsePoint("# 5. Nav `review`\n\n- a. one `open`\n")
+    expect(() => applyOp(reviewed, { kind: "editText", rowId: "5", text: "Z" }, [])).toThrow(
+      expect.objectContaining({ code: "locked" })
+    )
+    const claude = parsePoint("# 5. Nav\n\n- Claude: hi\n\n- a. one `open`\n")
+    expect(() => applyOp(claude, { kind: "editText", rowId: "5", text: "Z" }, [])).toThrow(
+      expect.objectContaining({ code: "locked" })
+    )
+  })
+  it("a point with status open round-trips", () => {
+    const md = "# 5. Nav `open`\n\n- a. one `open`\n"
+    expect(serializePoint(parsePoint(md))).toBe(md)
+    expect(parsePoint(md).status).toBe("open")
   })
 })
