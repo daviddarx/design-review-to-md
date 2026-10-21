@@ -15,6 +15,19 @@ export type ReviewServerOptions = {
 
 const TOOL_PREFIX = "/__review/"
 
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"])
+
+// The tool's routes answer only to a loopback Host: a DNS-rebound name
+// pointing at this port is refused (the proxied app is not ours to guard).
+export function isLocalHost(host: string | undefined): boolean {
+  if (!host) return false
+  try {
+    return LOCAL_HOSTS.has(new URL(`http://${host}`).hostname)
+  } catch {
+    return false
+  }
+}
+
 const SHELL_HTML = `<!doctype html>
 <html lang="en">
 <head>
@@ -60,6 +73,10 @@ export function createReviewServer(opts: ReviewServerOptions): http.Server {
   const server = http.createServer((req, res) => {
     const pathname = (req.url ?? "/").split("?")[0]
     if (pathname.startsWith(TOOL_PREFIX)) {
+      if (!isLocalHost(req.headers.host)) {
+        sendError(res, new HttpError(403, "The review tool only answers on localhost"))
+        return
+      }
       tool(req, res, pathname).catch((err) => sendError(res, err))
       return
     }
@@ -76,7 +93,11 @@ export function createReviewServer(opts: ReviewServerOptions): http.Server {
 
   server.on("upgrade", (req, socket, head) => {
     if ((req.url ?? "").startsWith(TOOL_PREFIX)) {
-      socket.destroy()
+      if (!isLocalHost(req.headers.host)) {
+        socket.end("HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n")
+      } else {
+        socket.destroy()
+      }
       return
     }
     proxyUpgrade(targetPort, req, socket, head, (s) => {

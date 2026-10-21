@@ -5,7 +5,7 @@ import type { AddressInfo, Socket } from "node:net"
 import os from "node:os"
 import path from "node:path"
 import { Storage } from "./storage.ts"
-import { createReviewServer } from "./server.ts"
+import { createReviewServer, isLocalHost } from "./server.ts"
 import { resolveEditorTarget } from "./openEditor.ts"
 import { createShellBuild } from "./shellBuild.ts"
 import { topicOf } from "./events.ts"
@@ -147,6 +147,41 @@ describe("dispatch", () => {
       req.end()
     })
     expect(echoed).toBe("ping-pong")
+  })
+
+  it("refuses tool routes unless the Host is loopback; the app is still proxied", async () => {
+    const { port } = new URL(base)
+    for (const host of [`localhost:${port}`, `127.0.0.1:${port}`, `[::1]:${port}`, "localhost"]) {
+      const res = await request("GET", "/__review/shell.js", { headers: { host } })
+      expect(res.status, host).toBe(200)
+    }
+    for (const host of ["evil.example", `evil.example:${port}`, "localhost.evil.example"]) {
+      const res = await request("GET", "/__review/api/topics", { headers: { host } })
+      expect(res.status, host).toBe(403)
+    }
+    expect(isLocalHost(undefined)).toBe(false)
+    expect(isLocalHost("")).toBe(false)
+    const app = await request("GET", "/x", {
+      headers: { host: "evil.example", "sec-fetch-dest": "iframe" },
+    })
+    expect(app.status).toBe(200)
+    expect(app.body).toBe("app")
+  })
+
+  it("refuses a tool upgrade from a foreign Host with 403", async () => {
+    const status = await new Promise<number | undefined>((resolve, reject) => {
+      const req = http.request(base + "/__review/events", {
+        headers: { connection: "Upgrade", upgrade: "echo", host: "evil.example" },
+      })
+      req.on("response", (res) => {
+        res.resume()
+        resolve(res.statusCode)
+      })
+      req.on("upgrade", () => resolve(101))
+      req.on("error", reject)
+      req.end()
+    })
+    expect(status).toBe(403)
   })
 
   it("answers 404 for an unknown tool route", async () => {
