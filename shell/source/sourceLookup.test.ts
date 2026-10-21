@@ -1,8 +1,16 @@
 import { readFileSync } from "node:fs"
 import path from "node:path"
 import { SourceMapGenerator } from "source-map-js"
-import { describe, expect, it } from "vitest"
-import { mapUrlOf, repoRelative, sourceFromStack, stackFrames } from "./sourceLookup.ts"
+import { afterEach, describe, expect, it, vi } from "vitest"
+import {
+  clearSourceCache,
+  debugStacks,
+  mapUrlOf,
+  repoRelative,
+  sourceFromStack,
+  sourceOf,
+  stackFrames,
+} from "./sourceLookup.ts"
 
 const ROOT = "/Users/me/repo"
 
@@ -87,6 +95,107 @@ describe("sourceFromStack", () => {
   it("answers undefined when nothing maps", async () => {
     const stack = "Error\n    at X (http://h/missing.js:1:1)"
     expect(await sourceFromStack(stack, async () => null, ROOT)).toBeUndefined()
+  })
+})
+
+function mapTo(line: number, file = "src/Nav.tsx") {
+  const gen = new SourceMapGenerator({ file: "app.js" })
+  gen.addMapping({
+    generated: { line: 9, column: 3 },
+    original: { line, column: 0 },
+    source: `file://${ROOT}/${file}`,
+  })
+  return gen.toString()
+}
+
+describe("map cache", () => {
+  const stack = "Error\n    at Nav (http://h/fresh.js?v=1:9:4)"
+  const serve = (map: () => string) => {
+    let fetches = 0
+    const fetchText = async (url: string) => {
+      fetches++
+      if (url === "http://h/fresh.js?v=1") return "code\n//# sourceMappingURL=fresh.js.map"
+      return url === "http://h/fresh.js.map" ? map() : null
+    }
+    return { fetchText, count: () => fetches }
+  }
+
+  it("reuses a map within a pick, and refetches it after a clear", async () => {
+    clearSourceCache()
+    let line = 10
+    const { fetchText, count } = serve(() => mapTo(line))
+    expect(await sourceFromStack(stack, fetchText, ROOT)).toEqual({ file: "src/Nav.tsx", line: 10 })
+    line = 20 // the app was edited and reloaded; the URL did not change
+    expect(await sourceFromStack(stack, fetchText, ROOT)).toEqual({ file: "src/Nav.tsx", line: 10 })
+    expect(count()).toBe(2)
+    clearSourceCache()
+    expect(await sourceFromStack(stack, fetchText, ROOT)).toEqual({ file: "src/Nav.tsx", line: 20 })
+  })
+
+  it("keys by the full URL, query included", async () => {
+    clearSourceCache()
+    const { fetchText } = serve(() => mapTo(10))
+    await sourceFromStack(stack, fetchText, ROOT)
+    const other = vi.fn(async () => null)
+    const v2 = "Error\n    at Nav (http://h/fresh.js?v=2:9:4)"
+    expect(await sourceFromStack(v2, other, ROOT)).toBeUndefined()
+    expect(other).toHaveBeenCalledWith("http://h/fresh.js?v=2")
+  })
+})
+
+type FakeFiber = { _debugStack?: unknown; return?: FakeFiber | null }
+const fakeElement = (fiber: FakeFiber) =>
+  ({ __reactFiber$abc123: fiber, other: 1 }) as unknown as Element
+const err = (stack: string) => Object.assign(new Error("x"), { stack })
+
+describe("debugStacks", () => {
+  it("reads the host fiber first, then ancestors, skipping repeats and non-errors", () => {
+    const root: FakeFiber = { _debugStack: err("root") }
+    const mid: FakeFiber = { _debugStack: err("host"), return: root } // same stack again
+    const plain: FakeFiber = { _debugStack: "not an error", return: mid }
+    const host: FakeFiber = { _debugStack: err("host"), return: plain }
+    expect(debugStacks(fakeElement(host))).toEqual(["host", "root"])
+  })
+
+  it("answers nothing outside React", () => {
+    expect(debugStacks({} as Element)).toEqual([])
+  })
+
+  it("stops after a bounded number of ancestors", () => {
+    let fiber: FakeFiber | null = null
+    for (let i = 0; i < 200; i++) fiber = { _debugStack: err(`s${i}`), return: fiber }
+    expect(debugStacks(fakeElement(fiber!))).toHaveLength(60)
+  })
+})
+
+describe("sourceOf", () => {
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
+
+  it("gives up within its bound when the network hangs", async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal("fetch", () => new Promise(() => {}))
+    const el = fakeElement({ _debugStack: err("Error\n    at X (http://h/app.js:1:1)") })
+    let result: unknown = "pending"
+    void sourceOf(el, 1500).then((r) => (result = r))
+    await vi.advanceTimersByTimeAsync(1499)
+    expect(result).toBe("pending")
+    await vi.advanceTimersByTimeAsync(1)
+    expect(result).toBeUndefined()
+  })
+
+  it("never throws", async () => {
+    const hostile = new Proxy(
+      {},
+      {
+        ownKeys() {
+          throw new Error("boom")
+        },
+      }
+    ) as Element
+    await expect(sourceOf(hostile, 50)).resolves.toBeUndefined()
   })
 })
 

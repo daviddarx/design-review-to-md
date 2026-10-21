@@ -111,8 +111,8 @@ export function App() {
     return null
   }
 
-  // A failure (no `code` on the PATH is only logged by the server) shows
-  // as the panel's notice.
+  // Only an API error (a refused file or line) reaches the panel's notice;
+  // a missing `code` binary is only logged by the server.
   const onOpenSource = async (_rowId: string, target: PinTarget) => {
     const source = target.record?.steps.at(-1)?.element.source
     if (source) await openEditor(source.file, source.line)

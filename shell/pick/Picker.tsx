@@ -5,7 +5,7 @@ import type { PinRecord, PinStep } from "../../model/types.ts"
 import { ensureStream, grabPng, snapshotLocalStorage } from "./capture.ts"
 import type { CapturedPin } from "./capture.ts"
 import { componentName, describe, uniqueSelector } from "./inspect.ts"
-import { sourceOf } from "../source/sourceLookup.ts"
+import { clearSourceCache, sourceOf } from "../source/sourceLookup.ts"
 
 type Box = { x: number; y: number; width: number; height: number }
 type Shown = { box: Box; label: string | null }
@@ -227,6 +227,8 @@ export function usePicker(frame: HTMLIFrameElement | null): Picker {
   const capture = useCallback(async (picked: Picked, stream: MediaStream | null) => {
     const step = stepOf(picked)
     // Runs beside the screenshot; bounded, so it never holds the pin up.
+    // Fresh maps every pick: the app may have changed since the last one.
+    clearSourceCache()
     const source = picked.inTool ? Promise.resolve(undefined) : sourceOf(picked.el)
     const record: PinRecord = { version: 1, at: new Date().toISOString(), steps: [step] }
     const state = snapshotLocalStorage()

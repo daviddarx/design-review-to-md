@@ -14,8 +14,13 @@ export type FetchText = (url: string) => Promise<string | null>
 
 const LOOKUP_MS = 1500
 const MAX_ANCESTORS = 60
+const MAX_MAPS = 50
 
 // Script URLs that are never the app's own code (skipped unfetched).
+// Assumes flattened chunk names that carry the module path, as Turbopack's
+// dev chunks do (`node_modules_next_dist_…js`); a bundler that names chunks
+// by hash alone is still correct, as node_modules sources are refused after
+// mapping — it only fetches more.
 const VENDOR_URL = /node_modules|\/react-dom|\/react\/|next\/dist|turbopack-|%5Bturbopack%5D/
 
 // "at Name (url:1:2)", "at url:1:2" (V8) and "Name@url:1:2" (Gecko).
@@ -62,12 +67,21 @@ export function mapUrlOf(scriptUrl: string, script: string): string {
   return named ? new URL(named, scriptUrl).href : `${scriptUrl}.map`
 }
 
+// Dev chunk URLs are not content-hashed and the shell outlives every app
+// reload and HMR update, so a map is only trusted for one pick: the picker
+// clears this cache at the start of each. Keyed by the full URL (a query may
+// be the only thing that changes).
 const consumers = new Map<string, Promise<SourceMapConsumer | null>>()
 
+export function clearSourceCache() {
+  consumers.clear()
+}
+
 function consumerFor(url: string, fetchText: FetchText): Promise<SourceMapConsumer | null> {
-  const key = url.replace(/[?#].*$/, "")
+  const key = url
   let found = consumers.get(key)
   if (!found) {
+    if (consumers.size >= MAX_MAPS) consumers.clear()
     found = (async () => {
       const script = await fetchText(url)
       if (script === null) return null
