@@ -136,19 +136,20 @@ export class Storage {
   // The point files are the only record: the next number is one past the
   // highest on disk. Deleting the highest point frees its number again.
   private async readMeta(dir: string): Promise<TopicMeta> {
-    try {
-      const files = await this.pointFiles(dir)
-      return { nextPoint: Math.max(0, ...files.map((f) => f.number)) + 1 }
-    } catch (err) {
-      if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-        throw new StorageError(404, "No such topic")
-      }
-      throw err
-    }
+    const files = await this.pointFiles(dir)
+    return { nextPoint: Math.max(0, ...files.map((f) => f.number)) + 1 }
   }
 
+  // A missing topic folder is an empty topic: git keeps no empty folder, so
+  // a topic whose last point was deleted (or never committed) has none.
   private async pointFiles(dir: string): Promise<{ file: string; number: number }[]> {
-    const names = await fs.readdir(dir)
+    let names: string[]
+    try {
+      names = await fs.readdir(dir)
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === "ENOENT") return []
+      throw err
+    }
     return names
       .map((file) => ({ file, m: /^(\d+)-.*\.md$/.exec(file) }))
       .filter((x): x is { file: string; m: RegExpExecArray } => x.m !== null)
@@ -283,6 +284,7 @@ export class Storage {
       if (!title.trim()) throw new StorageError(400, "A point needs a title")
       const meta = await this.readMeta(dir)
       const number = meta.nextPoint
+      await fs.mkdir(dir, { recursive: true })
       let created
       try {
         created = newPoint(number, title.trim(), rows, pin)

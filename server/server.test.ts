@@ -237,7 +237,7 @@ describe("api", () => {
   })
 
   it("maps storage errors to their status and never crashes", async () => {
-    expect((await request("GET", "/__review/api/topics/missing")).status).toBe(404)
+    expect((await request("DELETE", "/__review/api/topics/missing/points/1")).status).toBe(404)
     expect((await request("POST", "/__review/api/topics", { json: { name: "../x" } })).status).toBe(
       400
     )

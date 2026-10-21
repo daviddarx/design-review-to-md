@@ -45,8 +45,10 @@ describe("topics", () => {
     expect(await fs.readdir(path.join(root, "a"))).toEqual([])
   })
 
-  it("404s on a missing topic", async () => {
-    await expect(storage.readTopic("nope")).rejects.toMatchObject({ status: 404 })
+  it("a missing topic folder reads as an empty topic, and its first point creates it", async () => {
+    expect(await storage.readTopic("gone")).toEqual({ meta: { nextPoint: 1 }, points: [] })
+    expect((await storage.createPoint("gone", "First", [], undefined, [])).number).toBe(1)
+    expect(existsSync(path.join(root, "gone", "01-first.md"))).toBe(true)
   })
 })
 
