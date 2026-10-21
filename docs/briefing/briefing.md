@@ -1,0 +1,21 @@
+## Design Review Tool
+
+- You see how I work with you accross all the concepts: I do a briefing file, and then I do feedback files, with list of correction numbered (1.a.b, etc, so that we can speed up communication when mentioning a point), and then copy the previous file and update it (validate/refinement of the corrections), so that I don't have to repeat each time where we are.
+- This process works well, but is redondant for me.
+- I want you to build a tool where I can do this in the browser.
+- This tool should be above the app (later, we'll make a separate package to use this on other projects) and have absolutely non incidence in the codebase of the app (componenets, styles, etc)
+- With a shortcut, I should enter the review mode.
+  - In this review mode, a small toolbar is displayed above the app. I can move this toolbar to access the app which is below the toolbar
+  - I can still use the app 1:1 as I would without review mode.
+  - The toolbar allows me do add a feedback.
+    - For this, I have to click somewhere. You record the page and state, positon of mouse, and clicked element.
+    - Then, a popup comes, and I'll be able add my feedback. For each feedback:
+      - Title (which was my previous 1.)
+      - A list of point (1.a, 1.b, 1.c) (text)
+        - Allow the upload of file, which you'll save in the same fodler as the md files, numbeted 1.a.-file-name.file-extension
+    - For each feedback, you'll create a md file with my feedback. This should also be numeroted in the order I entered them.
+  - This fill then server for you for the next correction round.
+  - The added feedback is available in the feedback list. This is a side bar, only displayed in review mode next to the website, resizable (which resizes the website next to it too), with the list of all feedbacks. For each, I can validate the points 1.a, 1.b, etc, or refine (new note on the point), which provide an histroy of the refinements for each point.
+  - Important: as for now, I'd like to group my feedback pro branch/concept/feature.
+  - Future: we'll also allow to record a sequance, not only the click on a element. Just for your information.
+  - This is very highl level brief, please question me to come with a solid tool.
