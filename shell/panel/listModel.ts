@@ -1,4 +1,4 @@
-import type { HistoryEntry, PinRef, Point, Row, Status } from "../../model/types.ts"
+import type { HistoryEntry, PinRecord, PinRef, Point, Row, Status } from "../../model/types.ts"
 
 export type Filter = "all" | Status
 
@@ -10,6 +10,17 @@ export type FlatRow = {
   pin?: PinRef
   history: HistoryEntry[]
   inheritedPinFrom?: string // nearest pinned ancestor, when the row has no pin of its own
+}
+
+// What a pinned row's actions (Go to pin, Restore state, Open in VS Code)
+// hand over: the row that owns the pin — the row itself or the ancestor it
+// inherits from — and the pin record beside its screenshot (null when the
+// record is missing or unreadable).
+export type PinTarget = {
+  ownerRowId: string
+  pin: PinRef
+  recordPath: string
+  record: PinRecord | null
 }
 
 const STATUSES: Status[] = ["open", "review", "done"]
@@ -83,4 +94,22 @@ export function pinRecordPath(pin: PinRef, ownerRowId: string): string {
   const slash = pin.screenshot.lastIndexOf("/")
   const folder = slash === -1 ? "" : pin.screenshot.slice(0, slash + 1)
   return `${folder}${ownerRowId}-pin.json`
+}
+
+// "New topic…" suggestion from the frame's first path segment:
+// `/concept-08-4/x` → `08.4`.
+export function suggestTopicName(pathname: string): string {
+  const first = pathname.split("/").find(Boolean) ?? ""
+  const concept = /^concept-(\d+)(?:-(\d+))?$/.exec(first)
+  if (concept) return concept[2] ? `${concept[1]}.${concept[2]}` : concept[1]
+  return first
+}
+
+// A row is one markdown line: a newline typed in the refine field would
+// split it and lose its status tag.
+export function singleLine(text: string): string {
+  return text
+    .split(/\s*\n\s*/)
+    .join(" ")
+    .trim()
 }

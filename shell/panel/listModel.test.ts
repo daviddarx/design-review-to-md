@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { parsePoint } from "../../model/markdown.ts"
-import { counts, flattenRows, pinRecordPath } from "./listModel.ts"
+import { counts, flattenRows, pinRecordPath, singleLine, suggestTopicName } from "./listModel.ts"
 
 const SPEC = `# 5. Main navigation
 
@@ -101,5 +101,23 @@ describe("pinRecordPath", () => {
 
   it("a screenshot at the topic root has no folder", () => {
     expect(pinRecordPath({ path: "/x", screenshot: "5-pin.png" }, "5")).toBe("5-pin.json")
+  })
+})
+
+describe("suggestTopicName", () => {
+  it("turns a concept route into its version", () => {
+    expect(suggestTopicName("/concept-08-4/x")).toBe("08.4")
+    expect(suggestTopicName("/concept-06-2")).toBe("06.2")
+  })
+
+  it("falls back to the first segment, or nothing", () => {
+    expect(suggestTopicName("/settings/a")).toBe("settings")
+    expect(suggestTopicName("/")).toBe("")
+  })
+})
+
+describe("singleLine", () => {
+  it("joins lines so a row stays one markdown line", () => {
+    expect(singleLine("  one\ntwo \n\n three ")).toBe("one two three")
   })
 })

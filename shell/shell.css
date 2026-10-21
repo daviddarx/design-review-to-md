@@ -48,10 +48,476 @@ body {
   width: auto;
 }
 
-.dr-panel-slot {
-  flex: 0 0 360px;
+/* The panel host keeps the panel mounted while List hides it. */
+.dr-panel-host {
+  display: contents;
+}
+
+.dr-hidden {
+  display: none;
+}
+
+.dr-panel {
+  --dr-text: #171717;
+  --dr-text-muted: #737373;
+  --dr-surface: #fafafa;
+  --dr-hover: #f0f0f0;
+  --dr-focus: #2563eb;
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
   border-left: 1px solid var(--dr-line);
-  background: #fafafa;
+  background: var(--dr-surface);
+  color: var(--dr-text);
+  font: 400 13px/1.45 var(--dr-font);
+}
+
+.dr-panel button {
+  font: inherit;
+  color: inherit;
+}
+
+/* Left edge; pointer capture keeps the drag alive over the frame. */
+.dr-resize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -3px;
+  z-index: 2;
+  width: 6px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.dr-resize:hover,
+.dr-resize:active {
+  background: rgb(37 99 235 / 0.35);
+}
+
+.dr-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--dr-line);
+  background: #fff;
+}
+
+.dr-input {
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid #d4d4d4;
+  border-radius: 6px;
+  background: #fff;
+  color: var(--dr-text);
+  font: inherit;
+  box-sizing: border-box;
+}
+
+.dr-input:focus-visible {
+  outline: 2px solid var(--dr-focus);
+  outline-offset: -1px;
+}
+
+.dr-topic {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.dr-button {
+  flex: 0 0 auto;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid #d4d4d4;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.dr-button:hover:not(:disabled) {
+  background: var(--dr-hover);
+}
+
+.dr-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.dr-button-primary {
+  border-color: var(--dr-text);
+  background: var(--dr-text);
+  color: #fff !important;
+}
+
+.dr-button-primary:hover:not(:disabled) {
+  background: #404040;
+}
+
+.dr-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dr-text-muted) !important;
+  cursor: help;
+}
+
+.dr-icon-button:hover,
+.dr-icon-button:focus-visible {
+  background: var(--dr-hover);
+  color: var(--dr-text) !important;
+}
+
+.dr-panel :focus-visible {
+  outline: 2px solid var(--dr-focus);
+  outline-offset: -2px;
+}
+
+/* Shortcut reminder: a tooltip on hover or keyboard focus. */
+.dr-help {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.dr-help-tip {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 10;
+  display: none;
+  width: 240px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--dr-bar);
+  color: var(--dr-ink);
+  font-size: 12px;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.2);
+}
+
+.dr-help:hover .dr-help-tip,
+.dr-help:focus-within .dr-help-tip {
+  display: grid;
+  gap: 8px;
+}
+
+.dr-help-group {
+  display: grid;
+  gap: 2px;
+}
+
+.dr-help-title {
+  color: var(--dr-ink-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.dr-help-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dr-help-row kbd {
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.dr-filters {
+  display: flex;
+  gap: 4px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--dr-line);
+}
+
+.dr-chip {
+  height: 24px;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--dr-text-muted) !important;
+  font-size: 12px !important;
+  cursor: pointer;
+}
+
+.dr-chip:hover {
+  background: var(--dr-hover);
+}
+
+.dr-chip[aria-checked="true"] {
+  border-color: #d4d4d4;
+  background: #fff;
+  color: var(--dr-text) !important;
+  font-weight: 600 !important;
+}
+
+.dr-chip-count {
+  margin-left: 2px;
+  color: var(--dr-text-muted);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.dr-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 8px 12px 0;
+  padding: 6px 8px;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  background: #fef2f2;
+  color: #991b1b;
+  font-size: 12px;
+}
+
+.dr-error span {
+  flex: 1 1 auto;
+}
+
+.dr-error button {
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: inherit !important;
+  cursor: pointer;
+}
+
+.dr-panel-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 6px 0 64px;
+}
+
+.dr-empty {
+  margin: 24px 16px;
+  color: var(--dr-text-muted);
+  text-align: center;
+}
+
+.dr-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dr-row {
+  position: relative;
+  padding: 5px 12px;
+}
+
+.dr-row:hover,
+.dr-row:focus-within {
+  background: var(--dr-hover);
+}
+
+.dr-depth-0 {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--dr-line);
+  font-weight: 600;
+}
+
+.dr-list > .dr-depth-0:first-child {
+  margin-top: 0;
+  border-top: 0;
+}
+
+.dr-depth-1 {
+  padding-left: 30px;
+}
+
+.dr-depth-2 {
+  padding-left: 52px;
+}
+
+.dr-busy {
+  opacity: 0.6;
+}
+
+.dr-row-main {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.dr-row-num {
+  flex: 0 0 auto;
+  min-width: 18px;
+  color: var(--dr-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.dr-depth-0 .dr-row-num {
+  color: var(--dr-text);
+}
+
+.dr-row-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.dr-refine {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 44px;
+  padding: 4px 6px;
+  font-weight: 400;
+  resize: vertical;
+}
+
+.dr-row-tags {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 400;
+}
+
+.dr-status {
+  padding: 0 6px;
+  border-radius: 4px;
+  font:
+    500 11px/18px ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+}
+
+.dr-status-open {
+  background: #e5e5e5;
+  color: #404040;
+}
+
+.dr-status-review {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.dr-status-done {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.dr-pin {
+  padding: 0 4px;
+  border: 1px solid #d4d4d4;
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 16px;
+  white-space: nowrap;
+}
+
+.dr-pin-inherited {
+  border-style: dashed;
+  color: var(--dr-text-muted);
+}
+
+.dr-history-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #a3a3a3;
+}
+
+.dr-history {
+  margin: 0 0 4px 24px;
+  padding: 0;
+  list-style: none;
+  color: #a3a3a3;
+  font-weight: 400;
+}
+
+.dr-history-kind {
+  font-weight: 500;
+}
+
+.dr-history-empty {
+  font-style: italic;
+}
+
+/* Hover actions overlay the row's top-right corner. */
+.dr-row-actions {
+  position: absolute;
+  top: 2px;
+  right: 8px;
+  z-index: 3;
+  display: none;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 2px;
+  max-width: calc(100% - 40px);
+  padding: 2px;
+  border: 1px solid var(--dr-line);
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.08);
+  font-weight: 400;
+}
+
+.dr-row:hover > .dr-row-actions,
+.dr-row:focus-within > .dr-row-actions {
+  display: flex;
+}
+
+.dr-row-actions button {
+  height: 22px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  font-size: 12px !important;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.dr-row-actions button:hover,
+.dr-row-actions button[aria-pressed="true"],
+.dr-row-actions button[aria-expanded="true"] {
+  background: var(--dr-hover);
+}
+
+.dr-shot {
+  display: block;
+  margin: 6px 0 2px 24px;
+  border: 1px solid var(--dr-line);
+  border-radius: 6px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.dr-shot img {
+  display: block;
+  width: 100%;
+  max-height: 260px;
+  object-fit: contain;
+}
+
+.dr-confirm {
+  display: grid;
+  gap: 6px;
+  margin: 6px 0 2px 24px;
+  padding: 8px;
+  border: 1px solid #fde68a;
+  border-radius: 6px;
+  background: #fffbeb;
+  font-weight: 400;
+}
+
+.dr-confirm-actions {
+  display: flex;
+  gap: 6px;
 }
 
 .dr-toolbar {

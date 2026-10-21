@@ -3,6 +3,7 @@ import type { PointerEvent as ReactPointerEvent } from "react"
 import { readKey, writeKey } from "./prefs.ts"
 
 export type ToolbarProps = {
+  bounds: HTMLElement | null // the area the toolbar stays inside (the app frame)
   onPinAndAdd(): void
   onNewPoint(): void
   onToggleList(): void
@@ -11,6 +12,7 @@ export type ToolbarProps = {
 }
 
 type Pos = { x: number; y: number }
+type Area = { left: number; top: number; right: number; bottom: number }
 
 function readPos(): Pos | null {
   try {
@@ -21,20 +23,32 @@ function readPos(): Pos | null {
   }
 }
 
-// Keeps the whole toolbar inside the window.
-function clamp(pos: Pos, el: HTMLElement): Pos {
+// The frame's box, or the window when the frame is not laid out — never
+// clamp against a zero box.
+function areaOf(bounds: HTMLElement | null): Area {
+  const r = bounds?.getBoundingClientRect()
+  if (r && r.width > 0 && r.height > 0) {
+    return { left: r.left, top: r.top, right: r.right, bottom: r.bottom }
+  }
+  return { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight }
+}
+
+// Keeps the whole toolbar inside the area, so it never sits over the panel.
+function clamp(pos: Pos, el: HTMLElement, area: Area): Pos {
   const { width, height } = el.getBoundingClientRect()
-  if (!width || !height) return pos // not laid out — never clamp against a zero box
+  if (!width || !height) return pos
   return {
-    x: Math.min(Math.max(0, pos.x), Math.max(0, window.innerWidth - width)),
-    y: Math.min(Math.max(0, pos.y), Math.max(0, window.innerHeight - height)),
+    x: Math.min(Math.max(area.left, pos.x), Math.max(area.left, area.right - width)),
+    y: Math.min(Math.max(area.top, pos.y), Math.max(area.top, area.bottom - height)),
   }
 }
 
 // Fixed dark pill. The grip drags it (pointer capture keeps the drag alive
 // over the iframe); the position persists at `design-review:toolbar`. With
-// no stored position it sits bottom-centre.
+// no stored position it sits bottom-centre of the frame. It stays inside
+// the frame, re-clamped whenever the frame resizes (the panel's drag).
 export function Toolbar({
+  bounds,
   onPinAndAdd,
   onNewPoint,
   onToggleList,
@@ -44,17 +58,27 @@ export function Toolbar({
   const ref = useRef<HTMLDivElement>(null)
   const drag = useRef<{ dx: number; dy: number } | null>(null)
   const [pos, setPos] = useState<Pos | null>(readPos)
+  const [area, setArea] = useState<Area>(() => areaOf(bounds))
 
   useEffect(() => {
     if (pos) writeKey("toolbar", JSON.stringify(pos))
   }, [pos])
 
   useEffect(() => {
-    const onResize = () => setPos((p) => (p && ref.current ? clamp(p, ref.current) : p))
+    const onResize = () => {
+      const next = areaOf(bounds)
+      setArea(next)
+      setPos((p) => (p && ref.current ? clamp(p, ref.current, next) : p))
+    }
     onResize() // a stored position may come from a larger window
     window.addEventListener("resize", onResize)
-    return () => window.removeEventListener("resize", onResize)
-  }, [])
+    const observer = bounds ? new ResizeObserver(onResize) : null
+    if (bounds) observer?.observe(bounds)
+    return () => {
+      window.removeEventListener("resize", onResize)
+      observer?.disconnect()
+    }
+  }, [bounds])
 
   const onPointerDown = (e: ReactPointerEvent<HTMLSpanElement>) => {
     if (e.button !== 0 || !ref.current) return
@@ -66,7 +90,7 @@ export function Toolbar({
   const onPointerMove = (e: ReactPointerEvent<HTMLSpanElement>) => {
     if (!drag.current || !ref.current) return
     const { dx, dy } = drag.current
-    setPos(clamp({ x: e.clientX - dx, y: e.clientY - dy }, ref.current))
+    setPos(clamp({ x: e.clientX - dx, y: e.clientY - dy }, ref.current, areaOf(bounds)))
   }
   const endDrag = (e: ReactPointerEvent<HTMLSpanElement>) => {
     if (!drag.current) return
@@ -80,7 +104,7 @@ export function Toolbar({
     <div
       ref={ref}
       className={pos ? "dr-toolbar" : "dr-toolbar dr-toolbar-default"}
-      style={pos ? { left: pos.x, top: pos.y } : undefined}
+      style={pos ? { left: pos.x, top: pos.y } : { left: (area.left + area.right) / 2 }}
       role="toolbar"
       aria-label="Design review"
     >
