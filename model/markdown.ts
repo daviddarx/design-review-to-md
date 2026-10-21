@@ -7,7 +7,9 @@ const PIN = /^(\s*)📍 (.*?)(?: — !\[\]\((.*)\))?$/
 
 type Open = { row: Row; indent: number }
 
-export function parsePoint(md: string): Point {
+export function parsePoint(source: string): Point {
+  // A CRLF checkout reads like its LF twin.
+  const md = source.replace(/\r\n/g, "\n")
   const lines = (md.endsWith("\n") ? md.slice(0, -1) : md).split("\n")
   const point: Point = {
     number: 0,
@@ -17,7 +19,7 @@ export function parsePoint(md: string): Point {
     rows: [],
   }
   let i = 0
-  const title = TITLE.exec(lines[0] ?? "")
+  const title = TITLE.exec((lines[0] ?? "").trimEnd())
   if (title) {
     point.number = Number(title[1])
     point.title = title[2]
@@ -38,7 +40,9 @@ export function parsePoint(md: string): Point {
   }
 
   for (; i < lines.length; i++) {
-    const line = lines[i]
+    // Trailing spaces never decide a match (a space after a status tag must
+    // not fold the tag into the text); unknown lines keep theirs.
+    const line = lines[i].trimEnd()
     const row = ROW.exec(line)
     if (row && !HISTORY.test(line)) {
       const indent = row[1].length
@@ -74,9 +78,9 @@ export function parsePoint(md: string): Point {
       if (owner) owner.history.push(entry)
       else point.history.push(entry)
     } else if (owner) {
-      owner.extra.push(line)
+      owner.extra.push(lines[i])
     } else {
-      header.push(line)
+      header.push(lines[i])
     }
   }
 

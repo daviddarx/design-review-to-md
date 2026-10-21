@@ -93,4 +93,27 @@ A note before the rows.
     expect(p.rows[0].pin).toEqual({ path: "(review tool)" })
     expect(serializePoint(p)).toBe(md)
   })
+  it("a trailing space after a status tag neither reopens the row nor doubles the tag", () => {
+    const p = parsePoint("# 1. T `review` \n\n- a. foo `done` \n  - Claude: fixed \n")
+    expect(p.status).toBe("review")
+    expect(p.rows[0].text).toBe("foo")
+    expect(p.rows[0].status).toBe("done")
+    expect(p.rows[0].history).toEqual([{ kind: "claude", text: "fixed" }])
+    expect(serializePoint(p)).toBe("# 1. T `review`\n\n- a. foo `done`\n  - Claude: fixed\n")
+  })
+
+  it("a CRLF file parses like its LF twin", () => {
+    const md = `# 1. T
+
+📍 /x — ![](01-t/1-pin.png)
+
+- a. one \`open\`
+  - Claude: did it
+- b. two \`done\`
+  - 1. inner \`review\`
+`
+    const crlf = md.replace(/\n/g, "\r\n")
+    expect(parsePoint(crlf)).toEqual(parsePoint(md))
+    expect(serializePoint(parsePoint(crlf))).toBe(md)
+  })
 })
