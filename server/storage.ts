@@ -128,23 +128,39 @@ export class Storage {
     await fs.rename(tmp, file)
   }
 
+  // topic.json is a cache of what the folder already says: a point file or a
+  // retired id at or above its `nextPoint` (it was lost, hand-edited or is
+  // unreadable) moves the next number past them, so none is ever reused.
   private async readMeta(dir: string): Promise<TopicMeta> {
+    let raw: unknown = null
     try {
-      const raw = JSON.parse(await fs.readFile(path.join(dir, "topic.json"), "utf8"))
-      return {
-        nextPoint: Number(raw.nextPoint) || 1,
-        retired: Array.isArray(raw.retired) ? raw.retired.map(String) : [],
-      }
+      raw = JSON.parse(await fs.readFile(path.join(dir, "topic.json"), "utf8"))
+    } catch (err) {
+      // Missing or not JSON (a SyntaxError has no code): start from the files.
+      const code = (err as NodeJS.ErrnoException).code
+      if (code && code !== "ENOENT") throw err
+    }
+    let files: { number: number }[]
+    try {
+      files = await this.pointFiles(dir)
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-        try {
-          await fs.access(dir)
-        } catch {
-          throw new StorageError(404, "No such topic")
-        }
-        return { nextPoint: 1, retired: [] }
+        throw new StorageError(404, "No such topic")
       }
       throw err
+    }
+    const fields =
+      raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {}
+    const retired = Array.isArray(fields.retired) ? fields.retired.map(String) : []
+    const stored = Number(fields.nextPoint)
+    const highest = Math.max(
+      0,
+      ...files.map((f) => f.number),
+      ...retired.filter((id) => /^\d+$/.test(id)).map(Number)
+    )
+    return {
+      nextPoint: Math.max(Number.isSafeInteger(stored) && stored > 0 ? stored : 1, highest + 1),
+      retired,
     }
   }
 
@@ -159,6 +175,13 @@ export class Storage {
       .filter((x): x is { file: string; m: RegExpExecArray } => x.m !== null)
       .map((x) => ({ file: x.file, number: Number(x.m[1]) }))
       .sort((a, b) => a.number - b.number)
+  }
+
+  // A first line too broken to name its number falls back to the file's.
+  private async readPoint(dir: string, file: string): Promise<Point> {
+    const point = parsePoint(await fs.readFile(path.join(dir, file), "utf8"))
+    if (!point.number) point.number = Number(/^(\d+)-/.exec(file)?.[1] ?? 0)
+    return point
   }
 
   private async findPoint(dir: string, n: number) {
@@ -265,7 +288,7 @@ export class Storage {
     const meta = await this.readMeta(dir)
     const points = []
     for (const { file } of await this.pointFiles(dir)) {
-      points.push({ file, point: parsePoint(await fs.readFile(path.join(dir, file), "utf8")) })
+      points.push({ file, point: await this.readPoint(dir, file) })
     }
     return { meta, points }
   }
@@ -308,7 +331,7 @@ export class Storage {
       const folder = file.replace(/\.md$/, "")
       const meta = await this.readMeta(dir)
       // Fresh read every time: anything Claude wrote by hand survives.
-      const point = parsePoint(await fs.readFile(path.join(dir, file), "utf8"))
+      const point = await this.readPoint(dir, file)
       let result: OpResult
       try {
         result = applyModelOp(point, op, meta.retired)

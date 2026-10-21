@@ -61,6 +61,49 @@ describe("points", () => {
     expect(meta.retired).toContain("3")
   })
 
+  it("a missing topic.json never reuses a number on disk", async () => {
+    await storage.createTopic("t")
+    await storage.createPoint("t", "One", [], undefined, [])
+    await storage.createPoint("t", "Two", [], undefined, [])
+    await fs.rm(path.join(root, "t", "topic.json"))
+    expect((await storage.readTopic("t")).meta.nextPoint).toBe(3)
+    expect((await storage.createPoint("t", "Three", [], undefined, [])).number).toBe(3)
+  })
+
+  it("a stale nextPoint is moved past files and retired ids", async () => {
+    await storage.createTopic("t")
+    await storage.createPoint("t", "One", [], undefined, [])
+    await fs.writeFile(
+      path.join(root, "t", "topic.json"),
+      JSON.stringify({ nextPoint: 1, retired: ["4", "2.a"] })
+    )
+    expect((await storage.createPoint("t", "Next", [], undefined, [])).number).toBe(5)
+  })
+
+  it("a malformed topic.json still loads, and the next point does not collide", async () => {
+    await storage.createTopic("t")
+    await storage.createPoint("t", "One", [], undefined, [])
+    await storage.createPoint("t", "Two", [], undefined, [])
+    await fs.writeFile(path.join(root, "t", "topic.json"), "{ not json")
+    const { meta, points } = await storage.readTopic("t")
+    expect(meta).toEqual({ nextPoint: 3, retired: [] })
+    expect(points).toHaveLength(2)
+    expect((await storage.createPoint("t", "Three", [], undefined, [])).number).toBe(3)
+    expect(existsSync(path.join(root, "t", "02-two.md"))).toBe(true)
+  })
+
+  it("a broken first line takes its number from the file name", async () => {
+    await storage.createTopic("t")
+    await storage.createPoint("t", "Nav", [row("one")], undefined, [])
+    const file = path.join(root, "t", "01-nav.md")
+    const md = await fs.readFile(file, "utf8")
+    await fs.writeFile(file, md.replace("# 1. Nav", "#1 Nav"))
+    const [{ point }] = (await storage.readTopic("t")).points
+    expect(point.number).toBe(1)
+    await storage.applyOp("t", 1, { kind: "editText", rowId: "1.a", text: "uno" }, [])
+    expect(await fs.readFile(file, "utf8")).toContain("- a. uno `open`")
+  })
+
   it("createPoint writes the file and assets", async () => {
     await storage.createTopic("t")
     await fs.writeFile(
