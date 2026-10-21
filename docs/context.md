@@ -104,3 +104,11 @@ plan beside it.
   opens upward. The panel's open-count callback went with the toolbar.
 - **A title-only feedback is tagged `open` on its title line** at creation,
   so it counts, filters and reaches Claude like a row (AGENTS.md says so).
+- **List rows** (his layout): every row has a separator below it; line 1 is
+  number, status tag, pin badges, then always-visible icon actions at the
+  right (`shell/panel/icons.tsx`, tooltip from `data-tip`); line 2 is the
+  text. The filter bar is tabs left (wrapping, never shrinking) and
+  ＋ New feedback right, aligned on the first baseline. The shortcut icon is
+  a bordered 32px button bottom right. Drawer rows keep the old look.
+- **Never commit `docs/review/`** — his feedback files are his to commit,
+  unlike the briefs CLAUDE.md asks to be committed with their fixes.

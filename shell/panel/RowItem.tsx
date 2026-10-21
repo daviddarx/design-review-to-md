@@ -3,6 +3,7 @@ import type { KeyboardEvent as ReactKeyboardEvent } from "react"
 import type { Op } from "../../model/ops.ts"
 import type { PinRecord, PinRef } from "../../model/types.ts"
 import { fileUrl } from "../api.ts"
+import { Icon, type IconName } from "./icons.tsx"
 import { pinRecordPath, singleLine } from "./listModel.ts"
 import type { FlatRow, PinTarget } from "./listModel.ts"
 
@@ -29,6 +30,34 @@ export function isTyping(target: EventTarget | null): boolean {
     target.tagName === "INPUT" ||
     target.tagName === "TEXTAREA" ||
     target.tagName === "SELECT"
+  )
+}
+
+// An icon action; its name shows in a tooltip on hover or keyboard focus.
+function ActionButton({
+  icon,
+  label,
+  tip = label,
+  pressed,
+  onClick,
+}: {
+  icon: IconName
+  label: string
+  tip?: string
+  pressed?: boolean
+  onClick(): void
+}) {
+  return (
+    <button
+      type="button"
+      className="dr-action"
+      aria-label={label}
+      aria-pressed={pressed}
+      data-tip={tip}
+      onClick={onClick}
+    >
+      <Icon name={icon} />
+    </button>
   )
 }
 
@@ -158,109 +187,99 @@ export function RowItem({
         </ol>
       )}
 
-      <div className="dr-row-main">
+      <div className="dr-row-head">
         <span className="dr-row-num">{label}.</span>
-        {refining === null ? (
-          <span className="dr-row-text">{row.text}</span>
-        ) : (
-          <textarea
-            className="dr-input dr-refine"
-            aria-label={`Refine ${row.rowId}`}
-            autoFocus
-            rows={2}
-            value={refining}
-            disabled={busy}
-            onFocus={(e) => e.currentTarget.select()}
-            onChange={(e) => setRefining(e.target.value)}
-            onKeyDown={(e) => {
-              const li = e.currentTarget.closest("li")
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault()
-                void submitRefine(li)
-              } else if (e.key === "Escape") {
-                e.preventDefault()
-                e.stopPropagation()
-                setRefining(null)
-                li?.focus()
-              }
-            }}
-          />
+        {row.status && <span className={`dr-status dr-status-${row.status}`}>{row.status}</span>}
+        {row.pin && (
+          <span className="dr-pin" title="Pinned">
+            📍
+          </span>
         )}
-        <span className="dr-row-tags">
-          {row.history.length > 0 && !historyOpen && (
-            <span className="dr-history-dot" title="Has history (H)" aria-hidden="true" />
-          )}
-          {row.pin && (
-            <span className="dr-pin" title="Pinned">
-              📍
-            </span>
-          )}
-          {row.inheritedPinFrom && (
-            <span
-              className="dr-pin dr-pin-inherited"
-              title={`Uses the pin of ${row.inheritedPinFrom}`}
-            >
-              📍 from {row.inheritedPinFrom}
-            </span>
-          )}
-          {row.status && <span className={`dr-status dr-status-${row.status}`}>{row.status}</span>}
-        </span>
+        {row.inheritedPinFrom && (
+          <span
+            className="dr-pin dr-pin-inherited"
+            title={`Uses the pin of ${row.inheritedPinFrom}`}
+          >
+            📍 from {row.inheritedPinFrom}
+          </span>
+        )}
+        {row.history.length > 0 && !historyOpen && (
+          <span className="dr-history-dot" title="Has history (H)" aria-hidden="true" />
+        )}
+        {refining === null && (
+          <span className="dr-row-actions">
+            {row.depth === 0 && (
+              <ActionButton
+                icon="edit"
+                label="Edit feedback"
+                onClick={() => onEditPoint(pointNumber)}
+              />
+            )}
+            {row.status !== "done" && (
+              <ActionButton icon="validate" label="Validate (V)" onClick={validate} />
+            )}
+            <ActionButton icon="refine" label="Refine (R)" onClick={startRefine} />
+            <ActionButton
+              icon="history"
+              label="History (H)"
+              pressed={historyOpen}
+              onClick={toggleHistory}
+            />
+            {owner && (
+              <>
+                <ActionButton icon="pin" label="Go to pin" onClick={withTarget(onGoToPin)} />
+                {owner.pin.screenshot && (
+                  <ActionButton
+                    icon="screenshot"
+                    label="Screenshot"
+                    pressed={shotOpen}
+                    onClick={() => setShotOpen((v) => !v)}
+                  />
+                )}
+                <ActionButton
+                  icon="restore"
+                  label="Restore state"
+                  onClick={() => setConfirming(true)}
+                />
+                {source && (
+                  <ActionButton
+                    icon="source"
+                    label="Open in VS Code"
+                    tip={`Open ${source.file}:${source.line} in VS Code`}
+                    onClick={withTarget(onOpenSource)}
+                  />
+                )}
+              </>
+            )}
+          </span>
+        )}
       </div>
 
-      {refining === null && (
-        <div className="dr-row-actions">
-          {row.depth === 0 && (
-            <button type="button" title="Edit feedback" onClick={() => onEditPoint(pointNumber)}>
-              Edit
-            </button>
-          )}
-          {row.status !== "done" && (
-            <button type="button" title="Validate (V)" onClick={validate}>
-              Validate
-            </button>
-          )}
-          <button type="button" title="Refine (R)" onClick={startRefine}>
-            Refine
-          </button>
-          <button
-            type="button"
-            title="History (H)"
-            aria-pressed={historyOpen}
-            aria-label="History"
-            onClick={toggleHistory}
-          >
-            🕘
-          </button>
-          {owner && (
-            <>
-              <button type="button" title="Go to pin" onClick={withTarget(onGoToPin)}>
-                Go to pin
-              </button>
-              {owner.pin.screenshot && (
-                <button
-                  type="button"
-                  title="Screenshot"
-                  aria-expanded={shotOpen}
-                  onClick={() => setShotOpen((v) => !v)}
-                >
-                  Screenshot
-                </button>
-              )}
-              <button type="button" title="Restore state" onClick={() => setConfirming(true)}>
-                Restore state
-              </button>
-              {source && (
-                <button
-                  type="button"
-                  title={`Open ${source.file}:${source.line} in VS Code`}
-                  onClick={withTarget(onOpenSource)}
-                >
-                  Open in VS Code
-                </button>
-              )}
-            </>
-          )}
-        </div>
+      {refining === null ? (
+        <div className="dr-row-text">{row.text}</div>
+      ) : (
+        <textarea
+          className="dr-input dr-refine"
+          aria-label={`Refine ${row.rowId}`}
+          autoFocus
+          rows={2}
+          value={refining}
+          disabled={busy}
+          onFocus={(e) => e.currentTarget.select()}
+          onChange={(e) => setRefining(e.target.value)}
+          onKeyDown={(e) => {
+            const li = e.currentTarget.closest("li")
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault()
+              void submitRefine(li)
+            } else if (e.key === "Escape") {
+              e.preventDefault()
+              e.stopPropagation()
+              setRefining(null)
+              li?.focus()
+            }
+          }}
+        />
       )}
 
       {row.attachments.length > 0 && (

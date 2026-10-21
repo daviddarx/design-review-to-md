@@ -275,28 +275,25 @@ export function Panel({
         </button>
       </header>
 
-      <div className="dr-filters" role="radiogroup" aria-label="Filter by status" inert={covered}>
-        {FILTERS.map((f) => (
-          <button
-            key={f.value}
-            type="button"
-            role="radio"
-            aria-checked={filter === f.value}
-            className="dr-chip"
-            onClick={() => setFilter(f.value)}
-          >
-            {f.label}{" "}
-            <span className="dr-chip-count">
-              {f.value === "all" ? tally.open + tally.review + tally.done : tally[f.value]}
-            </span>
-          </button>
-        ))}
-        <button
-          type="button"
-          className="dr-button dr-filters-new"
-          onClick={onNewPoint}
-          disabled={!topic}
-        >
+      <div className="dr-filters" inert={covered}>
+        <div className="dr-filter-tabs" role="radiogroup" aria-label="Filter by status">
+          {FILTERS.map((f) => (
+            <button
+              key={f.value}
+              type="button"
+              role="radio"
+              aria-checked={filter === f.value}
+              className="dr-chip"
+              onClick={() => setFilter(f.value)}
+            >
+              {f.label}{" "}
+              <span className="dr-chip-count">
+                {f.value === "all" ? tally.open + tally.review + tally.done : tally[f.value]}
+              </span>
+            </button>
+          ))}
+        </div>
+        <button type="button" className="dr-button" onClick={onNewPoint} disabled={!topic}>
           ＋ New feedback
         </button>
       </div>

@@ -222,7 +222,7 @@ describe("Panel", () => {
     const source = { file: "src/x.tsx", line: 3 }
     const step = { element: { source } }
     await act(async () => record.resolve(json({ version: 1, at: "", steps: [step] })))
-    expect(row("5.c").textContent).not.toContain("Open in VS Code")
+    expect(row("5.c").querySelector('[aria-label="Open in VS Code"]')).toBeNull()
   })
 
   it("a successful load clears an earlier load error", async () => {
@@ -238,7 +238,7 @@ describe("Panel", () => {
     const onGoToPin = vi.fn(async () => "Pinned element not found — the page changed since.")
     await render({ onGoToPin })
     const go = [...row("5.c").querySelectorAll("button")].find(
-      (b) => b.textContent === "Go to pin"
+      (b) => b.getAttribute("aria-label") === "Go to pin"
     )!
     await act(async () => go.click())
     await act(async () => {})
@@ -256,7 +256,7 @@ describe("Panel", () => {
     const answers = ["Pinned element not found — the page changed since.", null]
     await render({ onGoToPin: async () => answers.shift() })
     const go = [...row("5.c").querySelectorAll("button")].find(
-      (b) => b.textContent === "Go to pin"
+      (b) => b.getAttribute("aria-label") === "Go to pin"
     )!
     await act(async () => go.click())
     await act(async () => {})
@@ -269,7 +269,7 @@ describe("Panel", () => {
   it("the restore confirm takes Esc from anywhere inside and blocks V/R/H", async () => {
     await render()
     const restore = [...row("5.c").querySelectorAll("button")].find(
-      (b) => b.textContent === "Restore state"
+      (b) => b.getAttribute("aria-label") === "Restore state"
     )!
     await act(async () => restore.click())
     const confirm = row("5.c").querySelector<HTMLElement>(".dr-confirm")!

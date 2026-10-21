@@ -189,7 +189,7 @@ body {
 
 .dr-help-tip {
   position: absolute;
-  top: calc(100% + 6px);
+  bottom: calc(100% + 6px);
   right: 0;
   z-index: 10;
   display: none;
@@ -231,11 +231,41 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* Status tabs left, New feedback right. First-baseline alignment puts the
+   button's text on the tabs' line, and on their FIRST line once they wrap. */
 .dr-filters {
   display: flex;
-  gap: 4px;
+  align-items: first baseline;
+  justify-content: space-between;
+  gap: 8px;
   padding: 8px 12px;
   border-bottom: 1px solid var(--dr-line);
+}
+
+.dr-filter-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+}
+
+.dr-chip {
+  flex: 0 0 auto;
+}
+
+/* The shortcut reminder, bottom right; its tooltip opens upward. */
+.dr-panel-foot {
+  display: flex;
+  justify-content: flex-end;
+  padding: 8px 12px;
+  border-top: 1px solid var(--dr-line);
+}
+
+.dr-panel-foot .dr-icon-button {
+  width: 32px;
+  height: 32px;
+  border: 1px solid #d4d4d4;
+  background: #fff;
 }
 
 .dr-chip {
@@ -313,7 +343,8 @@ body {
 
 .dr-row {
   position: relative;
-  padding: 5px 12px;
+  padding: 6px 12px 8px;
+  border-bottom: 1px solid var(--dr-line);
 }
 
 .dr-row:hover,
@@ -321,16 +352,8 @@ body {
   background: var(--dr-hover);
 }
 
-.dr-depth-0 {
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid var(--dr-line);
+.dr-depth-0 .dr-row-text {
   font-weight: 600;
-}
-
-.dr-list > .dr-depth-0:first-child {
-  margin-top: 0;
-  border-top: 0;
 }
 
 .dr-depth-1 {
@@ -345,10 +368,27 @@ body {
   opacity: 0.6;
 }
 
+/* A drawer row: number, field, tags on one line. */
 .dr-row-main {
   display: flex;
   align-items: baseline;
   gap: 6px;
+}
+
+.dr-row-tags {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 400;
+}
+
+/* Line 1: number, tags, then the actions at the right end. */
+.dr-row-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
 }
 
 .dr-row-num {
@@ -363,26 +403,17 @@ body {
 }
 
 .dr-row-text {
-  flex: 1 1 auto;
-  min-width: 0;
   overflow-wrap: anywhere;
 }
 
 .dr-refine {
-  flex: 1 1 auto;
+  width: 100%;
+  box-sizing: border-box;
   height: auto;
   min-height: 44px;
   padding: 4px 6px;
   font-weight: 400;
   resize: vertical;
-}
-
-.dr-row-tags {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-weight: 400;
 }
 
 .dr-status {
@@ -447,45 +478,55 @@ body {
   font-style: italic;
 }
 
-/* Hover actions overlay the row's top-right corner. */
+/* Always-visible icon actions; the name shows as a tooltip below. */
 .dr-row-actions {
-  position: absolute;
-  top: 2px;
-  right: 8px;
-  z-index: 3;
-  display: none;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 2px;
-  max-width: calc(100% - 40px);
-  padding: 2px;
-  border: 1px solid var(--dr-line);
-  border-radius: 6px;
-  background: #fff;
-  box-shadow: 0 2px 8px rgb(0 0 0 / 0.08);
-  font-weight: 400;
-}
-
-.dr-row:hover > .dr-row-actions,
-.dr-row:focus-within > .dr-row-actions {
   display: flex;
+  gap: 2px;
+  margin-left: auto;
 }
 
-.dr-row-actions button {
-  height: 22px;
-  padding: 0 7px;
+.dr-action {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
   border: 0;
-  border-radius: 4px;
+  border-radius: 6px;
   background: transparent;
-  font-size: 12px !important;
-  white-space: nowrap;
+  color: var(--dr-text-muted) !important;
   cursor: pointer;
 }
 
-.dr-row-actions button:hover,
-.dr-row-actions button[aria-pressed="true"],
-.dr-row-actions button[aria-expanded="true"] {
-  background: var(--dr-hover);
+.dr-action:hover,
+.dr-action[aria-pressed="true"] {
+  background: #e5e5e5;
+  color: var(--dr-text) !important;
+}
+
+.dr-action::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 10;
+  display: none;
+  padding: 3px 6px;
+  border-radius: 4px;
+  background: var(--dr-bar);
+  color: var(--dr-ink);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 16px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.dr-action:hover::after,
+.dr-action:focus-visible::after {
+  display: block;
 }
 
 .dr-shot {
@@ -580,9 +621,14 @@ body {
   padding: 6px 0 64px;
 }
 
+/* Drawer rows keep the list's old look: no separators, a bold title. */
+.dr-drawer-row {
+  padding: 5px 12px;
+  border-bottom: 0;
+}
+
 .dr-drawer-row.dr-depth-0 {
-  margin-top: 0;
-  border-top: 0;
+  font-weight: 600;
 }
 
 .dr-drawer-input {
