@@ -74,7 +74,7 @@ beforeEach(() => {
       if (url === "/__review/api/topics") return json(["08.4"])
       if (url === "/__review/api/topics/08.4") {
         if (topicStatus !== 200) return json({ error: "cannot read topic" }, topicStatus)
-        return json({ meta: { nextPoint: 6, retired: [] }, points: [parsePoint(SPEC)] })
+        return json({ meta: { nextPoint: 6 }, points: [parsePoint(SPEC)] })
       }
       if (url.endsWith("/ops")) {
         return opStatus === 200 ? json({}) : json({ error: "5.b is locked" }, opStatus)

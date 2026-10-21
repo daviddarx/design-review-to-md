@@ -11,7 +11,6 @@ Be strict and terse. No chattiness in the files.
 - **Never** write "done", "fixed", "implemented", or a restatement of the request. A row with nothing to report changes status silently.
 - Never edit his text, never renumber, never reorder, never touch `done` rows, never delete `Before:` lines.
 - Only ever set `review`. `done` is his.
-- Never edit `topic.json`.
 - The terminal recap still happens as usual; it does not repeat what the file notes say.
 
 ## Where things are
@@ -23,7 +22,6 @@ Be strict and terse. No chattiness in the files.
 - `<rowId>-pin.json` — where it is: `steps[]` with `url`, `element.selector`, `element.component` and `element.source` (`file`, `line`, when known). Read this to find the code.
 - `<rowId>-state.json` — localStorage snapshot of what he saw. Gitignored, so it may be missing on another machine.
 - `<rowId>-<name>` — attachments he added.
-- `topic.json` — counters for the tool. Never edit.
 
 A row with no pin of its own belongs to the pin of its nearest parent.
 

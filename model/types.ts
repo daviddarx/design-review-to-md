@@ -22,7 +22,7 @@ export type Point = {
   rows: Row[]
   folder?: string // the point's asset folder; set by the API, never in the markdown
 }
-export type TopicMeta = { nextPoint: number; retired: string[] }
+export type TopicMeta = { nextPoint: number } // derived from the point files, never stored
 export type PinStep = {
   url: string
   path: string

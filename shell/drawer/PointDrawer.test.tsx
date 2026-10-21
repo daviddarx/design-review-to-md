@@ -39,7 +39,7 @@ beforeEach(() => {
       calls.push({ url, method, body: init?.body ? JSON.parse(String(init.body)) : undefined })
       if (url === "/__review/api/topics/08.4" && method === "GET") {
         if (topicStatus !== 200) return json({ error: "cannot read" }, topicStatus)
-        return json({ meta: { nextPoint: 6, retired: [] }, points: [parsePoint(SPEC)] })
+        return json({ meta: { nextPoint: 6 }, points: [parsePoint(SPEC)] })
       }
       if (postStatus !== 200) return json({ error: "disk full" }, postStatus)
       return json({ number: 6, rowIds: [] })

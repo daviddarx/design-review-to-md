@@ -30,11 +30,12 @@ plan beside it.
 - **Markdown is the source of truth.** Every write reads the file fresh,
   applies one operation, and writes it back, so Claude's and hand edits are
   never clobbered by a stale panel. Unknown lines round-trip verbatim.
-- **Numbers and labels are never reused** — `topic.json` keeps `nextPoint` and
-  the retired ids. It is **gitignored** (his call: no counter noise in the
-  working copy). The next number is never below the highest point file + 1,
-  so a fresh checkout only risks reusing the number of a point deleted on
-  another machine.
+- **No `topic.json`** (his call, after seeing the counter as working-copy
+  noise). The point files are the only record: the next point is the highest
+  file number + 1, a new row label is past its highest sibling. So deleting
+  the LAST point or row frees its number for reuse; a gap in the middle stays
+  a gap. `model/ops.ts` still computes `retired` ids, which storage no longer
+  persists (it passes `[]`).
 - **`*-state.json` is gitignored** (localStorage snapshots, ~2 MB on 07.x/08.x).
 - **Open in VS Code is a spike** (plan Task 9): React-only via `_debugStack` +
   source maps, dropped if unreliable. Next's dev endpoints are off-limits — the

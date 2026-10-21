@@ -41,8 +41,8 @@ describe("topics", () => {
     await storage.createTopic("b topic")
     await storage.createTopic("a")
     expect(await storage.listTopics()).toEqual(["a", "b-topic"])
-    const meta = JSON.parse(await fs.readFile(path.join(root, "a", "topic.json"), "utf8"))
-    expect(meta).toEqual({ nextPoint: 1, retired: [] })
+    expect((await storage.readTopic("a")).meta).toEqual({ nextPoint: 1 })
+    expect(await fs.readdir(path.join(root, "a"))).toEqual([])
   })
 
   it("404s on a missing topic", async () => {
@@ -51,45 +51,15 @@ describe("topics", () => {
 })
 
 describe("points", () => {
-  it("numbers are never reused", async () => {
+  it("the next number is one past the highest point file, gaps included", async () => {
     await storage.createTopic("t")
     for (let i = 0; i < 3; i++) await storage.createPoint("t", `P${i}`, [], undefined, [])
-    await storage.deletePoint("t", 3)
-    const { number } = await storage.createPoint("t", "Again", [], undefined, [])
-    expect(number).toBe(4)
-    const { meta } = await storage.readTopic("t")
-    expect(meta.retired).toContain("3")
-  })
-
-  it("a missing topic.json never reuses a number on disk", async () => {
-    await storage.createTopic("t")
-    await storage.createPoint("t", "One", [], undefined, [])
-    await storage.createPoint("t", "Two", [], undefined, [])
-    await fs.rm(path.join(root, "t", "topic.json"))
-    expect((await storage.readTopic("t")).meta.nextPoint).toBe(3)
-    expect((await storage.createPoint("t", "Three", [], undefined, [])).number).toBe(3)
-  })
-
-  it("a stale nextPoint is moved past files and retired ids", async () => {
-    await storage.createTopic("t")
-    await storage.createPoint("t", "One", [], undefined, [])
-    await fs.writeFile(
-      path.join(root, "t", "topic.json"),
-      JSON.stringify({ nextPoint: 1, retired: ["4", "2.a"] })
-    )
-    expect((await storage.createPoint("t", "Next", [], undefined, [])).number).toBe(5)
-  })
-
-  it("a malformed topic.json still loads, and the next point does not collide", async () => {
-    await storage.createTopic("t")
-    await storage.createPoint("t", "One", [], undefined, [])
-    await storage.createPoint("t", "Two", [], undefined, [])
-    await fs.writeFile(path.join(root, "t", "topic.json"), "{ not json")
-    const { meta, points } = await storage.readTopic("t")
-    expect(meta).toEqual({ nextPoint: 3, retired: [] })
-    expect(points).toHaveLength(2)
-    expect((await storage.createPoint("t", "Three", [], undefined, [])).number).toBe(3)
-    expect(existsSync(path.join(root, "t", "02-two.md"))).toBe(true)
+    await storage.deletePoint("t", 2)
+    expect((await storage.createPoint("t", "Next", [], undefined, [])).number).toBe(4)
+    // Deleting the highest frees its number.
+    await storage.deletePoint("t", 4)
+    expect((await storage.readTopic("t")).meta).toEqual({ nextPoint: 4 })
+    expect(existsSync(path.join(root, "t", "topic.json"))).toBe(false)
   })
 
   it("a broken first line takes its number from the file name", async () => {
@@ -122,10 +92,7 @@ describe("points", () => {
 
   it("createPoint writes the file and assets", async () => {
     await storage.createTopic("t")
-    await fs.writeFile(
-      path.join(root, "t", "topic.json"),
-      JSON.stringify({ nextPoint: 5, retired: [] })
-    )
+    await fs.writeFile(path.join(root, "t", "04-earlier.md"), "# 4. Earlier\n")
     const res = await storage.createPoint(
       "t",
       "Main navigation",
@@ -146,7 +113,7 @@ describe("points", () => {
     expect(md).toContain("# 5. Main navigation")
     expect(md).toContain("📍 Home > Nav — ![](05-main-navigation/5-pin.png)")
     const topic = await storage.readTopic("t")
-    expect(topic.points[0].point.rows[0].children[0].text).toBe("sub")
+    expect(topic.points[1].point.rows[0].children[0].text).toBe("sub")
     expect(topic.meta.nextPoint).toBe(6)
   })
 
@@ -284,7 +251,7 @@ describe("applyOp", () => {
     expect(md).toContain("  - 1. kid `open`\n    📎 [1.a.1-a.png](01-nav/1.a.1-a.png)\n")
   })
 
-  it("deleteRow removes the row's assets and retires its id", async () => {
+  it("deleteRow removes the row's assets", async () => {
     await storage.createTopic("t")
     await storage.createPoint("t", "Nav", [row("one"), row("two")], undefined, [
       { rowId: "$0", name: "pin.png", dataBase64: PNG },
@@ -294,7 +261,6 @@ describe("applyOp", () => {
     await storage.applyOp("t", 1, { kind: "deleteRow", rowId: "1.a" }, [])
     expect(existsSync(path.join(dir, "1.a-pin.png"))).toBe(false)
     expect(existsSync(path.join(dir, "1.b-pin.png"))).toBe(true)
-    expect((await storage.readTopic("t")).meta.retired).toContain("1.a")
   })
 
   it("keeps the file name when the title is refined", async () => {

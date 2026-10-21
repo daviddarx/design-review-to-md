@@ -36,7 +36,7 @@ beforeEach(() => {
     "fetch",
     vi.fn(async (url: string) => {
       if (url === "/__review/api/topics") return json(["08.4"])
-      return json({ meta: { nextPoint: 1, retired: [] }, points: [] })
+      return json({ meta: { nextPoint: 1 }, points: [] })
     })
   )
   host = document.createElement("div")

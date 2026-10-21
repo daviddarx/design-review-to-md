@@ -133,44 +133,18 @@ export class Storage {
     await fs.rename(tmp, file)
   }
 
-  // topic.json is a cache of what the folder already says: a point file or a
-  // retired id at or above its `nextPoint` (it was lost, hand-edited or is
-  // unreadable) moves the next number past them, so none is ever reused.
+  // The point files are the only record: the next number is one past the
+  // highest on disk. Deleting the highest point frees its number again.
   private async readMeta(dir: string): Promise<TopicMeta> {
-    let raw: unknown = null
     try {
-      raw = JSON.parse(await fs.readFile(path.join(dir, "topic.json"), "utf8"))
-    } catch (err) {
-      // Missing or not JSON (a SyntaxError has no code): start from the files.
-      const code = (err as NodeJS.ErrnoException).code
-      if (code && code !== "ENOENT") throw err
-    }
-    let files: { number: number }[]
-    try {
-      files = await this.pointFiles(dir)
+      const files = await this.pointFiles(dir)
+      return { nextPoint: Math.max(0, ...files.map((f) => f.number)) + 1 }
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === "ENOENT") {
         throw new StorageError(404, "No such topic")
       }
       throw err
     }
-    const fields =
-      raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {}
-    const retired = Array.isArray(fields.retired) ? fields.retired.map(String) : []
-    const stored = Number(fields.nextPoint)
-    const highest = Math.max(
-      0,
-      ...files.map((f) => f.number),
-      ...retired.filter((id) => /^\d+$/.test(id)).map(Number)
-    )
-    return {
-      nextPoint: Math.max(Number.isSafeInteger(stored) && stored > 0 ? stored : 1, highest + 1),
-      retired,
-    }
-  }
-
-  private writeMeta(dir: string, meta: TopicMeta) {
-    return this.atomicWrite(path.join(dir, "topic.json"), JSON.stringify(meta, null, 2) + "\n")
   }
 
   private async pointFiles(dir: string): Promise<{ file: string; number: number }[]> {
@@ -281,7 +255,6 @@ export class Storage {
         }
         throw err
       }
-      await this.writeMeta(dir, { nextPoint: 1, retired: [] })
       return safe
     })
   }
@@ -322,7 +295,6 @@ export class Storage {
       const base = pointFileBase(number, point.title)
       this.linkPins(point, base, [String(number), ...rowIds], mapped)
       linkAttachments(point, base, mapped)
-      await this.writeMeta(dir, { ...meta, nextPoint: number + 1 })
       await this.writeAssets(dir, base, mapped)
       await this.atomicWrite(path.join(dir, `${base}.md`), serializePoint(point))
       return { number, rowIds }
@@ -334,12 +306,12 @@ export class Storage {
     return this.serial(async () => {
       const file = await this.findPoint(dir, pointNumber)
       const folder = file.replace(/\.md$/, "")
-      const meta = await this.readMeta(dir)
       // Fresh read every time: anything Claude wrote by hand survives.
       const point = await this.readPoint(dir, file)
       let result: OpResult
       try {
-        result = applyModelOp(point, op, meta.retired)
+        // Labels follow the rows on disk: past the highest sibling.
+        result = applyModelOp(point, op, [])
       } catch (err) {
         modelError(err)
       }
@@ -370,9 +342,6 @@ export class Storage {
           result.deletedRowIds.map((id) => `${id}-`)
         )
       }
-      if (result.retired.length !== meta.retired.length) {
-        await this.writeMeta(dir, { ...meta, retired: result.retired })
-      }
       await this.atomicWrite(path.join(dir, file), serializePoint(result.point))
       return result
     })
@@ -382,11 +351,6 @@ export class Storage {
     const dir = this.topicDir(topic)
     return this.serial(async () => {
       const file = await this.findPoint(dir, pointNumber)
-      const meta = await this.readMeta(dir)
-      const id = String(pointNumber)
-      if (!meta.retired.includes(id)) {
-        await this.writeMeta(dir, { ...meta, retired: [...meta.retired, id] })
-      }
       await fs.rm(path.join(dir, file), { force: true })
       await fs.rm(path.join(dir, file.replace(/\.md$/, "")), { recursive: true, force: true })
     })

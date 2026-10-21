@@ -211,7 +211,7 @@ describe("api", () => {
     expect(JSON.parse(point.body)).toEqual({ number: 1, rowIds: ["1.a"] })
 
     const topic = JSON.parse((await request("GET", "/__review/api/topics/my-topic")).body)
-    expect(topic.meta).toEqual({ nextPoint: 2, retired: [] })
+    expect(topic.meta).toEqual({ nextPoint: 2 })
     expect(topic.points).toHaveLength(1)
     expect(topic.points[0]).toMatchObject({
       number: 1,
@@ -234,7 +234,6 @@ describe("api", () => {
     expect(del.status).toBe(200)
     const after = JSON.parse((await request("GET", "/__review/api/topics/my-topic")).body)
     expect(after.points).toEqual([])
-    expect(after.meta.retired).toEqual(["1"])
   })
 
   it("maps storage errors to their status and never crashes", async () => {
