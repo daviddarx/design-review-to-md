@@ -141,10 +141,10 @@ plan beside it.
 - **Every new title is tagged `open`**, rows or not: the feedback as a whole
   is a thing to do. AGENTS.md: Claude sets it to `review` once none of its
   rows is left `open`. Older untagged titles have nothing to set.
-- **List rows**: no 📍 badges. *Show pins* (the pin icon) shows the row's
+- **List rows**: no 📍 badges. _Show pins_ (the pin icon) shows the row's
   pins while hovered and keeps them on when clicked (and goes to the first
   pin's page); one row's at a time, pressed on every row sharing that owner.
-  Screenshot and *Restore corresponding app state* open in a `Flyout`
+  Screenshot and _Restore corresponding app state_ open in a `Flyout`
   (`shell/panel/Flyout.tsx`: fixed, right-aligned under its button, flips
   above, as wide as the text column); the screenshot one closes when the
   pointer leaves its button. Icon actions are one joined group
