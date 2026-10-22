@@ -95,8 +95,8 @@ plan beside it.
   faded pin and at Restore state.
 - **Wording: Review › Feedback** (his pick). Everything he reads says
   "review" for a `docs/review/<name>/` folder and "feedback" for one numbered
-  item (＋ New feedback, Feedback 3, Delete feedback). The code, the API
-  routes (`/topics`, `/points`) and this record keep `topic` / `point`.
+  item (＋ New feedback, Feedback 3, Delete feedback). Earlier bullets of
+  this record still say `topic` / `point`; the code no longer does (below).
 - **No floating toolbar** (his call: "not useful"). Review mode shows the
   panel only; ⌃R enters and leaves it, ⌃P is Pin & add (no button for it
   outside the drawer's 📍). ＋ New feedback sits at the right end of the
@@ -124,3 +124,53 @@ plan beside it.
 - **Drawer row actions** are the list's icon buttons (`ActionButton` in
   `shell/panel/icons.tsx`) at the right of the field. Every icon action, list
   and drawer, is a bordered 28px square, the height of `.dr-button`.
+- **Names follow the UI** (briefing-feedback-1): `Feedback` / `ReviewMeta`
+  types, `FeedbackList`, `FeedbackDrawer`, `ReviewSelect`; API routes
+  `/reviews/:review/feedbacks/:n`. The selected review is stored as
+  `design-review:review`; the old `design-review:topic` is still read. The
+  review-mode flag in `App` is `reviewMode`, since `review` is the name.
+- **Several pins per row.** A row or title holds any number of `📍` lines,
+  in order. Pin k's files are `<rowId>-pin.png|json` + `<rowId>-state.json`
+  for k = 1 and `<rowId>-pin-k.*` / `<rowId>-state-k.json` after
+  (`model/pins.ts`); removing one moves the later files down, so the number
+  is always the line's position. Ops `addPin` (the client names the files as
+  a first pin's; the server renames them to the slot it took), `removePin`
+  (by index; the drawer removes last first), `attach` (no-op carrying files).
+  `setPin` is gone. The drawer's pin button adds a pin each time; its count is
+  a red pill on the button.
+- **Every new title is tagged `open`**, rows or not: the feedback as a whole
+  is a thing to do. AGENTS.md: Claude sets it to `review` once none of its
+  rows is left `open`. Older untagged titles have nothing to set.
+- **List rows**: no 📍 badges. *Show pins* (the pin icon) shows the row's
+  pins while hovered and keeps them on when clicked (and goes to the first
+  pin's page); one row's at a time, pressed on every row sharing that owner.
+  Screenshot and *Restore corresponding app state* open in a `Flyout`
+  (`shell/panel/Flyout.tsx`: fixed, right-aligned under its button, flips
+  above, as wide as the text column); the screenshot one closes when the
+  pointer leaves its button. Icon actions are one joined group
+  (`ActionGroup`, the app's ButtonGroup look). Feedback number bold, its
+  text regular; a sub-row's number stays in the column and only the content
+  indents. ＋ New feedback is primary. No ↑/↓ row keys any more.
+- **Drawer**: numbers as they will be saved (`displayIds` — new rows take
+  the label after their siblings, a new feedback the next free number) in a
+  fixed column; only the field indents, files at its left edge; fields are
+  regular weight. Every pin of the feedback, saved (records fetched on load)
+  or new, is drawn on the page; hovering one shows ×, a click removes it.
+  Discard and delete answer through the header's two buttons. Files dropped
+  on the attach button are attached. The keys sit in a footer bar as tall as
+  the list's.
+- **The slide's jump** was focus, not easing: focusing a field while the
+  drawer was still translated scrolled the `overflow: hidden` layer sideways.
+  The layer is `overflow: clip` and focus passes `preventScroll`.
+- **Maps in screenshots**: WebGL canvases drop their pixels once composited,
+  so modern-screenshot's `toDataURL` saw the Swiss map blank. The shell
+  patches each frame document's `getContext` (`keepCanvasPixels`, polled per
+  animation frame so it lands before the app asks) to pass
+  `preserveDrawingBuffer: true` to WebGL contexts. A map created before the
+  patch stays blank until a reload.
+- **Hover replay**: hovering a pin (and switching Show pins on) dispatches the
+  pointer/mouse over+enter events a real hover sends to the pinned element,
+  or its nearest ancestor on the page (`replayHover`), and out+leave after —
+  enough for React `onPointerEnter` state (the 08.4 nav bar), never CSS
+  `:hover`. The hovered pin holds its place meanwhile, or the app moving
+  under it would end the hover and restart it in a loop.
