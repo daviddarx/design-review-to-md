@@ -77,7 +77,7 @@ function stepOf({ el, mouse }: Picked): PinStep {
     viewport: { width: win.innerWidth, height: win.innerHeight, dpr: win.devicePixelRatio },
     mouse,
     element: {
-      selector: uniqueSelector(el),
+      selector: uniqueSelector(el, new Set(openers.map((o) => o.controls))),
       tag: el.tagName.toLowerCase(),
       ...(component ? { component } : {}),
       text: (el.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 120),

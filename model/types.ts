@@ -41,5 +41,11 @@ export type PinStep = {
   // pin clicks them open again. `controls` is the popup's id when picked.
   openers?: PinOpener[]
 }
-export type PinOpener = { selector: string; controls: string }
+// `rect`: the trigger's box when picked, so a pin whose popup is closed sits
+// by its trigger, wherever that moved (absent on pins made before it).
+export type PinOpener = {
+  selector: string
+  controls: string
+  rect?: { x: number; y: number; width: number; height: number }
+}
 export type PinRecord = { version: 1; at: string; steps: PinStep[] } // list-shaped for future sequences

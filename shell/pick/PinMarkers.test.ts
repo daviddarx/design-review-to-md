@@ -58,6 +58,44 @@ describe("markerPoint", () => {
     })
   })
 
+  it("finds an element in an open popup whose id changed since the pick", () => {
+    const doc = document.implementation.createHTMLDocument("app")
+    doc.body.innerHTML = `
+      <button data-slot="fav" aria-expanded="true" aria-controls="_r_9_">Fav</button>
+      <div id="_r_9_"><button>Go</button></div>`
+    doc.querySelector("#_r_9_ > button")!.getBoundingClientRect = box(0, 100, 100, 40)
+    const inPopup = step({
+      element: { ...step().element, selector: "#_r_2_ > button" },
+      openers: [{ selector: '[data-slot="fav"]', controls: "_r_2_" }],
+    })
+    expect(markerPoint(inPopup, fakeFrame("/tickets", doc))).toEqual({
+      x: 500 + 30,
+      y: 10 + 120,
+      exact: true,
+    })
+  })
+
+  it("sits by the trigger of its closed popup, wherever the trigger moved", () => {
+    const doc = document.implementation.createHTMLDocument("app")
+    doc.body.innerHTML = `<button data-slot="fav" aria-expanded="false">Fav</button>`
+    // Picked 50px left of the click; the trigger has since moved 300px left.
+    doc.querySelector("button")!.getBoundingClientRect = box(-220, 180, 20, 20)
+    const inPopup = step({
+      openers: [
+        {
+          selector: '[data-slot="fav"]',
+          controls: "_r_2_",
+          rect: { x: 80, y: 180, width: 20, height: 20 },
+        },
+      ],
+    })
+    expect(markerPoint(inPopup, fakeFrame("/tickets", doc))).toEqual({
+      x: 500 + 130 - 300,
+      y: 10 + 220,
+      exact: false,
+    })
+  })
+
   it("shows nothing while the frame is on another page", () => {
     const doc = document.implementation.createHTMLDocument("app")
     expect(markerPoint(step(), fakeFrame("/rooms", doc))).toBeNull()

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import type { PinStep } from "../../model/types.ts"
+import { followOpeners } from "./goToPin.ts"
 import { replayHover } from "./replayHover.ts"
 
 // A pin to draw: where the click of `step` landed, labelled with its row.
@@ -22,8 +23,9 @@ const clamp01 = (n: number) => Math.min(1, Math.max(0, n))
 
 // Where the pin's click sits now, in shell coordinates. On the element when
 // it is there, at the same spot within it (so it follows scrolling and
-// resizing); otherwise, for an app pin on its own page, at the click's
-// recorded viewport position (`exact: false`). Nothing for an app pin while
+// resizing). Otherwise, for an app pin on its own page, by the trigger of
+// the closed popup it was in, at the same offset from it as when picked;
+// failing that, at the click's recorded viewport position (`exact: false`). Nothing for an app pin while
 // the frame shows another page, or a tool pin whose element is gone.
 export function markerPoint(step: PinStep, frame: HTMLIFrameElement | null): Spot | null {
   let doc: Document | null | undefined = document
@@ -42,7 +44,8 @@ export function markerPoint(step: PinStep, frame: HTMLIFrameElement | null): Spo
   }
   const { mouse } = step
   const was = step.element.rect
-  const el = query(doc, step.element.selector)
+  const { selector, trigger } = followOpeners(doc, step.openers ?? [], step.element.selector)
+  const el = query(doc, selector)
   const now = el?.getBoundingClientRect()
   if (now && (now.width || now.height)) {
     const fx = was.width ? clamp01((mouse.x - was.x) / was.width) : 0.5
@@ -50,6 +53,11 @@ export function markerPoint(step: PinStep, frame: HTMLIFrameElement | null): Spo
     return { x: off.x + now.x + fx * now.width, y: off.y + now.y + fy * now.height, exact: true }
   }
   if (step.inTool) return null
+  const then = trigger?.opener.rect
+  const t = then && trigger.el.getBoundingClientRect()
+  if (then && t && (t.width || t.height)) {
+    return { x: off.x + t.x + mouse.x - then.x, y: off.y + t.y + mouse.y - then.y, exact: false }
+  }
   return { x: off.x + mouse.x, y: off.y + mouse.y, exact: false }
 }
 

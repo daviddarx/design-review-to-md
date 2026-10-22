@@ -16,6 +16,13 @@ export function escapeIdent(s: string): string {
 
 const quoted = (v: string) => `"${v.replace(/["\\]/g, "\\$&")}"`
 
+// Ids React (useId) and the libraries built on it mint: `_r_5_`, `:r5:`,
+// `«r5»`, `base-ui-_r_5_`. They follow mount order, so the same popup trigger
+// is named differently once the work panel mounted first — never anchored on,
+// except a popup's own id, which Go to pin and the markers put right through
+// its trigger's `aria-controls`.
+const GENERATED_ID = /[:«»]|(^|-)_[rR]_[0-9a-zA-Z]*_$/
+
 function markerOf(el: Element): string | null {
   for (const name of MARKERS) {
     const v = el.getAttribute(name)
@@ -46,12 +53,16 @@ function nthOfType(el: Element): string {
 
 // Prefers `#id`, then a marker attribute, then a `tag:nth-of-type` path —
 // anchored on the nearest ancestor that is itself unique. Always satisfies
-// `el.ownerDocument.querySelector(selector) === el`.
-export function uniqueSelector(el: Element): string {
+// `el.ownerDocument.querySelector(selector) === el`. A generated id is used
+// only when it is in `popupIds`.
+export function uniqueSelector(el: Element, popupIds: ReadonlySet<string> = new Set()): string {
   const doc = el.ownerDocument
   const tag = (n: Element) => n.tagName.toLowerCase()
+  const idOf = (n: Element) =>
+    n.id && (popupIds.has(n.id) || !GENERATED_ID.test(n.id)) ? `#${escapeIdent(n.id)}` : null
 
-  if (el.id && finds(doc, `#${escapeIdent(el.id)}`, el)) return `#${escapeIdent(el.id)}`
+  const own = idOf(el)
+  if (own && finds(doc, own, el)) return own
   const marker = markerOf(el)
   if (marker) {
     if (finds(doc, marker, el)) return marker
@@ -63,8 +74,9 @@ export function uniqueSelector(el: Element): string {
   const parts: string[] = []
   let anchored = false
   for (let node: Element | null = el; node; node = node.parentElement) {
-    if (node !== el && node.id && finds(doc, `#${escapeIdent(node.id)}`, node)) {
-      parts.unshift(`#${escapeIdent(node.id)}`)
+    const id = node === el ? null : idOf(node)
+    if (id && finds(doc, id, node)) {
+      parts.unshift(id)
       anchored = true
     } else if (node === doc.documentElement) {
       parts.unshift(":root")
@@ -122,7 +134,7 @@ export function describe(el: Element): string {
 // trigger inside another popup leads on to that one. Outermost first.
 export function openersOf(el: Element): PinOpener[] {
   const doc = el.ownerDocument
-  const out: PinOpener[] = []
+  const found: { trigger: Element; controls: string }[] = []
   const seen = new Set<Element>()
   for (let node: Element | null = el; node; node = node.parentElement) {
     if (!node.id) continue
@@ -134,8 +146,17 @@ export function openersOf(el: Element): PinOpener[] {
     }
     if (!trigger || seen.has(trigger)) continue
     seen.add(trigger)
-    out.unshift({ selector: uniqueSelector(trigger), controls: node.id })
+    found.unshift({ trigger, controls: node.id })
     node = trigger // the loop's parentElement step continues above it
   }
-  return out
+  // A trigger inside an outer popup may anchor on that popup's id.
+  const popupIds = new Set(found.map((f) => f.controls))
+  return found.map(({ trigger, controls }) => {
+    const r = trigger.getBoundingClientRect()
+    return {
+      selector: uniqueSelector(trigger, popupIds),
+      controls,
+      rect: { x: r.x, y: r.y, width: r.width, height: r.height },
+    }
+  })
 }

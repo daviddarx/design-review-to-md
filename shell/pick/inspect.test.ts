@@ -89,6 +89,17 @@ describe("snapshotLocalStorage", () => {
   })
 })
 
+describe("generated ids", () => {
+  it("never anchors on an id React minted, unless it is a popup's", () => {
+    document.body.innerHTML = `
+      <nav><button id="base-ui-_r_5_">Fav</button><button>Other</button></nav>
+      <div id="_r_2_"><i>Item</i></div>`
+    expect(roundTrips(document.getElementById("base-ui-_r_5_")!)).not.toContain("_r_5_")
+    expect(roundTrips(document.querySelector("i")!)).not.toContain("_r_2_")
+    expect(uniqueSelector(document.querySelector("i")!, new Set(["_r_2_"]))).toBe("#_r_2_ > i")
+  })
+})
+
 describe("openersOf", () => {
   it("names the triggers of the open popups an element sits in, outermost first", () => {
     document.body.innerHTML = `
@@ -97,8 +108,8 @@ describe("openersOf", () => {
       <div id="p2"><span><b>Item</b></span></div>
       <button data-slot="shut" aria-expanded="false" aria-controls="p3">Shut</button>
       <div id="p3"><i>Kept</i></div>`
-    expect(openersOf(document.querySelector("b")!)).toEqual([
-      { selector: '[data-slot="outer"]', controls: "p1" },
+    expect(openersOf(document.querySelector("b")!)).toMatchObject([
+      { selector: '[data-slot="outer"]', controls: "p1", rect: { x: 0, y: 0 } },
       { selector: '[data-slot="inner"]', controls: "p2" },
     ])
     expect(openersOf(document.querySelector("i")!)).toEqual([])

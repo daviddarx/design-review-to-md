@@ -32,6 +32,33 @@ function renameId(selector: string, from: string, to: string): string {
   return selector.replace(new RegExp(`#${id}(?![\\w-])`, "g"), `#${escapeIdent(to)}`)
 }
 
+// Where the element is now, without opening anything: its selector with the
+// ids of the popups that are open put right, and the innermost of their
+// triggers on the page.
+export function followOpeners(
+  doc: Document | null | undefined,
+  openers: PinOpener[],
+  selector: string
+): { selector: string; trigger: { el: Element; opener: PinOpener } | null } {
+  let rest = openers
+  let target = selector
+  let trigger: { el: Element; opener: PinOpener } | null = null
+  while (rest.length) {
+    const [opener, ...next] = rest
+    const el = query(doc, opener.selector)
+    if (!el) break
+    trigger = { el, opener }
+    const open = el.getAttribute("aria-expanded") === "true"
+    const id = open ? el.getAttribute("aria-controls")?.split(/\s+/)[0] : undefined
+    if (!id) break
+    if (id !== opener.controls) {
+      target = renameId(target, opener.controls, id)
+      rest = next.map((o) => ({ ...o, selector: renameId(o.selector, opener.controls, id) }))
+    } else rest = next
+  }
+  return { selector: target, trigger }
+}
+
 // Opens the popups the element was picked in, outermost first: clicks each
 // trigger that is not open yet, then follows its `aria-controls` to the
 // popup's id now (React's ids are not stable across loads). Returns the
