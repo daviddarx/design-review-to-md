@@ -325,3 +325,17 @@ plan beside it.
   (`.dr-panel::before`, z 2, no pointer events). It is an overlay rather than
   an inset `box-shadow`, which the header and drawer backgrounds would cover.
   The resize edge moved to z 3 to stay above it.
+
+### briefing-feedback-8
+
+- **Refine is one line with a joined Save button.** The textarea became an
+  `<input type="text">` (Enter still sends, Esc still cancels) followed by an
+  icon-only `ActionButton` (`save` icon, Lucide's floppy disk; tooltip
+  "Save"), the two joined like the row's action group (`.dr-refine-group`:
+  the field loses its right radius, the button its left radius and border).
+- **The page shows the filter's pins.** On All, every pin but the done ones;
+  on a status tab, that status's. Only Done was specified; Open and To review
+  following their own status is my reading. A pin counts as matching when
+  its own row or any row inheriting it (`inheritedPinFrom`) does, so a done
+  row's pin still shows on All while a row under it is open. `Panel`
+  recomputes on filter change (`filter` in the effect's deps).
