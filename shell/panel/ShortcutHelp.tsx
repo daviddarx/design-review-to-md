@@ -23,10 +23,6 @@ const GROUPS: { title: string; keys: [string, string][] }[] = [
       ["Esc", "Close"],
     ],
   },
-  {
-    title: "Panel",
-    keys: [["↑ / ↓", "Move"]],
-  },
 ]
 
 // Keyboard icon; hovering or focusing it shows every shortcut of the tool.

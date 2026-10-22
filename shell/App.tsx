@@ -18,8 +18,19 @@ import { useShortcut } from "./useShortcut.ts"
 
 type DrawerState = { key: number; feedbackNumber?: number; capture?: CapturedPin }
 
+// The pins of one list row, drawn on the page.
+type OwnedMarkers = { owner: string; markers: Marker[] }
+
+function ownedMarkers(owner: string, records: PinRecord[], tag: string): OwnedMarkers {
+  const markers = records.flatMap((record, i) => {
+    const step = record.steps[0]
+    return step ? [{ key: `${tag}:${owner}:${i}`, label: owner, step }] : []
+  })
+  return { owner, markers }
+}
+
 export const PIN_MISSING =
-  "Not on screen as it was — the faded pin marks where you clicked. Restore state to see it as it was."
+  "Not on screen as it was — the faded pin marks where you clicked. Restore the corresponding app state to see it as it was."
 export const TOOL_PIN_MISSING = "That part of the review tool is not open now."
 
 // ⌃P — Control, never Command (⌘P stays the browser's print).
@@ -44,9 +55,8 @@ export function App() {
   if (reviewMode && !panelMounted) setPanelMounted(true)
   const [appendCapture, setAppendCapture] = useState<{ seq: number; capture: CapturedPin }>()
   const [drawerMarkers, setDrawerMarkers] = useState<Marker[]>([])
-  const [hoverMarkers, setHoverMarkers] = useState<{ owner: string; markers: Marker[] } | null>(
-    null
-  )
+  const [peeked, setPeeked] = useState<OwnedMarkers | null>(null) // Show pins hovered
+  const [shown, setShown] = useState<OwnedMarkers | null>(null) // Show pins toggled on
   const drawerSeq = useRef(0)
   const appendSeq = useRef(0)
   const drawerRef = useRef(drawer)
@@ -87,32 +97,35 @@ export function App() {
     if (!reviewMode) picker.cancel()
   }, [reviewMode, picker.cancel])
 
-  // Only the row that set the hover markers may clear them: leaving one row
+  // Only the button that set the peeked markers may clear them: leaving one
   // and entering the next can arrive in either order.
-  const onHoverPin = (ownerRowId: string, records: PinRecord[] | null) => {
-    if (!records) {
-      setHoverMarkers((m) => (m?.owner === ownerRowId ? null : m))
-      return
-    }
-    const markers = records.flatMap((record, i) => {
-      const step = record.steps[0]
-      return step ? [{ key: `hover:${ownerRowId}:${i}`, label: ownerRowId, step }] : []
-    })
-    setHoverMarkers({ owner: ownerRowId, markers })
+  const onPeekPins = (ownerRowId: string, records: PinRecord[] | null) => {
+    if (records) setPeeked(ownedMarkers(ownerRowId, records, "peek"))
+    else setPeeked((m) => (m?.owner === ownerRowId ? null : m))
   }
-  const markers = useMemo(
-    () => (hoverMarkers ? [...drawerMarkers, ...hoverMarkers.markers] : drawerMarkers),
-    [drawerMarkers, hoverMarkers]
-  )
+  const markers = useMemo(() => {
+    const out = [...drawerMarkers, ...(shown?.markers ?? [])]
+    if (peeked && peeked.owner !== shown?.owner) out.push(...peeked.markers)
+    return out
+  }, [drawerMarkers, shown, peeked])
 
-  const onGoToPin = async (_rowId: string, target: PinTarget) => {
+  // Show pins on: the frame goes to the first pin's page and outlines its
+  // element, and the row's pins stay drawn until it is switched off (or
+  // another row's are switched on).
+  const onTogglePins = async (_rowId: string, target: PinTarget) => {
+    if (shown?.owner === target.ownerRowId) {
+      setShown(null)
+      return null
+    }
     if (!frame) return
-    const record = target.pins.find((p) => p.record)?.record
-    if (!record) return `No pin record for ${target.ownerRowId} — it cannot be found again.`
-    const result = await goToPin(frame, record, picker.flash)
+    const records = target.pins.flatMap((p) => (p.record ? [p.record] : []))
+    if (!records.length) return `No pin record for ${target.ownerRowId} — it cannot be found again.`
+    setShown(ownedMarkers(target.ownerRowId, records, "shown"))
+    const result = await goToPin(frame, records[0], picker.flash)
     if (result === "found") return null
-    return record.steps[0]?.inTool ? TOOL_PIN_MISSING : PIN_MISSING
+    return records[0].steps[0]?.inTool ? TOOL_PIN_MISSING : PIN_MISSING
   }
+  useEffect(() => setShown(null), [review])
 
   // After the panel's own confirm; the first pin's snapshot. It is
   // gitignored, so a pin made on another machine has none.
@@ -154,10 +167,11 @@ export function App() {
             onReviewChange={setReview}
             onNewFeedback={() => openDrawer()}
             onEditFeedback={(n) => openDrawer({ feedbackNumber: n })}
-            onGoToPin={onGoToPin}
+            onTogglePins={onTogglePins}
             onRestoreState={onRestoreState}
             onOpenSource={onOpenSource}
-            onHoverPin={onHoverPin}
+            onPeekPins={onPeekPins}
+            shownPinsOwner={shown?.owner ?? null}
             reloadSignal={reloadSignal}
             drawer={
               drawer &&

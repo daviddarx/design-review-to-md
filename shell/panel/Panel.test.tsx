@@ -101,10 +101,11 @@ async function render(extra: Partial<PanelProps> = {}) {
         onReviewChange={() => {}}
         onNewFeedback={() => {}}
         onEditFeedback={() => {}}
-        onGoToPin={() => {}}
+        onTogglePins={() => {}}
         onRestoreState={() => {}}
         onOpenSource={() => {}}
-        onHoverPin={() => {}}
+        onPeekPins={() => {}}
+        shownPinsOwner={null}
         {...extra}
       />
     )
@@ -140,7 +141,7 @@ describe("Panel", () => {
     expect(host.querySelector(".dr-filters")?.textContent).toBe(
       "All 4Open 2To review 1Done 1＋ New feedback"
     )
-    expect(row("5.a").textContent).toContain("📍 from 5")
+    expect(action("5.a", "Show pins")!.dataset.tip).toBe("Show the pins of 5")
   })
 
   it("Validate on a row to review validates it, then refetches", async () => {
@@ -178,14 +179,19 @@ describe("Panel", () => {
     await render()
     const labels = (id: string) =>
       [...row(id).querySelectorAll(".dr-action")].map((b) => b.getAttribute("aria-label"))
-    expect(labels("5.a")).toEqual(["Go to pin", "Screenshot", "Restore state"])
-    expect(labels("5.b")).toEqual(["History", "Go to pin", "Screenshot", "Restore state"])
+    expect(labels("5.a")).toEqual(["Show pins", "Screenshot", "Restore corresponding app state"])
+    expect(labels("5.b")).toEqual([
+      "History",
+      "Show pins",
+      "Screenshot",
+      "Restore corresponding app state",
+    ])
     expect(labels("5.c")).toEqual([
       "Validate",
       "Refine",
-      "Go to pin",
+      "Show pins",
       "Screenshot",
-      "Restore state",
+      "Restore corresponding app state",
     ])
   })
 
@@ -211,11 +217,32 @@ describe("Panel", () => {
     expect(host.querySelector(".dr-error")?.textContent).toContain("5.b is locked")
   })
 
-  it("↓ moves focus to the next row", async () => {
+  it("Show pins is pressed on every row using the pins it shows", async () => {
+    await render({ shownPinsOwner: "5" })
+    expect(action("5", "Show pins")!.getAttribute("aria-pressed")).toBe("true")
+    expect(action("5.a", "Show pins")!.getAttribute("aria-pressed")).toBe("true")
+    expect(action("5.c", "Show pins")!.getAttribute("aria-pressed")).toBe("false")
+  })
+
+  it("the screenshot floats while toggled and goes when the pointer leaves its button", async () => {
     await render()
-    row("5.a").focus()
-    await act(async () => key(row("5.a"), "ArrowDown"))
-    expect(document.activeElement).toBe(row("5.b"))
+    const button = action("5.c", "Screenshot")!
+    await act(async () => button.click())
+    expect(document.querySelector('.dr-flyout[aria-label="Screenshot of 5.c"] img')).not.toBeNull()
+    await act(async () => {
+      button.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }))
+    })
+    expect(document.querySelector(".dr-flyout")).toBeNull()
+  })
+
+  it("Restore asks in a flyout that Esc closes", async () => {
+    await render()
+    await act(async () => action("5.c", "Restore corresponding app state")!.click())
+    expect(document.querySelector(".dr-flyout.dr-confirm")).not.toBeNull()
+    await act(async () => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))
+    })
+    expect(document.querySelector(".dr-flyout")).toBeNull()
   })
 
   it("a busy row keeps its depth class and gains dr-busy", async () => {
@@ -251,15 +278,15 @@ describe("Panel", () => {
     expect(host.querySelector(".dr-error")).toBeNull()
   })
 
-  it("Go to pin's notice shows inline and can be dismissed", async () => {
-    const onGoToPin = vi.fn(async () => "Pinned element not found — the page changed since.")
-    await render({ onGoToPin })
+  it("Show pins's notice shows inline and can be dismissed", async () => {
+    const onTogglePins = vi.fn(async () => "Pinned element not found — the page changed since.")
+    await render({ onTogglePins })
     const go = [...row("5.c").querySelectorAll("button")].find(
-      (b) => b.getAttribute("aria-label") === "Go to pin"
+      (b) => b.getAttribute("aria-label") === "Show pins"
     )!
     await act(async () => go.click())
     await act(async () => {})
-    expect(onGoToPin).toHaveBeenCalledWith(
+    expect(onTogglePins).toHaveBeenCalledWith(
       "5.c",
       expect.objectContaining({
         ownerRowId: "5.c",
@@ -272,11 +299,11 @@ describe("Panel", () => {
     expect(host.querySelector(".dr-error")).toBeNull()
   })
 
-  it("a successful Go to pin clears an earlier notice", async () => {
+  it("a successful Show pins clears an earlier notice", async () => {
     const answers = ["Pinned element not found — the page changed since.", null]
-    await render({ onGoToPin: async () => answers.shift() })
+    await render({ onTogglePins: async () => answers.shift() })
     const go = [...row("5.c").querySelectorAll("button")].find(
-      (b) => b.getAttribute("aria-label") === "Go to pin"
+      (b) => b.getAttribute("aria-label") === "Show pins"
     )!
     await act(async () => go.click())
     await act(async () => {})
@@ -289,7 +316,7 @@ describe("Panel", () => {
   it("the restore confirm takes Esc from anywhere inside", async () => {
     await render()
     const restore = [...row("5.c").querySelectorAll("button")].find(
-      (b) => b.getAttribute("aria-label") === "Restore state"
+      (b) => b.getAttribute("aria-label") === "Restore corresponding app state"
     )!
     await act(async () => restore.click())
     const confirm = row("5.c").querySelector<HTMLElement>(".dr-confirm")!

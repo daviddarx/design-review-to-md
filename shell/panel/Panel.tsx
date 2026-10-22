@@ -15,12 +15,13 @@ export type PanelProps = {
   onReviewChange(t: string): void
   onNewFeedback(): void
   onEditFeedback(n: number): void
-  // Go to pin / Restore state may answer with a notice for the panel to show
+  // Show pins / Restore state may answer with a notice for the panel to show
   // (the element is gone, the state file is missing).
-  onGoToPin(rowId: string, target: PinTarget): PinAction
+  onTogglePins(rowId: string, target: PinTarget): PinAction
   onRestoreState(rowId: string, target: PinTarget): PinAction
   onOpenSource(rowId: string, target: PinTarget): PinAction
-  onHoverPin(ownerRowId: string, records: PinRecord[] | null): void // a pinned row's hover, null when it ends
+  onPeekPins(ownerRowId: string, records: PinRecord[] | null): void // Show pins hovered, null when it ends
+  shownPinsOwner: string | null // the row whose pins Show pins keeps on screen
   drawer?: ReactNode // the feedback drawer, laid over everything but the resize edge
   reloadSignal?: number // a change refetches the review (after a drawer save)
 }
@@ -64,10 +65,11 @@ export function Panel({
   onReviewChange,
   onNewFeedback,
   onEditFeedback,
-  onGoToPin,
+  onTogglePins,
   onRestoreState,
   onOpenSource,
-  onHoverPin,
+  onPeekPins,
+  shownPinsOwner,
   drawer,
   reloadSignal,
 }: PanelProps) {
@@ -305,7 +307,12 @@ export function Panel({
             </button>
           ))}
         </div>
-        <button type="button" className="dr-button" onClick={onNewFeedback} disabled={!review}>
+        <button
+          type="button"
+          className="dr-button dr-button-primary"
+          onClick={onNewFeedback}
+          disabled={!review}
+        >
           ＋ New feedback
         </button>
       </div>
@@ -341,10 +348,11 @@ export function Panel({
             onLoadRecord={loadRecord}
             onOp={onOp}
             onEditFeedback={onEditFeedback}
-            onGoToPin={withNotice(onGoToPin)}
+            onTogglePins={withNotice(onTogglePins)}
             onRestoreState={withNotice(onRestoreState)}
             onOpenSource={withNotice(onOpenSource)}
-            onHoverPin={onHoverPin}
+            onPeekPins={onPeekPins}
+            shownPinsOwner={shownPinsOwner}
           />
         )}
       </div>

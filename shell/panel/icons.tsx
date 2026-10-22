@@ -1,3 +1,5 @@
+import type { ComponentProps, ReactNode } from "react"
+
 // 16px stroke icons for the list's and the drawer's row actions (Lucide's
 // shapes, inlined: the shell bundles no icon library).
 const PATHS = {
@@ -37,13 +39,16 @@ export function Icon({ name }: { name: IconName }) {
 }
 
 // An icon action; its name shows in a tooltip on hover or keyboard focus.
+// Anything else a button takes (a ref, hover and drop handlers) passes through.
 export function ActionButton({
   icon,
   label,
   tip = label,
   pressed,
   count,
+  className,
   onClick,
+  ...rest
 }: {
   icon: IconName
   label: string
@@ -51,18 +56,28 @@ export function ActionButton({
   pressed?: boolean
   count?: number // a red pill on the icon, from 1 up
   onClick(): void
-}) {
+} & Omit<ComponentProps<"button">, "type" | "onClick" | "children">) {
   return (
     <button
       type="button"
-      className="dr-action"
+      className={["dr-action", className].filter(Boolean).join(" ")}
       aria-label={label}
       aria-pressed={pressed}
       data-tip={tip}
-      onClick={onClick}
+      onClick={() => onClick()}
+      {...rest}
     >
       <Icon name={icon} />
       {count ? <span className="dr-action-count">{count}</span> : null}
     </button>
+  )
+}
+
+// Icon actions side by side, joined into one bar like the app's ButtonGroup.
+export function ActionGroup({ children }: { children: ReactNode }) {
+  return (
+    <span className="dr-row-actions" role="group">
+      {children}
+    </span>
   )
 }

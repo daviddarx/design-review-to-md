@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react"
 import type { Op } from "../../model/ops.ts"
 import type { PinRecord, PinRef } from "../../model/types.ts"
 import { fileUrl } from "../api.ts"
-import { ActionButton } from "./icons.tsx"
+import { Flyout } from "./Flyout.tsx"
+import { ActionButton, ActionGroup } from "./icons.tsx"
 import { singleLine } from "./listModel.ts"
 import type { FlatRow, PinTarget } from "./listModel.ts"
 
@@ -12,25 +13,16 @@ export type RowItemProps = {
   owner: { rowId: string; pins: PinRef[] } | undefined // the pins this row uses, own or inherited
   recordPaths: string[] // one per pin of `owner`
   records: (PinRecord | null | undefined)[] // undefined: not fetched yet
+  pinsShown: boolean // Show pins is on for `owner`
   onLoadRecords(): Promise<(PinRecord | null)[]>
   onOp(op: Op): Promise<boolean>
   onEditFeedback(n: number): void
-  onGoToPin(rowId: string, target: PinTarget): void
+  onTogglePins(rowId: string, target: PinTarget): void
   onRestoreState(rowId: string, target: PinTarget): void
   onOpenSource(rowId: string, target: PinTarget): void
-  // The pins' owner row and their records; null when the hover ends.
-  onHoverPin(ownerRowId: string, records: PinRecord[] | null): void
-}
-
-// True while the user types: panel keys must not fire inside a field.
-export function isTyping(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false
-  return (
-    target.isContentEditable ||
-    target.tagName === "INPUT" ||
-    target.tagName === "TEXTAREA" ||
-    target.tagName === "SELECT"
-  )
+  // Hovering Show pins shows the owner's pins for as long as it lasts; null
+  // when it ends.
+  onPeekPins(ownerRowId: string, records: PinRecord[] | null): void
 }
 
 export function RowItem({
@@ -39,19 +31,22 @@ export function RowItem({
   owner,
   recordPaths,
   records,
+  pinsShown,
   onLoadRecords,
   onOp,
   onEditFeedback,
-  onGoToPin,
+  onTogglePins,
   onRestoreState,
   onOpenSource,
-  onHoverPin,
+  onPeekPins,
 }: RowItemProps) {
   const [refining, setRefining] = useState<string | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [shotOpen, setShotOpen] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [shotButton, setShotButton] = useState<HTMLButtonElement | null>(null)
+  const [restoreButton, setRestoreButton] = useState<HTMLButtonElement | null>(null)
 
   const feedbackNumber = Number(row.rowId.split(".")[0])
   const fetched = records.every((r) => r !== undefined)
@@ -74,13 +69,12 @@ export function RowItem({
   const startRefine = () => setRefining(row.text)
   const toggleHistory = () => setHistoryOpen((v) => !v)
 
-  const submitRefine = async (li: HTMLElement | null) => {
+  const submitRefine = async () => {
     const text = singleLine(refining ?? "")
     if (text && text !== row.text) {
       if (!(await run({ kind: "refine", rowId: row.rowId, text }))) return
     }
     setRefining(null)
-    li?.focus()
   }
 
   const loaded = async () => (fetched ? records.map((r) => r ?? null) : await onLoadRecords())
@@ -102,8 +96,8 @@ export function RowItem({
     if (t) fn(row.rowId, t)
   }
 
-  // The pin record is fetched when the row is first hovered or focused, and
-  // again after a reload dropped the cache while the row was still active.
+  // The pin records are fetched when the row is first hovered or focused,
+  // and again after a reload dropped the cache while the row was still active.
   const prefetch = () => {
     if (owner && !fetched) void onLoadRecords()
   }
@@ -112,22 +106,22 @@ export function RowItem({
     if (liRef.current?.matches(":hover, :focus-within")) prefetch()
   })
 
-  // Hovering a pinned row shows its pin where the click landed. The record
-  // may still be loading; it is shown only if the pointer is still here.
-  const hoverIn = async () => {
-    prefetch()
+  // Hovering Show pins shows them where the clicks landed. The records may
+  // still be loading; they are shown only if the pointer is still there.
+  const peekButton = useRef<HTMLButtonElement>(null)
+  const peekIn = async () => {
     if (!owner) return
     const recs = (await loaded()).filter((r): r is PinRecord => r !== null)
-    if (recs.length && liRef.current?.matches(":hover")) onHoverPin(owner.rowId, recs)
+    if (recs.length && peekButton.current?.matches(":hover")) onPeekPins(owner.rowId, recs)
   }
   // A row that unmounts under the pointer (a reload) never sees mouseleave.
-  const hoverEnd = useRef(() => {})
-  hoverEnd.current = () => owner && onHoverPin(owner.rowId, null)
-  useEffect(() => () => hoverEnd.current(), [])
-  const hoverOut = () => {
-    setShotOpen(false)
-    if (owner) onHoverPin(owner.rowId, null)
-  }
+  const peekEnd = useRef(() => {})
+  peekEnd.current = () => owner && onPeekPins(owner.rowId, null)
+  useEffect(() => () => peekEnd.current(), [])
+
+  // The flyouts are as wide as the row's text column.
+  const columnWidth = () => liRef.current?.querySelector(".dr-row-head")?.clientWidth ?? 320
+  const shots = owner?.pins.flatMap((p) => (p.screenshot ? [p.screenshot] : [])) ?? []
 
   return (
     <li
@@ -136,29 +130,14 @@ export function RowItem({
       // leading space of a class string inside a template literal.
       className={["dr-row", `dr-depth-${row.depth}`, busy && "dr-busy"].filter(Boolean).join(" ")}
       data-row-id={row.rowId}
-      tabIndex={0}
-      onMouseEnter={() => void hoverIn()}
+      onMouseEnter={prefetch}
       onFocus={prefetch}
-      onMouseLeave={hoverOut}
     >
       <span className="dr-row-num">{row.rowId}</span>
       <div className="dr-row-head">
         {row.status && <span className={`dr-status dr-status-${row.status}`}>{row.status}</span>}
-        {row.pins.length > 0 && (
-          <span className="dr-pin" title="Pinned">
-            📍
-          </span>
-        )}
-        {row.inheritedPinFrom && (
-          <span
-            className="dr-pin dr-pin-inherited"
-            title={`Uses the pin of ${row.inheritedPinFrom}`}
-          >
-            📍 from {row.inheritedPinFrom}
-          </span>
-        )}
         {refining === null && (
-          <span className="dr-row-actions">
+          <ActionGroup>
             {row.depth === 0 && (
               <ActionButton
                 icon="edit"
@@ -178,19 +157,38 @@ export function RowItem({
             )}
             {owner && (
               <>
-                <ActionButton icon="pin" label="Go to pin" onClick={withTarget(onGoToPin)} />
-                {owner.pins[0].screenshot && (
+                <ActionButton
+                  ref={peekButton}
+                  icon="pin"
+                  label="Show pins"
+                  tip={
+                    row.inheritedPinFrom
+                      ? `Show the pins of ${row.inheritedPinFrom}`
+                      : owner.pins.length > 1
+                        ? `Show the ${owner.pins.length} pins`
+                        : "Show pin"
+                  }
+                  pressed={pinsShown}
+                  onMouseEnter={() => void peekIn()}
+                  onMouseLeave={() => onPeekPins(owner.rowId, null)}
+                  onClick={withTarget(onTogglePins)}
+                />
+                {shots.length > 0 && (
                   <ActionButton
+                    ref={setShotButton}
                     icon="screenshot"
                     label="Screenshot"
                     pressed={shotOpen}
                     onClick={() => setShotOpen((v) => !v)}
+                    onMouseLeave={() => setShotOpen(false)}
                   />
                 )}
                 <ActionButton
+                  ref={setRestoreButton}
                   icon="restore"
-                  label="Restore state"
-                  onClick={() => setConfirming(true)}
+                  label="Restore corresponding app state"
+                  pressed={confirming}
+                  onClick={() => setConfirming((v) => !v)}
                 />
                 {source && (
                   <ActionButton
@@ -202,7 +200,7 @@ export function RowItem({
                 )}
               </>
             )}
-          </span>
+          </ActionGroup>
         )}
       </div>
 
@@ -230,15 +228,13 @@ export function RowItem({
           onFocus={(e) => e.currentTarget.select()}
           onChange={(e) => setRefining(e.target.value)}
           onKeyDown={(e) => {
-            const li = e.currentTarget.closest("li")
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault()
-              void submitRefine(li)
+              void submitRefine()
             } else if (e.key === "Escape") {
               e.preventDefault()
               e.stopPropagation()
               setRefining(null)
-              li?.focus()
             }
           }}
         />
@@ -256,33 +252,26 @@ export function RowItem({
         </ul>
       )}
 
-      {shotOpen && owner?.pins[0].screenshot && (
-        <a
+      {shotOpen && owner && shots.length > 0 && (
+        <Flyout
+          anchor={shotButton}
+          width={columnWidth()}
           className="dr-shot"
-          href={fileUrl(review, owner.pins[0].screenshot)}
-          target="_blank"
-          rel="noreferrer"
-          title="Open full size"
+          label={`Screenshot of ${owner.rowId}`}
         >
-          <img
-            src={fileUrl(review, owner.pins[0].screenshot)}
-            alt={`Screenshot of ${owner.rowId}`}
-          />
-        </a>
+          {shots.map((shot) => (
+            <img key={shot} src={fileUrl(review, shot)} alt="" />
+          ))}
+        </Flyout>
       )}
 
       {confirming && owner && (
-        <div
+        <Flyout
+          anchor={restoreButton}
+          width={columnWidth()}
           className="dr-confirm"
-          role="alertdialog"
-          aria-label="Restore state"
-          onKeyDown={(e) => {
-            if (e.key !== "Escape") return
-            e.preventDefault()
-            e.stopPropagation()
-            setConfirming(false)
-            e.currentTarget.closest("li")?.focus()
-          }}
+          label="Restore corresponding app state"
+          onDismiss={() => setConfirming(false)}
         >
           <span>Replace the app's current localStorage with the state saved at {owner.rowId}?</span>
           <span className="dr-confirm-actions">
@@ -305,7 +294,7 @@ export function RowItem({
               Cancel
             </button>
           </span>
-        </div>
+        </Flyout>
       )}
     </li>
   )
