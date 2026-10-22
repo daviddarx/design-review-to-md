@@ -389,21 +389,6 @@ select.dr-review-select {
   opacity: 0.6;
 }
 
-/* A drawer row: number, field, tags on one line. */
-.dr-row-main {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-}
-
-.dr-row-tags {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-weight: 400;
-}
-
 /* Line 1: number, tags, then the actions at the right end. */
 .dr-row-head {
   display: flex;
@@ -620,7 +605,10 @@ select.dr-review-select {
   position: absolute;
   inset: 0;
   z-index: 1;
-  overflow: hidden;
+  /* clip, not hidden: a hidden box can still be scrolled, and focusing a
+     field while the drawer is still off to the right scrolled the layer
+     sideways — the slide jumped forth and back. */
+  overflow: clip;
 }
 
 .dr-drawer-backdrop {
@@ -703,10 +691,6 @@ select.dr-review-select {
   white-space: nowrap;
 }
 
-.dr-drawer-confirm {
-  margin: 8px 12px 0;
-}
-
 .dr-drawer-body {
   flex: 1 1 auto;
   min-height: 0;
@@ -714,20 +698,17 @@ select.dr-review-select {
   padding: 6px 0 64px;
 }
 
-/* Drawer rows keep the list's old look: no separators, a bold title. */
+/* A drawer row, as the list lays it out: the number in its own column (it
+   never moves), the field indented by depth with its files under it, the
+   icon actions at the right; all top-aligned on the field's first line, so
+   a growing field pushes nothing around. No separators. */
 .dr-drawer-row {
+  display: grid;
+  grid-template-columns: minmax(5ch, max-content) minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: 6px;
   padding: 5px 12px;
   border-bottom: 0;
-}
-
-.dr-drawer-row.dr-depth-0 {
-  font-weight: 600;
-}
-
-/* Number, field, tags, then the icon actions at the right; all top-aligned
-   on the field's first line, so a growing field pushes nothing around. */
-.dr-drawer-row .dr-row-main {
-  align-items: flex-start;
 }
 
 .dr-drawer-row .dr-row-num,
@@ -735,12 +716,32 @@ select.dr-review-select {
   line-height: 28px;
 }
 
-.dr-drawer-row .dr-row-tags {
-  height: 28px;
+.dr-drawer-row.dr-depth-1 .dr-drawer-cell {
+  margin-left: 16px;
+}
+
+.dr-drawer-row.dr-depth-2 .dr-drawer-cell {
+  margin-left: 32px;
+}
+
+.dr-drawer-row .dr-row-actions {
+  margin-left: 0;
+}
+
+.dr-drawer-row .dr-files,
+.dr-drawer-row .dr-drawer-hint {
+  margin-left: 0;
+}
+
+/* Files dragged over the attach button. */
+.dr-action-drop {
+  background: #dbeafe;
+  color: var(--dr-focus) !important;
 }
 
 .dr-drawer-input {
-  flex: 1 1 auto;
+  display: block;
+  width: 100%;
   min-width: 0;
   height: auto;
   min-height: 28px;
@@ -796,86 +797,14 @@ select.dr-review-select {
   cursor: pointer;
 }
 
-.dr-drawer-keys {
-  margin: 16px 12px 0;
+/* The keys, in a bar as tall as the list's footer (its 28px button). */
+.dr-drawer-foot {
+  justify-content: flex-start;
+  align-items: center;
+  min-height: 28px;
   color: var(--dr-text-muted);
   font-size: 11px;
-}
-
-.dr-toolbar {
-  position: fixed;
-  z-index: 2147483000;
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 4px 6px 4px 4px;
-  border-radius: 999px;
-  background: var(--dr-bar);
-  color: var(--dr-ink);
-  font: 500 13px/1 var(--dr-font);
-  box-shadow:
-    0 4px 16px rgb(0 0 0 / 0.25),
-    0 1px 3px rgb(0 0 0 / 0.2);
-  user-select: none;
-}
-
-.dr-toolbar-default {
-  left: 50%;
-  bottom: 16px;
-  transform: translateX(-50%);
-}
-
-.dr-grip {
-  width: 14px;
-  height: 24px;
-  margin-left: 4px;
-  cursor: grab;
-  touch-action: none;
-  background-image: radial-gradient(circle, var(--dr-ink-muted) 1.2px, transparent 1.4px);
-  background-size: 6px 6px;
-  background-position: center;
-}
-
-.dr-grip:active {
-  cursor: grabbing;
-}
-
-.dr-tool-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 28px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-}
-
-.dr-tool-button:hover {
-  background: var(--dr-bar-hover);
-}
-
-.dr-tool-button:focus-visible {
-  outline: 2px solid #60a5fa;
-  outline-offset: 1px;
-}
-
-.dr-count {
-  min-width: 18px;
-  padding: 2px 5px;
-  border-radius: 999px;
-  background: var(--dr-bar-hover);
-  color: var(--dr-ink-muted);
-  font-size: 11px;
-  text-align: center;
-  box-sizing: border-box;
-}
-
-.dr-toolbar.dr-hidden {
-  display: none;
+  line-height: 28px;
 }
 
 /* The picker: drawn over everything, never hit by the pointer. Hidden for
@@ -984,4 +913,23 @@ select.dr-review-select {
 .dr-marker-approx {
   border-style: dashed;
   opacity: 0.6;
+}
+
+/* The open drawer's pins: a hover swaps the label for ×, a click takes the
+   pin off. */
+.dr-marker-removable {
+  padding: 0;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.dr-marker-removable:hover span,
+.dr-marker-removable:focus-visible span {
+  font-size: 0;
+}
+
+.dr-marker-removable:hover span::after,
+.dr-marker-removable:focus-visible span::after {
+  content: "×";
+  font-size: 16px;
 }

@@ -169,7 +169,9 @@ describe("Pin & add", () => {
     await pick(cancel)
     // Cancel did not run: no discard prompt, the drawer and its draft remain.
     expect(host.querySelector(".dr-drawer")).toBe(drawer)
-    expect(drawer.querySelector(".dr-drawer-confirm")).toBeNull()
+    expect([...drawer.querySelectorAll("button")].some((b) => b.textContent === "Discard")).toBe(
+      false
+    )
     expect(title()!.value).toBe("Half-written")
     expect(pins()).toEqual(["1"])
   })

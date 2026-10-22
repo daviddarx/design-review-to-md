@@ -1,6 +1,7 @@
 // Pure editor state of the feedback drawer: one tree per feedback, the title row
 // at the root. Every edit returns a new tree (or the same one when refused).
 import type { DraftRow, Op } from "../../model/ops.ts"
+import { nextLabel } from "../../model/labels.ts"
 import { pinAssetName } from "../../model/pins.ts"
 import type { PinRef, Feedback, Row } from "../../model/types.ts"
 import type { Asset } from "../api.ts"
@@ -230,6 +231,30 @@ export function remove(tree: DraftNode, id: string): DraftNode {
     ...p,
     children: p.children.filter((c) => c.id !== id),
   }))
+}
+
+// The id each row shows: a saved row its own, a new one what the server
+// will give it — the label after its siblings (saved, then new ones above
+// it), since labels on disk go past the highest sibling. `number` is the
+// feedback's number while it is not saved yet (null: not known yet).
+export function displayIds(tree: DraftNode, number: number | null): Map<string, string> {
+  const root = tree.savedRowId ?? (number === null ? "" : String(number))
+  const out = new Map([[tree.id, root]])
+  const walk = (parent: DraftNode, parentId: string, depth: 1 | 2) => {
+    const taken = parent.children.flatMap((c) => (c.label ? [c.label] : []))
+    for (const child of parent.children) {
+      let label = child.label
+      if (!label) {
+        label = nextLabel(depth, taken)
+        taken.push(label)
+      }
+      const id = child.savedRowId ?? `${parentId}.${label}`
+      out.set(child.id, id)
+      if (depth === 1) walk(child, id, 2)
+    }
+  }
+  walk(tree, root, 1)
+  return out
 }
 
 // Flattened for rendering, in display order.

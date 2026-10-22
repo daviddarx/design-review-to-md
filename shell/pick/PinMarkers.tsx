@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react"
 import type { PinStep } from "../../model/types.ts"
 
-// A pin to draw: where the click of `step` landed, labelled (the owning row,
-// or nothing for a drawer row not saved yet).
-export type Marker = { key: string; label: string; step: PinStep }
+// A pin to draw: where the click of `step` landed, labelled with its row.
+// With `onRemove` (the open drawer's pins) a hover shows × and a click
+// takes the pin off.
+export type Marker = { key: string; label: string; step: PinStep; onRemove?: () => void }
 
 type Spot = { x: number; y: number; exact: boolean }
 type Placed = { key: string; label: string } & Spot
@@ -95,17 +96,31 @@ export function PinMarkers({
   }, [frame, markers, hidden])
 
   if (placed.length === 0) return null
+  const byKey = new Map(markers.map((m) => [m.key, m]))
   return (
-    <div className="dr-markers" aria-hidden="true">
-      {placed.map((p) => (
-        <div
-          key={p.key}
-          className={["dr-marker", !p.exact && "dr-marker-approx"].filter(Boolean).join(" ")}
-          style={{ left: p.x, top: p.y }}
-        >
-          <span>{p.label}</span>
-        </div>
-      ))}
+    <div className="dr-markers">
+      {placed.map((p) => {
+        const onRemove = byKey.get(p.key)?.onRemove
+        const className = ["dr-marker", !p.exact && "dr-marker-approx"].filter(Boolean).join(" ")
+        const style = { left: p.x, top: p.y }
+        return onRemove ? (
+          <button
+            key={p.key}
+            type="button"
+            className={`${className} dr-marker-removable`}
+            style={style}
+            aria-label={`Remove this pin of ${p.label}`}
+            title="Remove this pin"
+            onClick={onRemove}
+          >
+            <span>{p.label}</span>
+          </button>
+        ) : (
+          <div key={p.key} className={className} style={style} aria-hidden="true">
+            <span>{p.label}</span>
+          </div>
+        )
+      })}
     </div>
   )
 }

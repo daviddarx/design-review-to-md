@@ -6,6 +6,8 @@ import {
   appendChild,
   buildCreate,
   buildOps,
+  displayIds,
+  flatten,
   fromFeedback,
   indent,
   insertSiblingAfter,
@@ -286,5 +288,24 @@ describe("saving", () => {
       "pin-2.json",
       "state-2.json",
     ])
+  })
+
+  it("numbers new rows as the server will", () => {
+    const feedback = parseFeedback(POINT)
+    let tree = fromFeedback(feedback)
+    const [a, , c] = tree.children
+    tree = remove(tree, a.id)
+    tree = appendChild(appendChild(tree, c.id), tree.id)
+    const ids = displayIds(tree, null)
+    expect(flatten(tree).map(({ node }) => ids.get(node.id))).toEqual([
+      "5",
+      "5.b",
+      "5.c",
+      "5.c.1",
+      "5.c.2",
+      "5.d",
+    ])
+    const fresh = newDraft()
+    expect(displayIds(fresh, 3).get(fresh.id)).toBe("3")
   })
 })

@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState } from "react"
-import type { ChangeEvent, KeyboardEvent as ReactKeyboardEvent } from "react"
-import type { Feedback } from "../../model/types.ts"
-import { applyOp, createFeedback, deleteFeedback, readReview } from "../api.ts"
+import { useEffect, useMemo, useRef, useState } from "react"
+import type { DragEvent, KeyboardEvent as ReactKeyboardEvent } from "react"
+import { parsePinAssetName } from "../../model/pins.ts"
+import type { Feedback, PinRecord } from "../../model/types.ts"
+import { applyOp, createFeedback, deleteFeedback, fileUrl, readReview } from "../api.ts"
+import { pinRecordPath } from "../panel/listModel.ts"
 import {
   addCapture,
   appendCaptured,
@@ -9,6 +11,7 @@ import {
   buildCreate,
   buildOps,
   bytesToBase64,
+  displayIds,
   find,
   flatten,
   fromFeedback,
@@ -20,11 +23,12 @@ import {
   pinCount,
   problem,
   remove,
+  removePin,
   updateNode,
 } from "./draft.ts"
-import type { CapturedPin, DraftNode } from "./draft.ts"
+import type { CapturedPin, DraftNode, PinKey } from "./draft.ts"
 import type { Marker } from "../pick/PinMarkers.tsx"
-import { ActionButton } from "../panel/icons.tsx"
+import { ActionButton, ActionGroup } from "../panel/icons.tsx"
 
 export type FeedbackDrawerProps = {
   review: string
@@ -37,13 +41,13 @@ export type FeedbackDrawerProps = {
   focusSignal?: number // a change pulls focus back into the drawer (New feedback while open)
   onSaved?(): void
   onClose(): void
-  onPinsChange?(markers: Marker[]): void // the pins made in this drawer, drawn on the page
+  onPinsChange?(markers: Marker[]): void // this feedback's pins, drawn on the page
 }
 
-// The picker writes these names itself; an attachment may not take them in
-// any case (on a case-insensitive disk "PIN.png" would overwrite "pin.png").
-const RESERVED = new Set(["pin.png", "pin.json", "state.json"])
-const reserved = (f: File) => RESERVED.has(f.name.toLowerCase())
+// The picker writes these names itself (pin.png, pin-2.json, state.json, …);
+// an attachment may not take them in any case (on a case-insensitive disk
+// "PIN.png" would overwrite "pin.png").
+const reserved = (f: File) => parsePinAssetName(f.name.toLowerCase()) !== null
 
 // Focus target meaning "the row focused last, else the first editable row".
 const BACK = "\u0000back"
@@ -60,11 +64,6 @@ const oneLine = (s: string) => s.replace(/\r?\n/g, " ")
 function addedId(before: DraftNode, after: DraftNode): string | null {
   const old = new Set(flatten(before).map((f) => f.node.id))
   return flatten(after).find((f) => !old.has(f.node.id))?.node.id ?? null
-}
-
-function numberLabel(node: DraftNode, depth: number): string {
-  if (node.label) return `${node.label}.`
-  return depth === 0 ? "New" : "·"
 }
 
 // One feedback, over the panel's list at full panel width. The title row is
@@ -87,6 +86,9 @@ export function FeedbackDrawer({
   const [saving, setSaving] = useState(false)
   const [confirmDiscard, setConfirmDiscard] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [nextNumber, setNextNumber] = useState<number | null>(null) // a new feedback's
+  const [savedRecords, setSavedRecords] = useState<Record<string, PinRecord | null>>({})
+  const [dropTarget, setDropTarget] = useState<string | null>(null)
   const [focusId, setFocusId] = useState<string | null>(() =>
     feedbackNumber === undefined ? tree.id : null
   )
@@ -103,6 +105,40 @@ export function FeedbackDrawer({
     setFeedback(found)
     setTree(fromFeedback(found))
   }
+
+  // A new feedback shows the number it will get.
+  useEffect(() => {
+    if (feedbackNumber !== undefined) return
+    let live = true
+    readReview(review)
+      .then((data) => live && setNextNumber(data.meta.nextFeedback))
+      .catch(() => undefined)
+    return () => {
+      live = false
+    }
+  }, [review, feedbackNumber])
+
+  // The records of the saved pins, so they show on the page too.
+  useEffect(() => {
+    if (!feedback) return
+    let live = true
+    const wanted = flatten(fromFeedback(feedback)).flatMap(({ node }) =>
+      node.savedPins.map((pin, i) => ({
+        key: `${node.savedRowId}:${i}`,
+        path: pinRecordPath(pin, node.savedRowId as string, i, feedback.folder),
+      }))
+    )
+    void Promise.all(
+      wanted.map(async ({ key, path }) => {
+        const res = await fetch(fileUrl(review, path)).catch(() => null)
+        const record = res?.ok ? ((await res.json().catch(() => null)) as PinRecord | null) : null
+        return [key, record] as const
+      })
+    ).then((pairs) => live && setSavedRecords(Object.fromEntries(pairs)))
+    return () => {
+      live = false
+    }
+  }, [review, feedback])
 
   useEffect(() => {
     if (feedbackNumber === undefined) return
@@ -137,7 +173,9 @@ export function FeedbackDrawer({
     const byId = (id: string | null) =>
       id ? root.querySelector<HTMLElement>(`[data-node-input="${id}"]`) : null
     const el = byId(wanted) ?? root.querySelector<HTMLElement>("[data-node-input]") ?? root
-    el.focus()
+    // No scrolling into view: while the drawer slides in, that would scroll
+    // its layer sideways and make the slide jump.
+    el.focus({ preventScroll: true })
   }, [focusId, tree])
 
   const seenSignal = useRef(focusSignal)
@@ -147,18 +185,34 @@ export function FeedbackDrawer({
     setFocusId(BACK)
   }, [focusSignal])
 
-  // Every pin made in this drawer shows where its click landed, until the
-  // drawer closes.
+  const ids = useMemo(() => displayIds(tree, nextNumber), [tree, nextNumber])
+
+  const takeOffPin = (id: string, key: PinKey) => {
+    setTree((t) => removePin(t, id, key))
+    setConfirmDiscard(false)
+  }
+
+  // Every pin of this feedback, saved or new, shows where its click landed
+  // until the drawer closes; a click on one takes it off.
   useEffect(() => {
     onPinsChange?.(
-      flatten(tree).flatMap(({ node }) =>
-        node.captures.flatMap((c, j) => {
-          const step = c.record.steps[0]
-          return step ? [{ key: `${node.id}:${j}`, label: node.savedRowId ?? "", step }] : []
-        })
-      )
+      flatten(tree).flatMap(({ node }) => {
+        const label = ids.get(node.id) ?? ""
+        const marker = (key: string, step: PinRecord["steps"][number] | undefined, pin: PinKey) =>
+          step ? [{ key, label, step, onRemove: () => takeOffPin(node.id, pin) }] : []
+        return [
+          ...node.keptPins.flatMap((i) =>
+            marker(`${node.id}:s${i}`, savedRecords[`${node.savedRowId}:${i}`]?.steps[0], {
+              saved: i,
+            })
+          ),
+          ...node.captures.flatMap((c, j) =>
+            marker(`${node.id}:c${j}`, c.record.steps[0], { capture: j })
+          ),
+        ]
+      })
     )
-  }, [tree, onPinsChange])
+  }, [tree, ids, savedRecords, onPinsChange])
   useEffect(() => () => onPinsChange?.([]), [onPinsChange])
 
   // A capture arriving while the feedback still loads waits for it: the load
@@ -269,10 +323,8 @@ export function FeedbackDrawer({
     fileInput.current?.click()
   }
 
-  const onFiles = async (e: ChangeEvent<HTMLInputElement>) => {
-    const id = attachTo.current
-    const all = Array.from(e.target.files ?? [])
-    e.target.value = ""
+  // From the file dialog, or dropped on a row's attach button.
+  const addFiles = async (id: string | null, all: File[]) => {
     const refused = all.filter(reserved).map((f) => f.name)
     const picked = all.filter((f) => !reserved(f))
     if (refused.length) {
@@ -299,6 +351,18 @@ export function FeedbackDrawer({
     } catch (err) {
       setError(`Could not read the file: ${message(err)}`)
     }
+  }
+
+  const dragOver = (id: string) => (e: DragEvent) => {
+    if (!e.dataTransfer.types.includes("Files")) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = "copy"
+    setDropTarget(id)
+  }
+  const drop = (id: string) => (e: DragEvent) => {
+    e.preventDefault()
+    setDropTarget(null)
+    void addFiles(id, Array.from(e.dataTransfer.files))
   }
 
   const removeFile = (id: string, name: string) => {
@@ -359,64 +423,58 @@ export function FeedbackDrawer({
       tabIndex={-1}
       onKeyDown={onRootKey}
     >
+      {/* Discarding or deleting asks right here: the header's two buttons
+          become the answer. */}
       <header className="dr-drawer-head">
         <strong className="dr-drawer-title">{title}</strong>
         <span className="dr-drawer-review">{review}</span>
-        <button type="button" className="dr-button" onClick={requestClose} title="Close (Esc)">
-          Cancel
-        </button>
-        <button
-          type="button"
-          className="dr-button dr-button-primary"
-          onClick={() => void save()}
-          disabled={saving || loading || loadFailed}
-          title="Save (⌘Enter)"
-        >
-          {saving ? "Saving…" : "Save"}
-        </button>
-      </header>
-
-      {confirmDiscard && (
-        <div
-          className="dr-confirm dr-drawer-confirm"
-          role="alertdialog"
-          aria-label="Discard draft?"
-        >
-          <span>Discard draft?</span>
-          <span className="dr-confirm-actions">
-            <button type="button" className="dr-button" onClick={onClose} autoFocus>
-              Discard
-            </button>
+        {confirmDiscard ? (
+          <>
             <button type="button" className="dr-button" onClick={keepEditing}>
               Keep editing
             </button>
-          </span>
-        </div>
-      )}
-
-      {confirmDelete && feedback && (
-        <div
-          className="dr-confirm dr-drawer-confirm"
-          role="alertdialog"
-          aria-label="Delete feedback?"
-        >
-          <span>Delete feedback {feedback.number}? Its files go too.</span>
-          <span className="dr-confirm-actions">
             <button
               type="button"
-              className="dr-button"
-              onClick={() => void removeFeedback()}
-              disabled={saving}
+              className="dr-button dr-button-primary"
+              onClick={onClose}
               autoFocus
             >
-              Delete
+              Discard
             </button>
+          </>
+        ) : confirmDelete && feedback ? (
+          <>
             <button type="button" className="dr-button" onClick={keepEditing}>
               Keep
             </button>
-          </span>
-        </div>
-      )}
+            <button
+              type="button"
+              className="dr-button dr-button-primary"
+              onClick={() => void removeFeedback()}
+              disabled={saving}
+              autoFocus
+              title={`Feedback ${feedback.number} and its files go`}
+            >
+              Delete feedback
+            </button>
+          </>
+        ) : (
+          <>
+            <button type="button" className="dr-button" onClick={requestClose} title="Close (Esc)">
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="dr-button dr-button-primary"
+              onClick={() => void save()}
+              disabled={saving || loading || loadFailed}
+              title="Save (⌘Enter)"
+            >
+              {saving ? "Saving…" : "Save"}
+            </button>
+          </>
+        )}
+      </header>
 
       {error && (
         <div className="dr-error" role="alert">
@@ -437,7 +495,9 @@ export function FeedbackDrawer({
             <DrawerRow
               key={node.id}
               node={node}
+              number={ids.get(node.id) ?? ""}
               depth={depth}
+              dropping={dropTarget === node.id}
               busy={saving}
               canPin={Boolean(startPick)}
               onText={(text) => edit(updateNode(tree, node.id, { text: oneLine(text) }))}
@@ -448,6 +508,9 @@ export function FeedbackDrawer({
                 edit(next, addedId(tree, next))
               }}
               onAttach={() => attach(node.id)}
+              onAttachDragOver={dragOver(node.id)}
+              onAttachDragLeave={() => setDropTarget(null)}
+              onAttachDrop={drop(node.id)}
               onPin={() => void pin(node.id)}
               onDelete={
                 depth > 0
@@ -463,41 +526,63 @@ export function FeedbackDrawer({
             />
           ))
         )}
-        <p className="dr-drawer-keys">
-          Enter new row · Tab / ⇧Tab indent · ⌘Enter save · Esc close
-        </p>
       </div>
+      <footer className="dr-panel-foot dr-drawer-foot">
+        Enter new row · Tab / ⇧Tab indent · ⌘Enter save · Esc close
+      </footer>
 
-      <input ref={fileInput} type="file" multiple hidden onChange={(e) => void onFiles(e)} />
+      <input
+        ref={fileInput}
+        type="file"
+        multiple
+        hidden
+        onChange={(e) => {
+          const files = Array.from(e.target.files ?? [])
+          e.target.value = ""
+          void addFiles(attachTo.current, files)
+        }}
+      />
     </section>
   )
 }
 
 type DrawerRowProps = {
   node: DraftNode
+  number: string // what the row will be numbered: 5, 5.c, 5.c.1
   depth: number
   busy: boolean
   canPin: boolean
+  dropping: boolean // files are dragged over its attach button
   onText(text: string): void
   onKeyDown(e: ReactKeyboardEvent<HTMLTextAreaElement>): void
   onFocus(): void
   onAddChild(): void
   onAttach(): void
+  onAttachDragOver(e: DragEvent): void
+  onAttachDragLeave(): void
+  onAttachDrop(e: DragEvent): void
   onPin(): void
   onDelete?: () => void
   onRemoveFile(name: string): void
 }
 
+// Number, then the field (indented by depth; files under it at its left
+// edge), then the icon actions at the right.
 function DrawerRow({
   node,
+  number,
   depth,
   busy,
   canPin,
+  dropping,
   onText,
   onKeyDown,
   onFocus,
   onAddChild,
   onAttach,
+  onAttachDragOver,
+  onAttachDragLeave,
+  onAttachDrop,
   onPin,
   onDelete,
   onRemoveFile,
@@ -509,8 +594,8 @@ function DrawerRow({
         .filter(Boolean)
         .join(" ")}
     >
-      <div className="dr-row-main">
-        <span className="dr-row-num">{numberLabel(node, depth)}</span>
+      <span className="dr-row-num">{number}</span>
+      <div className="dr-drawer-cell">
         {node.locked ? (
           <span className="dr-row-text" title="Use Refine in the list to change it">
             {node.text}
@@ -529,48 +614,57 @@ function DrawerRow({
             onFocus={onFocus}
           />
         )}
-        <span className="dr-row-actions">
-          {depth < 2 && (
-            <ActionButton icon="addRow" label="Add a row at the end" onClick={onAddChild} />
-          )}
-          <ActionButton icon="attach" label="Attach a file" onClick={onAttach} />
-          {canPin && (
-            <ActionButton
-              icon="pin"
-              label="Pin this row to an element"
-              tip={pins ? `Pin once more (${pins} pinned)` : "Pin this row to an element"}
-              count={pins}
-              onClick={onPin}
-            />
-          )}
-          {onDelete && (
-            <ActionButton
-              icon="remove"
-              label={depth === 0 ? "Delete this feedback and its files" : "Delete this row"}
-              onClick={onDelete}
-            />
-          )}
-        </span>
+        {node.locked && (
+          <p className="dr-drawer-hint">Claude has worked on this — use Refine in the list.</p>
+        )}
+        {node.files.length > 0 && (
+          <ul className="dr-files" aria-label="Attachments">
+            {node.files.map((f) => (
+              <li key={f.name} className="dr-file">
+                📎 {f.name}
+                <button
+                  type="button"
+                  aria-label={`Remove ${f.name}`}
+                  onClick={() => onRemoveFile(f.name)}
+                >
+                  ×
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
-      {node.locked && (
-        <p className="dr-drawer-hint">Claude has worked on this — use Refine in the list.</p>
-      )}
-      {node.files.length > 0 && (
-        <ul className="dr-files" aria-label="Attachments">
-          {node.files.map((f) => (
-            <li key={f.name} className="dr-file">
-              📎 {f.name}
-              <button
-                type="button"
-                aria-label={`Remove ${f.name}`}
-                onClick={() => onRemoveFile(f.name)}
-              >
-                ×
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+      <ActionGroup>
+        {depth < 2 && (
+          <ActionButton icon="addRow" label="Add a row at the end" onClick={onAddChild} />
+        )}
+        <ActionButton
+          icon="attach"
+          label="Attach a file"
+          tip="Attach a file (or drop it here)"
+          className={dropping ? "dr-action-drop" : undefined}
+          onClick={onAttach}
+          onDragOver={onAttachDragOver}
+          onDragLeave={onAttachDragLeave}
+          onDrop={onAttachDrop}
+        />
+        {canPin && (
+          <ActionButton
+            icon="pin"
+            label="Pin this row to an element"
+            tip={pins ? `Pin once more (${pins} pinned)` : "Pin this row to an element"}
+            count={pins}
+            onClick={onPin}
+          />
+        )}
+        {onDelete && (
+          <ActionButton
+            icon="remove"
+            label={depth === 0 ? "Delete this feedback and its files" : "Delete this row"}
+            onClick={onDelete}
+          />
+        )}
+      </ActionGroup>
     </div>
   )
 }

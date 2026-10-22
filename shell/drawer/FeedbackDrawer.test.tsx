@@ -3,7 +3,8 @@ import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { parseFeedback } from "../../model/markdown.ts"
-import { FeedbackDrawer } from "./FeedbackDrawer.tsx"
+import type { Marker } from "../pick/PinMarkers.tsx"
+import { FeedbackDrawer, type FeedbackDrawerProps } from "./FeedbackDrawer.tsx"
 
 const SPEC = `# 5. Main navigation
 
@@ -56,7 +57,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-async function render(feedbackNumber?: number) {
+async function render(feedbackNumber?: number, extra: Partial<FeedbackDrawerProps> = {}) {
   const onClose = vi.fn()
   const onSaved = vi.fn()
   await act(async () => {
@@ -66,6 +67,7 @@ async function render(feedbackNumber?: number) {
         feedbackNumber={feedbackNumber}
         onClose={onClose}
         onSaved={onSaved}
+        {...extra}
       />
     )
   })
@@ -73,6 +75,11 @@ async function render(feedbackNumber?: number) {
 }
 
 const fields = () => [...host.querySelectorAll("textarea")]
+const button = (label: string) =>
+  [...host.querySelectorAll("button")].find((b) => b.textContent === label)!
+const headButtons = () =>
+  [...host.querySelectorAll(".dr-drawer-head button")].map((b) => b.textContent)
+const numbers = () => [...host.querySelectorAll(".dr-row-num")].map((n) => n.textContent)
 const posts = () => calls.filter((c) => c.method === "POST")
 
 function key(el: Element, k: string, extra: KeyboardEventInit = {}) {
@@ -121,9 +128,12 @@ describe("FeedbackDrawer", () => {
     await type(fields()[0], "Something")
     await act(async () => key(fields()[0], "Escape"))
     expect(onClose).not.toHaveBeenCalled()
-    expect(host.textContent).toContain("Discard draft?")
-    const discard = [...host.querySelectorAll("button")].find((b) => b.textContent === "Discard")!
-    await act(async () => discard.click())
+    // The header's buttons become the question.
+    expect(headButtons()).toEqual(["Keep editing", "Discard"])
+    await act(async () => button("Keep editing").click())
+    expect(headButtons()).toEqual(["Cancel", "Save"])
+    await act(async () => key(fields()[0], "Escape"))
+    await act(async () => button("Discard").click())
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
@@ -151,18 +161,16 @@ describe("FeedbackDrawer", () => {
     const { onClose, onSaved } = await render(5)
     const trash = () =>
       host.querySelector<HTMLButtonElement>('button[aria-label^="Delete this feedback"]')!
-    const button = (label: string) =>
-      [...host.querySelectorAll("button")].find((b) => b.textContent === label)!
     const deletes = () => calls.filter((c) => c.method === "DELETE")
 
     await act(async () => trash().click())
-    expect(host.textContent).toContain("Delete feedback 5? Its files go too.")
+    expect(headButtons()).toEqual(["Keep", "Delete feedback"])
     await act(async () => button("Keep").click())
-    expect(host.querySelector('[aria-label="Delete feedback?"]')).toBeNull()
+    expect(headButtons()).toEqual(["Cancel", "Save"])
     expect(deletes()).toEqual([])
 
     await act(async () => trash().click())
-    await act(async () => button("Delete").click())
+    await act(async () => button("Delete feedback").click())
     expect(deletes().map((c) => c.url)).toEqual(["/__review/api/reviews/08.4/feedbacks/5"])
     expect(onSaved).toHaveBeenCalledTimes(1)
     expect(onClose).toHaveBeenCalledTimes(1)
@@ -246,5 +254,50 @@ describe("FeedbackDrawer", () => {
   it("hides the pin action without a picker", async () => {
     await render()
     expect(host.textContent).not.toContain("📍")
+  })
+
+  it("numbers rows as they will be saved, a new feedback by the next free number", async () => {
+    await render()
+    expect(numbers()).toEqual(["6"])
+    await type(fields()[0], "Title")
+    await act(async () => key(fields()[0], "Enter"))
+    await act(async () => key(fields()[1], "Tab"))
+    expect(numbers()).toEqual(["6", "6.a"])
+    await act(async () => root.unmount())
+    root = createRoot(host)
+    await render(5)
+    await act(async () => key(fields()[1], "Enter"))
+    expect(numbers()).toEqual(["5", "5.a", "5.b", "5.c"])
+  })
+
+  it("a pin's marker on the page takes it off", async () => {
+    const step = {
+      url: "http://localhost/x",
+      path: "/x",
+      viewport: { width: 1, height: 1, dpr: 1 },
+      mouse: { x: 0, y: 0 },
+      element: {
+        selector: "body",
+        tag: "body",
+        text: "",
+        rect: { x: 0, y: 0, width: 1, height: 1 },
+      },
+      inTool: false,
+    }
+    let markers: Marker[] = []
+    await render(undefined, {
+      initialCapture: {
+        pin: { path: "/x" },
+        record: { version: 1, at: "t", steps: [step] },
+        state: "{}",
+      },
+      onPinsChange: (m) => (markers = m),
+      startPick: async () => null, // the pin button only shows with a picker
+    })
+    expect(markers.map((m) => m.label)).toEqual(["6"])
+    expect(host.querySelector(".dr-action-count")?.textContent).toBe("1")
+    await act(async () => markers[0].onRemove!())
+    expect(markers).toEqual([])
+    expect(host.querySelector(".dr-action-count")).toBeNull()
   })
 })
