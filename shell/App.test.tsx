@@ -3,6 +3,14 @@ import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { App } from "./App.tsx"
+
+// The test frame shows this very document, which a real render would walk
+// into again through the frame; the pin goes without a picture.
+vi.mock("modern-screenshot", () => ({
+  domToCanvas: async () => {
+    throw new Error("no render in tests")
+  },
+}))
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 class FakeEventSource {
@@ -99,7 +107,19 @@ const ctrlP = () =>
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "p", ctrlKey: true, bubbles: true }))
   })
 
-// Hover then click `el` while a pick runs; the shell's own UI is pickable.
+// The frame shows the shell's own document in tests: an element appended to
+// `host` stands for the app's, and only it is pickable.
+function appElement(): HTMLButtonElement {
+  const frame = host.querySelector("iframe")!
+  Object.defineProperty(frame, "contentDocument", { value: document, configurable: true })
+  Object.defineProperty(frame, "contentWindow", { value: window, configurable: true })
+  const app = document.createElement("button")
+  app.textContent = "App button"
+  host.append(app)
+  return app
+}
+
+// Hover then click `el` while a pick runs.
 async function pick(el: Element) {
   await act(async () => {
     el.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 5, clientY: 6 }))
@@ -120,10 +140,7 @@ describe("Pin & add", () => {
     await act(async () => root.render(<App />))
     await ctrlP()
     expect(host.querySelector(".dr-picker-hint")).not.toBeNull()
-    // The click is the pick's: Copy prompt must not run.
-    const copy = [...host.querySelectorAll("button")].find((b) => b.textContent === "Copy prompt")!
-    await pick(copy)
-    expect(copy.textContent).toBe("Copy prompt")
+    await pick(appElement())
     expect(host.querySelector(".dr-picker-hint")).toBeNull()
     expect(host.querySelector(".dr-drawer")).not.toBeNull()
     expect(pins()).toEqual(["1"])
@@ -147,9 +164,8 @@ describe("Pin & add", () => {
     await type(title()!, "Half-written")
     const drawer = host.querySelector(".dr-drawer")!
     await ctrlP()
-    // Stays on screen during the pick, so its own elements can be pinned.
     expect(drawer.classList.contains("dr-hidden")).toBe(false)
-    await pick(host.querySelector(".dr-resize")!)
+    await pick(appElement())
     expect(host.querySelector(".dr-drawer")).toBe(drawer)
     expect(drawer.classList.contains("dr-hidden")).toBe(false)
     expect(title()!.value).toBe("Half-written")
@@ -159,7 +175,7 @@ describe("Pin & add", () => {
     expect(document.activeElement).toBe(inputs[1])
   })
 
-  it("an element of the open drawer is pinned, not acted on", async () => {
+  it("the tool's own UI is neither pinned nor acted on during a pick", async () => {
     await act(async () => root.render(<App />))
     await act(async () => newFeedback().click())
     await type(title()!, "Half-written")
@@ -173,7 +189,9 @@ describe("Pin & add", () => {
       false
     )
     expect(title()!.value).toBe("Half-written")
-    expect(pins()).toEqual(["1"])
+    // Nothing pinned, and the pick goes on.
+    expect(pins()).toEqual([])
+    expect(host.querySelector(".dr-picker-hint")).not.toBeNull()
   })
 
   it("⌃P does nothing outside review mode", async () => {

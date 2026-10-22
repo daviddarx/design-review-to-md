@@ -17,8 +17,18 @@ let root: Root
 let host: HTMLDivElement
 let picker: Picker
 
+// The frame shows the test's own document, so `#target` is the app's.
+let frameDoc: Document | null = document
+function fakeFrame(): HTMLIFrameElement {
+  const frame = document.createElement("iframe")
+  Object.defineProperty(frame, "contentDocument", { get: () => frameDoc })
+  Object.defineProperty(frame, "contentWindow", { value: window })
+  return frame
+}
+const frame = fakeFrame()
+
 function Harness() {
-  picker = usePicker(null)
+  picker = usePicker(frame)
   return (
     <div>
       <button type="button" id="target">
@@ -59,8 +69,10 @@ describe("usePicker", () => {
     })
     expect(result).not.toBeNull()
     expect(result!.png).toBeUndefined()
-    expect(result!.record.steps[0].path).toBe("(review tool)")
-    expect(result!.pin).toEqual({ path: "(review tool)" })
+    const here = location.pathname + location.search
+    expect(result!.record.steps[0].path).toBe(here)
+    expect(result!.record.steps[0].inTool).toBe(false)
+    expect(result!.pin).toEqual({ path: here })
     expect(picker.picking).toBe(false)
     expect(host.querySelector(".dr-picker")!.classList.contains("dr-hidden")).toBe(false)
 
@@ -76,4 +88,24 @@ describe("usePicker", () => {
     })
     expect(picker.picking).toBe(false)
   }, 5000)
+
+  it("does not pick the tool's own UI", async () => {
+    frameDoc = document.implementation.createHTMLDocument("app") // the app is elsewhere
+    await act(async () => root.render(<Harness />))
+    let pending!: Promise<CapturedPin | null>
+    await act(async () => {
+      pending = picker.startPick()
+    })
+    const target = host.querySelector("#target")!
+    await act(async () => {
+      target.dispatchEvent(new PointerEvent("pointermove", { bubbles: true }))
+      target.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }))
+    })
+    expect(picker.picking).toBe(true)
+    await act(async () => {
+      picker.cancel()
+      expect(await pending).toBeNull()
+    })
+    frameDoc = document
+  })
 })

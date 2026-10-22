@@ -310,8 +310,8 @@ export function FeedbackDrawer({
 
   const pin = async (id: string) => {
     if (!startPick) return
-    // The drawer stays on screen while the pick runs: its own elements can
-    // be pinned (the picker swallows the click, so nothing here acts on it).
+    // The drawer stays on screen while the pick runs; a click on it is
+    // swallowed by the picker and pins nothing (only the app is pickable).
     try {
       const captured = await startPick("pin")
       if (captured) setTree((t) => addCapture(t, id, captured))

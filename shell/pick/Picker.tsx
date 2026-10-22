@@ -9,7 +9,7 @@ import { clearSourceCache, sourceOf } from "../source/sourceLookup.ts"
 
 type Box = { x: number; y: number; width: number; height: number }
 type Shown = { box: Box; label: string | null }
-type Picked = { el: Element; inTool: boolean; mouse: { x: number; y: number } }
+type Picked = { el: Element; mouse: { x: number; y: number } }
 
 export type Picker = {
   picking: boolean
@@ -66,14 +66,14 @@ function shellBox(el: Element, frame: HTMLIFrameElement | null): Box {
 
 const rect = (b: Box) => new DOMRect(b.x, b.y, b.width, b.height)
 
-function stepOf({ el, inTool, mouse }: Picked): PinStep {
+function stepOf({ el, mouse }: Picked): PinStep {
   const win = el.ownerDocument.defaultView ?? window
   const r = el.getBoundingClientRect()
   const component = componentName(el)
   const openers = openersOf(el)
   return {
     url: win.location.href,
-    path: inTool ? "(review tool)" : win.location.pathname + win.location.search,
+    path: win.location.pathname + win.location.search,
     viewport: { width: win.innerWidth, height: win.innerHeight, dpr: win.devicePixelRatio },
     mouse,
     element: {
@@ -83,7 +83,7 @@ function stepOf({ el, inTool, mouse }: Picked): PinStep {
       text: (el.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 120),
       rect: { x: r.x, y: r.y, width: r.width, height: r.height },
     },
-    inTool,
+    inTool: false, // the tool's own UI is no longer pickable
     ...(openers.length ? { openers } : {}),
   }
 }
@@ -159,20 +159,23 @@ export function usePicker(frame: HTMLIFrameElement | null): Picker {
         const inLayer = (el: Element) => Boolean(layerRef.current?.contains(el))
         const toPicked = (el: Element, e?: MouseEvent): Picked => ({
           el,
-          inTool: el.ownerDocument === document,
           mouse: e ? { x: e.clientX, y: e.clientY } : (hovered.current?.mouse ?? { x: 0, y: 0 }),
         })
+        // Only the app is pinned: the tool's own UI is not (his call, while
+        // the tool's review goes on the older way). A click on it does nothing.
         const pickable = (t: EventTarget | null): t is Element =>
-          isElement(t) && t !== frameRef.current && !inLayer(t)
+          isElement(t) &&
+          t !== frameRef.current &&
+          !inLayer(t) &&
+          t.ownerDocument === frameRef.current?.contentDocument
 
         const onMove = (e: Event) => {
-          if (pickable(e.target)) hovered.current = toPicked(e.target, e as MouseEvent)
+          hovered.current = pickable(e.target) ? toPicked(e.target, e as MouseEvent) : null
         }
         const onClick = (e: Event) => {
           block(e)
-          const current =
-            hovered.current ?? (pickable(e.target) ? toPicked(e.target, e as MouseEvent) : null)
-          if (current) finish(current)
+          if (!pickable(e.target)) return
+          finish(hovered.current ?? toPicked(e.target, e as MouseEvent))
         }
         const onKey = (e: Event) => {
           const k = e as KeyboardEvent
@@ -229,25 +232,22 @@ export function usePicker(frame: HTMLIFrameElement | null): Picker {
     // Runs beside the screenshot; bounded, so it never holds the pin up.
     // Fresh maps every pick: the app may have changed since the last one.
     clearSourceCache()
-    const source = picked.inTool ? Promise.resolve(undefined) : sourceOf(picked.el)
+    const source = sourceOf(picked.el)
     const record: PinRecord = { version: 1, at: new Date().toISOString(), steps: [step] }
     const state = snapshotLocalStorage()
     let png: string | undefined
     const f = frameRef.current
-    if (picked.inTool || f) {
-      const crop: Box =
-        picked.inTool || !f
-          ? { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight }
-          : frameBox(f)
+    if (f) {
+      const crop = frameBox(f)
       const outline = shellBox(picked.el, f)
-      const off = !picked.inTool && f ? frameBox(f) : { x: 0, y: 0 }
+      const off = crop
       const click = { x: off.x + picked.mouse.x, y: off.y + picked.mouse.y }
       // The outline layer may not be in the picture.
       flushSync(() => setGrab(true))
       await nextFrame()
       await nextFrame()
       try {
-        png = await grabPng(f, picked.inTool || !f, rect(crop), rect(outline), click)
+        png = await grabPng(f, false, rect(crop), rect(outline), click)
       } catch {
         png = undefined
       } finally {
