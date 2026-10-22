@@ -192,3 +192,26 @@ plan beside it.
   was read as _hide_ them while the drawer is open.
 - **Drawer**: the whole row is the drop target for files (highlighted);
   sub-rows indent 24 / 48px; file chips are grey like the status tags.
+- **List rows, third take** (briefing-feedback-3): a three-column grid —
+  number | body | actions. The body opens with the status tag (floated, 28px
+  like the buttons; the text's first line, `line-height: 20px` after a 4px
+  top pad, is centred on it), then history, then the files as grey chips (no
+  files button any more). The actions keep their places from row to row: Edit
+  is last, and a row without it (every sub-row) leaves an empty 28px slot.
+  Every sub-row's separator starts at the feedback's text.
+- **Screenshot flyout**: click toggles it (Esc / a press outside close it,
+  the pointer leaving does not); each picture opens in a new tab. `Flyout`
+  stays hidden until its pictures have loaded — a picture arriving late
+  widened the right-aligned box and it slid in from the right.
+- **Moving saved rows** (`moveRow`): Tab / Shift+Tab work on saved rows in
+  the edit drawer (a saved row only goes under a saved one). The row goes
+  last under its new parent with the next label; its files are renamed with
+  it, and its pin and 📎 lines follow, re-indented by the depth change.
+  `buildOps` now applies every planned op to a copy of the feedback with the
+  model's own `applyOp` (`simulate`), so a later op addresses a moved row by
+  its new id; rows coming up to the top level move before rows going down
+  (a row may not take along a sub-row that is leaving it); the drawer's
+  numbers come from the same simulation, so they are what the save writes.
+  Files added to saved rows go in one `attach` op before the moves, never
+  riding on the first op (it might move the row the file belongs to).
+- **The drawer shows a row's saved files** (from its 📎 lines) as link chips.
