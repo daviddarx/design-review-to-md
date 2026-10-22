@@ -317,3 +317,11 @@ plan beside it.
 - **Go to pin's outline is under the pin.** It moved out of `.dr-picker`
   into its own `.dr-flash-layer` (z 2147483400, below `.dr-markers`); the
   pick's hover outline, label and hint stay above everything.
+- **Copied lines up with Copy prompt.** `.dr-swap` was baseline-aligned, and
+  "Copied" leads with its icon, whose bottom edge became the baseline and
+  lifted the label. It is now top-aligned and centred, and the icon overhangs
+  the text line (`margin: -4px 0`) instead of growing it.
+- **The panel sits below the app**: a 12px slate fade along its left edge
+  (`.dr-panel::before`, z 2, no pointer events). It is an overlay rather than
+  an inset `box-shadow`, which the header and drawer backgrounds would cover.
+  The resize edge moved to z 3 to stay above it.
