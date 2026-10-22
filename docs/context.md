@@ -303,3 +303,17 @@ plan beside it.
   pin whose popup is closed sits by its trigger, at the offset recorded in the
   new optional `PinOpener.rect`. Pins made before this keep the old ids and
   must be re-pinned.
+- **A pick hands its pin back at once** (his "the pinning take some time …
+  no indicator"). The screenshot (modern-screenshot renders the whole app
+  DOM) and the source-map lookup (up to `LOOKUP_MS`, maps refetched every
+  pick) were awaited before the drawer opened. Now `capture` returns the pin
+  straight away and both finish in the background, writing `png` and
+  `element.source` into the same objects; `CapturedPin.finishing` settles
+  when they are in, and the drawer's save awaits every capture's
+  `finishing` first, so a quick save still carries its picture. The two
+  frames spent hiding the picker layer are gone: only the frame's document
+  is rendered, so the shell's layers were never in the picture. A spinner
+  (`.dr-pin-loader`) sits at the click until `finishing` settles.
+- **Go to pin's outline is under the pin.** It moved out of `.dr-picker`
+  into its own `.dr-flash-layer` (z 2147483400, below `.dr-markers`); the
+  pick's hover outline, label and hint stay above everything.
