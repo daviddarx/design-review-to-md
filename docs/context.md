@@ -239,3 +239,11 @@ plan beside it.
   happy-dom against the live server's own JSON for his review — 1.a.2's pill
   and its × are there. The brief's line is carried over from rounds 3–4;
   nothing changed.
+- **Briefing-feedback-6**: the status tag line sits 8px under what is above
+  it (4px more). Show pins switches off on a press anywhere else in the panel,
+  like the screenshot flyout (`data-pins-toggle` marks the buttons that
+  handle it themselves; presses in the app frame do not count — "the
+  module" read as the panel). Drawer in/out 25% faster (slide 300 → 225ms,
+  backdrop fade 150 → 112ms). Copy prompt now also asks to commit
+  `docs/review/<review>/` as it is before making the changes. From this round
+  on, a round's briefing files are committed first, in their own commit.
