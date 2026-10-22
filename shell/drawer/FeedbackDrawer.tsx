@@ -12,6 +12,7 @@ import {
   buildOps,
   bytesToBase64,
   displayIds,
+  dropSavedFile,
   find,
   flatten,
   fromFeedback,
@@ -24,6 +25,7 @@ import {
   problem,
   remove,
   removePin,
+  savedFileName,
   updateNode,
 } from "./draft.ts"
 import type { CapturedPin, DraftNode, PinKey } from "./draft.ts"
@@ -529,6 +531,7 @@ export function FeedbackDrawer({
                     : undefined
               }
               onRemoveFile={(name) => removeFile(node.id, name)}
+              onDropSavedFile={(file) => edit(dropSavedFile(tree, node.id, file))}
             />
           ))
         )}
@@ -571,6 +574,7 @@ type DrawerRowProps = {
   onPin(): void
   onDelete?: () => void
   onRemoveFile(name: string): void
+  onDropSavedFile(file: string): void
 }
 
 // Number, then the field (indented by depth; files under it at its left
@@ -594,6 +598,7 @@ function DrawerRow({
   onPin,
   onDelete,
   onRemoveFile,
+  onDropSavedFile,
 }: DrawerRowProps) {
   const pins = pinCount(node)
   return (
@@ -641,6 +646,13 @@ function DrawerRow({
                 <a href={fileUrl(review, f.path)} target="_blank" rel="noreferrer">
                   {f.name}
                 </a>
+                <button
+                  type="button"
+                  aria-label={`Remove ${f.name}`}
+                  onClick={() => onDropSavedFile(savedFileName(f))}
+                >
+                  ×
+                </button>
               </li>
             ))}
             {node.files.map((f) => (

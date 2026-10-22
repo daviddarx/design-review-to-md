@@ -7,6 +7,7 @@ import {
   buildCreate,
   buildOps,
   displayIds,
+  dropSavedFile,
   flatten,
   fromFeedback,
   indent,
@@ -29,6 +30,7 @@ function node(text: string, children: DraftNode[] = [], extra: Partial<DraftNode
     captures: [],
     files: [],
     savedFiles: [],
+    droppedFiles: [],
     children,
     ...extra,
   }
@@ -336,6 +338,19 @@ describe("saving", () => {
       ["Search field is misaligned", "5.b.1"],
       ["by two pixels", "5.d"],
       ["new", "5.e"],
+    ])
+  })
+
+  it("a saved file taken off is removed on save", () => {
+    const md = "# 5. T `open`\n\n- a. one `open`\n  📎 [5.a-x.png](05-t/5.a-x.png)\n"
+    const feedback = parseFeedback(md)
+    let tree = fromFeedback(feedback)
+    const a = tree.children[0]
+    expect(a.savedFiles).toEqual([{ name: "5.a-x.png", path: "05-t/5.a-x.png" }])
+    tree = dropSavedFile(tree, a.id, "5.a-x.png")
+    expect(tree.children[0].savedFiles).toEqual([])
+    expect(buildOps(feedback, tree).map((o) => o.op)).toEqual([
+      { kind: "removeFile", rowId: "5.a", file: "5.a-x.png" },
     ])
   })
 })

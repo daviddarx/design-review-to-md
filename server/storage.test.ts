@@ -262,6 +262,20 @@ describe("applyOp", () => {
     )
   })
 
+  it("removeFile deletes the file and its line", async () => {
+    await storage.createReview("t")
+    await storage.createFeedback(
+      "t",
+      "Nav",
+      [row("one")],
+      [],
+      [{ rowId: "$0", name: "note.txt", dataBase64: PNG }]
+    )
+    await storage.applyOp("t", 1, { kind: "removeFile", rowId: "1.a", file: "1.a-note.txt" }, [])
+    expect(existsSync(path.join(root, "t", "01-nav", "1.a-note.txt"))).toBe(false)
+    expect(await fs.readFile(path.join(root, "t", "01-nav.md"), "utf8")).not.toContain("📎")
+  })
+
   it("attach links files and changes nothing else", async () => {
     await storage.createReview("t")
     await storage.createFeedback("t", "Nav", [row("one")], [], [])

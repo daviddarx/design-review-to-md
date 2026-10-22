@@ -25,7 +25,8 @@ export type DraftNode = {
   keptPins: number[] // which of them stay (indexes into savedPins)
   captures: CapturedPin[] // pins made in this drawer, added after the kept ones
   files: DraftFile[] // added in this drawer
-  savedFiles: Attachment[] // attached before, shown as they are
+  savedFiles: Attachment[] // attached before and still kept
+  droppedFiles: string[] // saved files taken off in this drawer (file names)
   children: DraftNode[]
 }
 
@@ -51,6 +52,7 @@ const blank = (): DraftNode => ({
   captures: [],
   files: [],
   savedFiles: [],
+  droppedFiles: [],
   children: [],
 })
 
@@ -130,6 +132,7 @@ function fromRow(row: Row, id: string): DraftNode {
     savedText: row.text,
     label: row.label,
     savedFiles: attachmentsOf(row.extra),
+    droppedFiles: [],
     locked: row.status !== "open" || row.history.some((h) => h.kind === "claude"),
     files: [],
     children: row.children.map((c) => fromRow(c, `${id}.${c.label}`)),
@@ -148,6 +151,7 @@ export function fromFeedback(feedback: Feedback): DraftNode {
     savedText: feedback.title,
     label: id,
     savedFiles: attachmentsOf(feedback.preamble),
+    droppedFiles: [],
     locked:
       (feedback.status ?? "open") !== "open" || feedback.history.some((h) => h.kind === "claude"),
     files: [],
@@ -166,6 +170,18 @@ export function updateNode(tree: DraftNode, id: string, patch: Partial<DraftNode
 // Pin & add, or the row's pin button: one more pin on the row.
 export function addCapture(tree: DraftNode, id: string, capture: CapturedPin): DraftNode {
   return replace(tree, id, (n) => ({ ...n, captures: [...n.captures, capture] }))
+}
+
+// The file name a saved attachment has on disk (the last part of its path).
+export const savedFileName = (f: Attachment) => f.path.split("/").at(-1) ?? f.path
+
+// A saved file taken off: removed on save (removeFile).
+export function dropSavedFile(tree: DraftNode, id: string, file: string): DraftNode {
+  return replace(tree, id, (n) => ({
+    ...n,
+    savedFiles: n.savedFiles.filter((f) => savedFileName(f) !== file),
+    droppedFiles: [...n.droppedFiles, file],
+  }))
 }
 
 // A pin taken off in the page: a saved one by its index on disk, a new one
@@ -434,6 +450,7 @@ function simulate(
     for (let i = n.savedPins.length - 1; i >= 0; i--) {
       if (!n.keptPins.includes(i)) plan({ kind: "removePin", rowId, index: i })
     }
+    for (const file of n.droppedFiles) plan({ kind: "removeFile", rowId, file })
     // The server files an added pin under its next number.
     for (const c of n.captures) plan({ kind: "addPin", rowId, pin: c.pin }, pinAssets(c, rowId, 0))
     if (n.files.length) carrier ??= rowId

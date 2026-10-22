@@ -172,4 +172,27 @@ describe("ops", () => {
       applyOp(parseFeedback(md), { kind: "moveRow", rowId: "5.b", parentId: "5.a" }, [])
     ).toThrow(expect.objectContaining({ code: "locked" }))
   })
+  it("removeFile takes a 📎 line off its row (or the title)", () => {
+    const md = [
+      "# 5. Nav `open`",
+      "",
+      "📎 [5-a b.png](05-nav/5-a%20b.png)",
+      "",
+      "- a. one `open`",
+      "  📎 [5.a-x.png](05-nav/5.a-x.png)",
+      "  📎 [5.a-y.png](05-nav/5.a-y.png)",
+      "",
+    ].join("\n")
+    const a = applyOp(
+      parseFeedback(md),
+      { kind: "removeFile", rowId: "5.a", file: "5.a-x.png" },
+      []
+    )
+    expect(a.feedback.rows[0].extra).toEqual(["  📎 [5.a-y.png](05-nav/5.a-y.png)"])
+    const t = applyOp(a.feedback, { kind: "removeFile", rowId: "5", file: "5-a b.png" }, [])
+    expect(t.feedback.preamble).toEqual([])
+    expect(() =>
+      applyOp(t.feedback, { kind: "removeFile", rowId: "5", file: "5-a b.png" }, [])
+    ).toThrow(expect.objectContaining({ code: "not-found" }))
+  })
 })

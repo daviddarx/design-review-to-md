@@ -403,6 +403,13 @@ export class Storage {
       this.linkPins(result.feedback, folder, touched, mapped)
       linkAttachments(result.feedback, folder, mapped)
       await this.writeAssets(dir, folder, mapped)
+      if (op.kind === "removeFile") {
+        // Only a file of that row: the name the server wrote it under.
+        const name = safeAssetName(op.file)
+        if (name.startsWith(`${op.rowId}-`)) {
+          await fs.rm(path.join(dir, folder, name), { force: true })
+        }
+      }
       if (result.movedRowIds.length) {
         await this.renameAssets(dir, folder, result.movedRowIds)
       }

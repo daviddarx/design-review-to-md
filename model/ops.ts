@@ -10,6 +10,7 @@ export type Op =
   | { kind: "addPin"; rowId: string; pin: PinRef }
   | { kind: "removePin"; rowId: string; index: number }
   | { kind: "attach"; rowId: string } // changes nothing: the files sent with it are linked
+  | { kind: "removeFile"; rowId: string; file: string } // an attachment's file name, `<rowId>-x`
   | { kind: "deleteRow"; rowId: string }
   // Re-parents a row (indent / outdent): it goes last under `parentId` (the
   // feedback's number for the top level) with a new label, its rows with it.
@@ -99,6 +100,20 @@ function append(
     if (draft.children.length) {
       append(row.children, draft.children, id, 2, retired, added)
     }
+  }
+}
+
+const ATTACHMENT = /^\s*📎 \[.+?\]\((.+)\)\s*$/
+
+// The file a `📎 [name](folder/file)` line links to, or null for another line.
+export function attachmentFile(line: string): string | null {
+  const m = ATTACHMENT.exec(line)
+  if (!m) return null
+  const last = m[1].split("/").at(-1) ?? ""
+  try {
+    return decodeURIComponent(last)
+  } catch {
+    return last
   }
 }
 
@@ -218,6 +233,17 @@ export function applyOp(feedback: Feedback, op: Op, retired: string[]): OpResult
     case "attach":
       resolve(next, op.rowId)
       break
+    case "removeFile": {
+      const row = resolve(next, op.rowId).at(-1)
+      const lines = row ? row.extra : next.preamble
+      const kept = lines.filter((line) => attachmentFile(line) !== op.file)
+      if (kept.length === lines.length) {
+        throw new OpError("not-found", `${op.rowId} has no file ${op.file}`)
+      }
+      if (row) row.extra = kept
+      else next.preamble = kept
+      break
+    }
     case "moveRow":
       moveRow(next, op.rowId, op.parentId, result)
       break
