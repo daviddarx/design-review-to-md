@@ -215,3 +215,17 @@ plan beside it.
   Files added to saved rows go in one `attach` op before the moves, never
   riding on the first op (it might move the row the file belongs to).
 - **The drawer shows a row's saved files** (from its 📎 lines) as link chips.
+- **List rows, fourth take** (briefing-feedback-4): number | text | actions
+  stays; under the text a line of the attached files as underlined grey links
+  and the small status tag at its end; History opens below that. Edit is a
+  primary button. A sub-row's separator starts at its own text (`gutter + 5ch
+  - 6px + 16px` per level), per his "should" screenshot.
+- **The flyout's slide from the right, actually**: `Flyout` was placed by
+  `left = anchor.right − width`, and a fixed box sized to its content shrinks
+  to the room left of the viewport's edge — so each frame's new `left` made
+  it narrower, and the next frame moved it again until it settled. It is
+  anchored by `right` now. (Round 3's wait-for-images guess was wrong; it
+  stays, as a picture loading late would widen the box too.)
+- **Saved files can be removed in the drawer**: × on the pill, `removeFile`
+  on save (drops the 📎 line, deletes the file — only a file named for that
+  row).
