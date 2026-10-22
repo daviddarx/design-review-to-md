@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { parseFeedback } from "../../model/markdown.ts"
 import {
+  addCapture,
   appendCaptured,
   appendChild,
   buildCreate,
@@ -11,13 +12,23 @@ import {
   newDraft,
   outdent,
   remove,
+  removePin,
   updateNode,
   type DraftNode,
 } from "./draft.ts"
 
 let seq = 0
 function node(text: string, children: DraftNode[] = [], extra: Partial<DraftNode> = {}): DraftNode {
-  return { id: `n${++seq}`, text, files: [], children, ...extra }
+  return {
+    id: `n${++seq}`,
+    text,
+    savedPins: [],
+    keptPins: [],
+    captures: [],
+    files: [],
+    children,
+    ...extra,
+  }
 }
 
 const texts = (n: DraftNode): unknown => ({ [n.text]: n.children.map(texts) })
@@ -152,7 +163,7 @@ describe("saving", () => {
     })
     tree = updateNode(tree, tree.id, { text: "Pinned" })
     const payload = buildCreate(tree)
-    expect(payload.pin).toEqual({ path: "/x", screenshot: "" })
+    expect(payload.pins).toEqual([{ path: "/x", screenshot: "" }])
     expect(payload.assets.map((a) => `${a.rowId} ${a.name}`)).toEqual([
       "$feedback pin.png",
       "$feedback pin.json",
@@ -169,12 +180,12 @@ describe("saving", () => {
     }
     const feedback = parseFeedback(POINT)
     const { tree, id } = appendCaptured(fromFeedback(feedback), capture)
-    expect(tree.children.at(-1)).toMatchObject({ id, text: "", capture, pin: { path: "/y" } })
+    expect(tree.children.at(-1)).toMatchObject({ id, text: "", captures: [capture] })
     const added = buildOps(feedback, updateNode(tree, id, { text: "New" })).at(-1)!
     expect(added.op).toEqual({
       kind: "addChild",
       rowId: "5",
-      row: { text: "New", pin: { path: "/y" }, children: [] },
+      row: { text: "New", pins: [{ path: "/y" }], children: [] },
     })
     expect(added.assets.map((a) => `${a.rowId} ${a.name}`)).toEqual([
       "$0 pin.json",
@@ -220,7 +231,7 @@ describe("saving", () => {
     ])
   })
 
-  it("carries files on an otherwise unchanged feedback with a no-op pin write", () => {
+  it("carries files on an otherwise unchanged feedback with an attach op", () => {
     const feedback = parseFeedback(POINT)
     let tree = fromFeedback(feedback)
     tree = updateNode(tree, tree.children[0].id, {
@@ -228,10 +239,52 @@ describe("saving", () => {
     })
     expect(buildOps(feedback, tree)).toEqual([
       {
-        op: { kind: "setPin", rowId: "5.a", pin: undefined },
+        op: { kind: "attach", rowId: "5.a" },
         assets: [{ rowId: "5.a", name: "a.png", dataBase64: "EEE" }],
       },
     ])
     expect(buildOps(feedback, fromFeedback(feedback))).toEqual([])
+  })
+
+  it("removes saved pins last first, then adds new ones under the next number", () => {
+    const md = "# 5. T `open`\n\n- a. one `open`\n  📍 /p\n  📍 /q\n  📍 /r\n"
+    const feedback = parseFeedback(md)
+    let tree = fromFeedback(feedback)
+    const a = tree.children[0]
+    const capture = (path: string) => ({
+      pin: { path },
+      record: { version: 1 as const, at: "t", steps: [] },
+      png: "UE5H",
+      state: "{}",
+    })
+    tree = removePin(tree, a.id, { saved: 0 })
+    tree = removePin(tree, a.id, { saved: 2 })
+    tree = addCapture(tree, a.id, capture("/s"))
+    tree = addCapture(tree, a.id, capture("/t"))
+    tree = removePin(tree, a.id, { capture: 0 })
+    const ops = buildOps(feedback, tree)
+    expect(ops.map((o) => o.op)).toEqual([
+      { kind: "removePin", rowId: "5.a", index: 2 },
+      { kind: "removePin", rowId: "5.a", index: 0 },
+      { kind: "addPin", rowId: "5.a", pin: { path: "/t" } },
+    ])
+    expect(ops[2].assets.map((x) => x.name)).toEqual(["pin.png", "pin.json", "state.json"])
+  })
+
+  it("names a new row's second pin's files pin-2 and state-2", () => {
+    let tree = newDraft()
+    tree = updateNode(tree, tree.id, { text: "T" })
+    const c = {
+      pin: { path: "/x" },
+      record: { version: 1 as const, at: "t", steps: [] },
+      state: "{}",
+    }
+    tree = addCapture(addCapture(tree, tree.id, c), tree.id, c)
+    expect(buildCreate(tree).assets.map((x) => x.name)).toEqual([
+      "pin.json",
+      "state.json",
+      "pin-2.json",
+      "state-2.json",
+    ])
   })
 })

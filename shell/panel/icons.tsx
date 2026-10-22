@@ -42,12 +42,14 @@ export function ActionButton({
   label,
   tip = label,
   pressed,
+  count,
   onClick,
 }: {
   icon: IconName
   label: string
   tip?: string
   pressed?: boolean
+  count?: number // a red pill on the icon, from 1 up
   onClick(): void
 }) {
   return (
@@ -60,6 +62,7 @@ export function ActionButton({
       onClick={onClick}
     >
       <Icon name={icon} />
+      {count ? <span className="dr-action-count">{count}</span> : null}
     </button>
   )
 }

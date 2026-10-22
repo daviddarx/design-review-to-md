@@ -261,7 +261,10 @@ describe("Panel", () => {
     await act(async () => {})
     expect(onGoToPin).toHaveBeenCalledWith(
       "5.c",
-      expect.objectContaining({ ownerRowId: "5.c", recordPath: "05-main-navigation/5.c-pin.json" })
+      expect.objectContaining({
+        ownerRowId: "5.c",
+        pins: [expect.objectContaining({ recordPath: "05-main-navigation/5.c-pin.json" })],
+      })
     )
     const alert = host.querySelector(".dr-error")!
     expect(alert.textContent).toContain("Pinned element not found — the page changed since.")

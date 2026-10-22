@@ -4,6 +4,7 @@ import { randomBytes } from "node:crypto"
 import { parseFeedback, serializeFeedback } from "../model/markdown.ts"
 import { feedbackFileBase } from "../model/labels.ts"
 import { applyOp as applyModelOp, newFeedback, OpError } from "../model/ops.ts"
+import { parsePinAssetName, pinAssetName } from "../model/pins.ts"
 import type { DraftRow, Op, OpResult } from "../model/ops.ts"
 import type { PinRef, Feedback, Row, ReviewMeta } from "../model/types.ts"
 
@@ -29,13 +30,14 @@ function safeReview(name: string): string {
   return trimmed.replace(/ /g, "-")
 }
 
-// Names the pin capture writes; every other asset is an attachment.
-const PIN_ASSETS = new Set(["pin.png", "pin.json", "state.json"])
+// The names the pin capture writes (`pin.png`, `pin-2.json`, `state.json`,
+// …); every other asset is an attachment.
+const isPinAsset = (name: string) => parsePinAssetName(name) !== null
 
 function safeAssetName(name: string): string {
   // The picker sends these names exactly; any other spelling of one is an
   // attachment that would land on (or, case-insensitively, over) a pin file.
-  if (PIN_ASSETS.has(name.toLowerCase()) && !PIN_ASSETS.has(name)) {
+  if (isPinAsset(name.toLowerCase()) && !isPinAsset(name)) {
     throw new StorageError(400, `${name}: this name is kept for pins`)
   }
   if (
@@ -68,9 +70,9 @@ function modelError(err: unknown): never {
 }
 
 // Row (or the feedback itself) addressed by a real id like "5", "5.b", "5.b.1".
-function holderOf(feedback: Feedback, rowId: string): { pin?: PinRef } | undefined {
+function holderOf(feedback: Feedback, rowId: string): { pins: PinRef[] } | undefined {
   const [, ...labels] = rowId.split(".")
-  let holder: { pin?: PinRef } = feedback
+  let holder: { pins: PinRef[] } = feedback
   let level: Row[] = feedback.rows
   for (const label of labels) {
     const row = level.find((r) => r.label === label)
@@ -86,7 +88,7 @@ function holderOf(feedback: Feedback, rowId: string): { pin?: PinRef } | undefin
 // never touched, and a line already present is not added twice.
 function linkAttachments(feedback: Feedback, folder: string, assets: Asset[]) {
   for (const a of assets) {
-    if (PIN_ASSETS.has(a.name)) continue
+    if (isPinAsset(a.name)) continue
     const file = `${a.rowId}-${a.name}`
     const link = `📎 [${file}](${folder}/${encodeURIComponent(file)})`
     const [, ...labels] = a.rowId.split(".")
@@ -205,12 +207,44 @@ export class Storage {
     }
   }
 
-  // Points the written pin lines at the asset files that were saved with them.
+  // Points the written pin lines at the screenshots saved with them.
   private linkPins(feedback: Feedback, folder: string, ids: string[], assets: Asset[]) {
     for (const id of ids) {
       const holder = holderOf(feedback, id)
-      if (holder?.pin && assets.some((a) => a.rowId === id && a.name === "pin.png")) {
-        holder.pin = { ...holder.pin, screenshot: `${folder}/${id}-pin.png` }
+      holder?.pins.forEach((pin, i) => {
+        const png = pinAssetName(i, "png")
+        if (assets.some((a) => a.rowId === id && a.name === png)) {
+          holder.pins[i] = { ...pin, screenshot: `${folder}/${id}-${png}` }
+        }
+      })
+    }
+  }
+
+  // After pin `index` of `rowId` is gone: its files go, and the files of
+  // every pin after it move down one place, as the pins themselves did.
+  private async shiftPinFiles(
+    dir: string,
+    folder: string,
+    rowId: string,
+    index: number,
+    pins: PinRef[]
+  ) {
+    const assetDir = path.join(dir, folder)
+    const files = ["png", "json", "state"] as const
+    for (const file of files) {
+      await fs.rm(path.join(assetDir, `${rowId}-${pinAssetName(index, file)}`), { force: true })
+    }
+    for (let i = index; i < pins.length; i++) {
+      for (const file of files) {
+        const from = path.join(assetDir, `${rowId}-${pinAssetName(i + 1, file)}`)
+        await fs
+          .rename(from, path.join(assetDir, `${rowId}-${pinAssetName(i, file)}`))
+          .catch((err: NodeJS.ErrnoException) => {
+            if (err.code !== "ENOENT") throw err
+          })
+      }
+      if (pins[i].screenshot) {
+        pins[i] = { ...pins[i], screenshot: `${folder}/${rowId}-${pinAssetName(i, "png")}` }
       }
     }
   }
@@ -280,7 +314,7 @@ export class Storage {
     review: string,
     title: string,
     rows: DraftRow[],
-    pin: PinRef | undefined,
+    pins: PinRef[],
     assets: Asset[]
   ): Promise<{ number: number; rowIds: string[] }> {
     const dir = this.reviewDir(review)
@@ -291,7 +325,7 @@ export class Storage {
       await fs.mkdir(dir, { recursive: true })
       let created
       try {
-        created = newFeedback(number, title.trim(), rows, pin)
+        created = newFeedback(number, title.trim(), rows, pins)
       } catch (err) {
         modelError(err)
       }
@@ -330,22 +364,25 @@ export class Storage {
       if (op.kind === "addChild") {
         draftPaths([op.row]).forEach((p, i) => draftMap.set(p, result.addedRowIds[i]))
       }
-      const mapped = this.mapAssets(assets, feedbackNumber, draftMap)
+      let mapped = this.mapAssets(assets, feedbackNumber, draftMap)
       const touched = [...result.addedRowIds]
-      if (op.kind === "setPin") touched.push(op.rowId)
+      const holder = holderOf(result.feedback, op.rowId)
+      if (op.kind === "addPin" && holder) {
+        // The client names the added pin's files as a first pin's; the server
+        // alone knows which place it took.
+        const index = holder.pins.length - 1
+        mapped = mapped.map((a) => {
+          const slot = a.rowId === op.rowId ? parsePinAssetName(a.name) : null
+          return slot?.index === 0 ? { ...a, name: pinAssetName(index, slot.file) } : a
+        })
+        touched.push(op.rowId)
+      }
+      if (op.kind === "removePin" && holder) {
+        await this.shiftPinFiles(dir, folder, op.rowId, op.index, holder.pins)
+      }
       this.linkPins(result.feedback, folder, touched, mapped)
       linkAttachments(result.feedback, folder, mapped)
       await this.writeAssets(dir, folder, mapped)
-      if (op.kind === "setPin" && !op.pin) {
-        await this.removeAssets(dir, folder, [`${op.rowId}-pin.`])
-      } else if (
-        op.kind === "setPin" &&
-        !op.pin?.screenshot &&
-        !mapped.some((a) => a.rowId === op.rowId && a.name === "pin.png")
-      ) {
-        // Re-pinned without a picture: the old one shows somewhere else.
-        await this.removeAssets(dir, folder, [`${op.rowId}-pin.png`])
-      }
       if (result.deletedRowIds.length) {
         await this.removeAssets(
           dir,

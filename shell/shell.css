@@ -551,6 +551,27 @@ select.dr-review-select {
   display: block;
 }
 
+/* How many pins the row has, on the pin button's corner. */
+.dr-action-count {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  z-index: 1;
+  box-sizing: border-box;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #e11d48;
+  color: #fff;
+  font:
+    600 10px/16px system-ui,
+    -apple-system,
+    sans-serif;
+  text-align: center;
+  pointer-events: none;
+}
+
 .dr-shot {
   display: block;
   margin: 6px 0 2px 24px;

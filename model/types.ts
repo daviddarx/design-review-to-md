@@ -7,7 +7,7 @@ export type Row = {
   label: string // "a" | "1" — the row's own segment
   text: string
   status: Status
-  pin?: PinRef
+  pins: PinRef[] // one 📍 line each, in order
   history: HistoryEntry[]
   extra: string[] // unrecognised lines under this row, verbatim
   children: Row[]
@@ -16,7 +16,7 @@ export type Feedback = {
   number: number
   title: string
   status?: Status // tag on the title line, if any
-  pin?: PinRef
+  pins: PinRef[]
   history: HistoryEntry[]
   preamble: string[] // unrecognised lines between title/pin and the first row
   rows: Row[]

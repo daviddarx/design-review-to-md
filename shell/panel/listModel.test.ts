@@ -51,11 +51,11 @@ describe("flattenRows", () => {
   it("inherits the nearest ancestor's pin", () => {
     const rows = flattenRows([parseFeedback(SPEC), parseFeedback(NESTED)], "all")
     const byId = Object.fromEntries(rows.map((r) => [r.rowId, r]))
-    expect(byId["5"].pin?.screenshot).toBe("05-main-navigation/5-pin.png")
+    expect(byId["5"].pins[0].screenshot).toBe("05-main-navigation/5-pin.png")
     expect(byId["5"].inheritedPinFrom).toBeUndefined()
-    expect(byId["5.a"].pin).toBeUndefined()
+    expect(byId["5.a"].pins).toEqual([])
     expect(byId["5.a"].inheritedPinFrom).toBe("5")
-    expect(byId["5.c"].pin?.screenshot).toBe("05-main-navigation/5.c-pin.png")
+    expect(byId["5.c"].pins[0].screenshot).toBe("05-main-navigation/5.c-pin.png")
     expect(byId["5.c"].inheritedPinFrom).toBeUndefined()
     expect(byId["6.a"].inheritedPinFrom).toBeUndefined()
     expect(byId["6.a.1"].inheritedPinFrom).toBeUndefined()
@@ -103,18 +103,20 @@ describe("counts", () => {
 describe("pinRecordPath", () => {
   it("derives the record from the screenshot's folder and the owner's id", () => {
     const pin = { path: "/x", screenshot: "05-main-navigation/5.c-pin.png" }
-    expect(pinRecordPath(pin, "5.c")).toBe("05-main-navigation/5.c-pin.json")
+    expect(pinRecordPath(pin, "5.c", 0)).toBe("05-main-navigation/5.c-pin.json")
   })
 
   it("a screenshot at the review root has no folder", () => {
-    expect(pinRecordPath({ path: "/x", screenshot: "5-pin.png" }, "5")).toBe("5-pin.json")
+    expect(pinRecordPath({ path: "/x", screenshot: "5-pin.png" }, "5", 0)).toBe("5-pin.json")
   })
 
   it("a pin without a screenshot uses the feedback's folder", () => {
-    expect(pinRecordPath({ path: "/x" }, "5.c", "05-nav")).toBe("05-nav/5.c-pin.json")
+    expect(pinRecordPath({ path: "/x" }, "5.c", 0, "05-nav")).toBe("05-nav/5.c-pin.json")
+    expect(pinRecordPath({ path: "/x" }, "5.c", 2, "05-nav")).toBe("05-nav/5.c-pin-3.json")
     const [row] = flattenRows([{ ...parseFeedback("# 5. T\n\n📍 /x\n"), folder: "05-t" }], "all")
     expect(row.folder).toBe("05-t")
     expect(statePathOf("05-t/5-pin.json")).toBe("05-t/5-state.json")
+    expect(statePathOf("05-t/5-pin-2.json")).toBe("05-t/5-state-2.json")
   })
 })
 

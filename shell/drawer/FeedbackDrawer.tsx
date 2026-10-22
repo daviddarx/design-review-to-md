@@ -3,6 +3,7 @@ import type { ChangeEvent, KeyboardEvent as ReactKeyboardEvent } from "react"
 import type { Feedback } from "../../model/types.ts"
 import { applyOp, createFeedback, deleteFeedback, readReview } from "../api.ts"
 import {
+  addCapture,
   appendCaptured,
   appendChild,
   buildCreate,
@@ -16,6 +17,7 @@ import {
   insertSiblingAfter,
   newDraft,
   outdent,
+  pinCount,
   problem,
   remove,
   updateNode,
@@ -149,10 +151,12 @@ export function FeedbackDrawer({
   // drawer closes.
   useEffect(() => {
     onPinsChange?.(
-      flatten(tree).flatMap(({ node }) => {
-        const step = node.capture?.record.steps[0]
-        return step ? [{ key: node.id, label: node.savedRowId ?? "", step }] : []
-      })
+      flatten(tree).flatMap(({ node }) =>
+        node.captures.flatMap((c, j) => {
+          const step = c.record.steps[0]
+          return step ? [{ key: `${node.id}:${j}`, label: node.savedRowId ?? "", step }] : []
+        })
+      )
     )
   }, [tree, onPinsChange])
   useEffect(() => () => onPinsChange?.([]), [onPinsChange])
@@ -254,7 +258,7 @@ export function FeedbackDrawer({
     // be pinned (the picker swallows the click, so nothing here acts on it).
     try {
       const captured = await startPick("pin")
-      if (captured) setTree((t) => updateNode(t, id, { capture: captured, pin: captured.pin }))
+      if (captured) setTree((t) => addCapture(t, id, captured))
     } catch (err) {
       setError(message(err))
     }
@@ -323,7 +327,7 @@ export function FeedbackDrawer({
       !node.savedRowId &&
       !node.children.length &&
       !node.files.length &&
-      !node.capture &&
+      pinCount(node) === 0 &&
       node.id !== tree.id
     ) {
       e.preventDefault()
@@ -498,7 +502,7 @@ function DrawerRow({
   onDelete,
   onRemoveFile,
 }: DrawerRowProps) {
-  const pinned = node.capture ?? node.pin
+  const pins = pinCount(node)
   return (
     <div
       className={["dr-row", "dr-drawer-row", `dr-depth-${depth}`, busy && "dr-busy"]
@@ -525,16 +529,6 @@ function DrawerRow({
             onFocus={onFocus}
           />
         )}
-        {pinned && (
-          <span className="dr-row-tags">
-            <span
-              className="dr-pin"
-              title={node.capture ? `New pin: ${node.capture.pin.path}` : node.pin?.path}
-            >
-              📍{node.capture ? " new" : ""}
-            </span>
-          </span>
-        )}
         <span className="dr-row-actions">
           {depth < 2 && (
             <ActionButton icon="addRow" label="Add a row at the end" onClick={onAddChild} />
@@ -543,7 +537,9 @@ function DrawerRow({
           {canPin && (
             <ActionButton
               icon="pin"
-              label={pinned ? "Re-pin this row" : "Pin this row to an element"}
+              label="Pin this row to an element"
+              tip={pins ? `Pin once more (${pins} pinned)` : "Pin this row to an element"}
+              count={pins}
               onClick={onPin}
             />
           )}

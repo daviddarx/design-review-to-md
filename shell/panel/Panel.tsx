@@ -20,7 +20,7 @@ export type PanelProps = {
   onGoToPin(rowId: string, target: PinTarget): PinAction
   onRestoreState(rowId: string, target: PinTarget): PinAction
   onOpenSource(rowId: string, target: PinTarget): PinAction
-  onHoverPin(ownerRowId: string, record: PinRecord | null): void // a pinned row's hover, null when it ends
+  onHoverPin(ownerRowId: string, records: PinRecord[] | null): void // a pinned row's hover, null when it ends
   drawer?: ReactNode // the feedback drawer, laid over everything but the resize edge
   reloadSignal?: number // a change refetches the review (after a drawer save)
 }

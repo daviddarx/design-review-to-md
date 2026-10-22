@@ -47,7 +47,7 @@ export function readReview(review: string): Promise<{ meta: ReviewMeta; feedback
 
 export function createFeedback(
   review: string,
-  draft: { title: string; rows: DraftRow[]; pin?: PinRef; assets?: Asset[] }
+  draft: { title: string; rows: DraftRow[]; pins?: PinRef[]; assets?: Asset[] }
 ): Promise<{ number: number; rowIds: string[] }> {
   return request("POST", `${reviewPath(review)}/feedbacks`, draft)
 }

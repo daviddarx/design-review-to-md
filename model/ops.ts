@@ -1,13 +1,15 @@
 import { nextLabel } from "./labels.ts"
 import type { PinRef, Feedback, Row, Status } from "./types.ts"
 
-export type DraftRow = { text: string; pin?: PinRef; children: DraftRow[] }
+export type DraftRow = { text: string; pins?: PinRef[]; children: DraftRow[] }
 export type Op =
   | { kind: "setStatus"; rowId: string; status: Status }
   | { kind: "refine"; rowId: string; text: string }
   | { kind: "editText"; rowId: string; text: string }
   | { kind: "addChild"; rowId: string; row: DraftRow }
-  | { kind: "setPin"; rowId: string; pin: PinRef | undefined }
+  | { kind: "addPin"; rowId: string; pin: PinRef }
+  | { kind: "removePin"; rowId: string; index: number }
+  | { kind: "attach"; rowId: string } // changes nothing: the files sent with it are linked
   | { kind: "deleteRow"; rowId: string }
 export type OpResult = {
   feedback: Feedback
@@ -65,7 +67,7 @@ function build(draft: DraftRow, label: string): Row {
     label,
     text: draft.text,
     status: "open",
-    ...(draft.pin ? { pin: draft.pin } : {}),
+    pins: draft.pins ?? [],
     history: [],
     extra: [],
     children: [],
@@ -145,13 +147,22 @@ export function applyOp(feedback: Feedback, op: Op, retired: string[]): OpResult
       append(siblings, [op.row], op.rowId, chain.length ? 2 : 1, result.retired, result.addedRowIds)
       break
     }
-    case "setPin": {
-      const row = resolve(next, op.rowId).at(-1)
-      const holder = row ?? next
-      if (op.pin) holder.pin = op.pin
-      else delete holder.pin
+    case "addPin": {
+      const holder = resolve(next, op.rowId).at(-1) ?? next
+      holder.pins.push(op.pin)
       break
     }
+    case "removePin": {
+      const holder = resolve(next, op.rowId).at(-1) ?? next
+      if (!holder.pins[op.index]) {
+        throw new OpError("not-found", `${op.rowId} has no pin ${op.index + 1}`)
+      }
+      holder.pins.splice(op.index, 1)
+      break
+    }
+    case "attach":
+      resolve(next, op.rowId)
+      break
     case "deleteRow": {
       const chain = resolve(next, op.rowId)
       const row = chain.at(-1)
@@ -170,20 +181,20 @@ export function newFeedback(
   number: number,
   title: string,
   rows: DraftRow[],
-  pin?: PinRef
+  pins: PinRef[]
 ): { feedback: Feedback; rowIds: string[] } {
+  // The title carries a tag of its own: the feedback as a whole is a thing
+  // to do, counted, filtered and handed to Claude like a row.
   const feedback: Feedback = {
     number,
     title,
-    ...(pin ? { pin } : {}),
+    status: "open",
+    pins,
     history: [],
     preamble: [],
     rows: [],
   }
   const rowIds: string[] = []
   append(feedback.rows, rows, String(number), 1, [], rowIds)
-  // A feedback that is only a title is itself the thing to do: it carries
-  // the tag, so it counts, filters and reaches Claude like a row.
-  if (feedback.rows.length === 0) feedback.status = "open"
   return { feedback, rowIds }
 }

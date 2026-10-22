@@ -14,6 +14,7 @@ export function parseFeedback(source: string): Feedback {
   const feedback: Feedback = {
     number: 0,
     title: "",
+    pins: [],
     history: [],
     preamble: [],
     rows: [],
@@ -53,6 +54,7 @@ export function parseFeedback(source: string): Feedback {
         label: row[2],
         text: row[3],
         status: (row[4] as Status | undefined) ?? "open",
+        pins: [],
         history: [],
         extra: [],
         children: [],
@@ -68,8 +70,8 @@ export function parseFeedback(source: string): Feedback {
     const owner = ownerOf(pin ? pin[1].length : (history?.[1].length ?? 0))
     if (pin) {
       const ref: PinRef = pin[3] ? { path: pin[2], screenshot: pin[3] } : { path: pin[2] }
-      if (owner) owner.pin = ref
-      else feedback.pin = ref
+      const holder = owner ?? feedback
+      holder.pins.push(ref)
     } else if (history) {
       const entry: HistoryEntry = {
         kind: history[2] === "Before" ? "before" : "claude",
@@ -103,7 +105,7 @@ function rowLines(row: Row, depth: number): string[] {
   const indent = " ".repeat(depth * 2)
   const inner = indent + "  "
   const out = [`${indent}- ${row.label}. ${row.text} \`${row.status}\``]
-  if (row.pin) out.push(pinLine(row.pin, inner))
+  for (const pin of row.pins) out.push(pinLine(pin, inner))
   out.push(...historyLines(row.history, inner))
   out.push(...row.extra)
   for (const child of row.children) out.push(...rowLines(child, depth + 1))
@@ -113,7 +115,7 @@ function rowLines(row: Row, depth: number): string[] {
 export function serializeFeedback(p: Feedback): string {
   const out = [`# ${p.number}. ${p.title}${p.status ? ` \`${p.status}\`` : ""}`]
   const meta: string[] = []
-  if (p.pin) meta.push(pinLine(p.pin, ""))
+  for (const pin of p.pins) meta.push(pinLine(pin, ""))
   meta.push(...historyLines(p.history, ""))
   for (const block of [meta, p.preamble]) {
     if (block.length) out.push("", ...block)

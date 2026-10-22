@@ -139,7 +139,7 @@ export async function handleApi(
         review,
         body.title,
         arrayOf(body.rows, "rows"),
-        (body.pin ?? undefined) as never,
+        arrayOf(body.pins, "pins", []),
         arrayOf(body.assets, "assets", [])
       )
       return sendJson(res, 200, result)

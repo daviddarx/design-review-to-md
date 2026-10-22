@@ -21,6 +21,7 @@ Be strict and terse. No chattiness in the files.
 - `<rowId>-pin.png` — screenshot of what he pinned. May be missing.
 - `<rowId>-pin.json` — where it is: `steps[]` with `url`, `element.selector`, `element.component` and `element.source` (`file`, `line`, when known). Read this to find the code.
 - `<rowId>-state.json` — localStorage snapshot of what he saw. Gitignored, so it may be missing on another machine.
+- A row can have several pins, one `📍` line each. The files above belong to its first; the k-th pin's are `<rowId>-pin-k.png`, `<rowId>-pin-k.json` and `<rowId>-state-k.json`.
 - `<rowId>-<name>` — attachments he added.
 
 A row with no pin of its own belongs to the pin of its nearest parent.
@@ -28,7 +29,7 @@ A row with no pin of its own belongs to the pin of its nearest parent.
 ## Format
 
 ```md
-# 5. Main navigation
+# 5. Main navigation `open`
 
 📍 /concept-08-4/tickets — ![](05-main-navigation/5-pin.png)
 
@@ -44,7 +45,7 @@ A row with no pin of its own belongs to the pin of its nearest parent.
 ```
 
 - Row line: ``- <label>. <text> `open|review|done` ``. Sub-rows nest two spaces deeper.
-- A feedback with no rows carries the tag on its title line (``# 6. Font weights `open` ``); treat that title as a row.
+- The title line carries a tag too (``# 6. Font weights `open` ``): it is the feedback as a whole. With no rows, treat it as a row. With rows, set it to `review` once none of them is left `open`. An older title without a tag has nothing to set.
 - Pin line: `📍 <path> — ![](<folder>/<rowId>-pin.png)`, or just `📍 <path>` when there is no screenshot. A pin on the review tool itself has the path `(review tool)`.
 - `📎 [<file>](<folder>/<file>)` lines are attachments.
 - `Before:` is his earlier wording, `Claude:` is yours. Oldest first, under the row.

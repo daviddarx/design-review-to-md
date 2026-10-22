@@ -111,7 +111,9 @@ async function pick(el: Element) {
   await act(async () => {})
 }
 
-const pins = () => [...host.querySelectorAll(".dr-drawer .dr-pin")].map((p) => p.textContent)
+// The red pill on each drawer row's pin button.
+const pins = () =>
+  [...host.querySelectorAll(".dr-drawer .dr-action-count")].map((p) => p.textContent)
 
 describe("Pin & add", () => {
   it("⌃P picks, and the click opens a new feedback whose title row is pinned", async () => {
@@ -124,10 +126,7 @@ describe("Pin & add", () => {
     expect(copy.textContent).toBe("Copy prompt")
     expect(host.querySelector(".dr-picker-hint")).toBeNull()
     expect(host.querySelector(".dr-drawer")).not.toBeNull()
-    expect(pins()).toEqual(["📍 new"])
-    expect(host.querySelector(".dr-drawer .dr-pin")!.getAttribute("title")).toBe(
-      "New pin: (review tool)"
-    )
+    expect(pins()).toEqual(["1"])
   })
 
   it("Esc cancels the pick", async () => {
@@ -156,7 +155,7 @@ describe("Pin & add", () => {
     expect(title()!.value).toBe("Half-written")
     const inputs = drawer.querySelectorAll("textarea")
     expect(inputs).toHaveLength(2)
-    expect(pins()).toEqual(["📍 new"])
+    expect(pins()).toEqual(["1"])
     expect(document.activeElement).toBe(inputs[1])
   })
 
@@ -172,10 +171,7 @@ describe("Pin & add", () => {
     expect(host.querySelector(".dr-drawer")).toBe(drawer)
     expect(drawer.querySelector(".dr-drawer-confirm")).toBeNull()
     expect(title()!.value).toBe("Half-written")
-    expect(pins()).toEqual(["📍 new"])
-    expect(host.querySelector(".dr-drawer .dr-pin")!.getAttribute("title")).toBe(
-      "New pin: (review tool)"
-    )
+    expect(pins()).toEqual(["1"])
   })
 
   it("⌃P does nothing outside review mode", async () => {

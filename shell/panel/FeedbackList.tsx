@@ -15,7 +15,7 @@ type FeedbackListProps = {
   onGoToPin(rowId: string, target: PinTarget): void
   onRestoreState(rowId: string, target: PinTarget): void
   onOpenSource(rowId: string, target: PinTarget): void
-  onHoverPin(ownerRowId: string, record: PinRecord | null): void
+  onHoverPin(ownerRowId: string, records: PinRecord[] | null): void
 }
 
 // The flat rows as one list; ↑/↓ move focus between rows, from a row or
@@ -38,17 +38,20 @@ export function FeedbackList({ rows, records, onLoadRecord, onOp, ...rest }: Fee
   return (
     <ul className="dr-list" aria-label="Feedback" onKeyDown={onKeyDown}>
       {rows.map((row) => {
-        const ownerId = row.pin ? row.rowId : row.inheritedPinFrom
-        const ownerPin = ownerId ? byId.get(ownerId)?.pin : undefined
-        const owner = ownerId && ownerPin ? { rowId: ownerId, pin: ownerPin } : undefined
-        const path = owner ? pinRecordPath(owner.pin, owner.rowId, row.folder) : ""
+        const ownerId = row.pins.length ? row.rowId : row.inheritedPinFrom
+        const ownerPins = ownerId ? (byId.get(ownerId)?.pins ?? []) : []
+        const owner = ownerId && ownerPins.length ? { rowId: ownerId, pins: ownerPins } : undefined
+        const paths = owner
+          ? owner.pins.map((pin, i) => pinRecordPath(pin, owner.rowId, i, row.folder))
+          : []
         return (
           <RowItem
             key={row.rowId}
             row={row}
             owner={owner}
-            record={owner ? records[path] : undefined}
-            onLoadRecord={() => onLoadRecord(path)}
+            recordPaths={paths}
+            records={paths.map((path) => records[path])}
+            onLoadRecords={() => Promise.all(paths.map(onLoadRecord))}
             onOp={(op) => onOp(row.rowId, op)}
             {...rest}
           />

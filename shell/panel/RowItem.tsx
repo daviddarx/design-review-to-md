@@ -3,22 +3,23 @@ import type { Op } from "../../model/ops.ts"
 import type { PinRecord, PinRef } from "../../model/types.ts"
 import { fileUrl } from "../api.ts"
 import { ActionButton } from "./icons.tsx"
-import { pinRecordPath, singleLine } from "./listModel.ts"
+import { singleLine } from "./listModel.ts"
 import type { FlatRow, PinTarget } from "./listModel.ts"
 
 export type RowItemProps = {
   row: FlatRow
   review: string
-  owner: { rowId: string; pin: PinRef } | undefined // the pin this row uses, own or inherited
-  record: PinRecord | null | undefined // undefined: not fetched yet
-  onLoadRecord(): Promise<PinRecord | null>
+  owner: { rowId: string; pins: PinRef[] } | undefined // the pins this row uses, own or inherited
+  recordPaths: string[] // one per pin of `owner`
+  records: (PinRecord | null | undefined)[] // undefined: not fetched yet
+  onLoadRecords(): Promise<(PinRecord | null)[]>
   onOp(op: Op): Promise<boolean>
   onEditFeedback(n: number): void
   onGoToPin(rowId: string, target: PinTarget): void
   onRestoreState(rowId: string, target: PinTarget): void
   onOpenSource(rowId: string, target: PinTarget): void
-  // The pin's owner row and its record; null when the hover ends.
-  onHoverPin(ownerRowId: string, record: PinRecord | null): void
+  // The pins' owner row and their records; null when the hover ends.
+  onHoverPin(ownerRowId: string, records: PinRecord[] | null): void
 }
 
 // True while the user types: panel keys must not fire inside a field.
@@ -36,8 +37,9 @@ export function RowItem({
   row,
   review,
   owner,
-  record,
-  onLoadRecord,
+  recordPaths,
+  records,
+  onLoadRecords,
   onOp,
   onEditFeedback,
   onGoToPin,
@@ -52,7 +54,8 @@ export function RowItem({
   const [busy, setBusy] = useState(false)
 
   const feedbackNumber = Number(row.rowId.split(".")[0])
-  const source = record?.steps.at(-1)?.element.source
+  const fetched = records.every((r) => r !== undefined)
+  const source = records.map((r) => r?.steps.at(-1)?.element.source).find(Boolean)
 
   const run = async (op: Op) => {
     if (busy) return false
@@ -80,14 +83,18 @@ export function RowItem({
     li?.focus()
   }
 
+  const loaded = async () => (fetched ? records.map((r) => r ?? null) : await onLoadRecords())
+
   const target = async (): Promise<PinTarget | null> => {
     if (!owner) return null
-    const rec = record === undefined ? await onLoadRecord() : record
+    const recs = await loaded()
     return {
       ownerRowId: owner.rowId,
-      pin: owner.pin,
-      recordPath: pinRecordPath(owner.pin, owner.rowId, row.folder),
-      record: rec,
+      pins: owner.pins.map((pin, i) => ({
+        pin,
+        recordPath: recordPaths[i],
+        record: recs[i] ?? null,
+      })),
     }
   }
   const withTarget = (fn: (rowId: string, t: PinTarget) => void) => async () => {
@@ -98,7 +105,7 @@ export function RowItem({
   // The pin record is fetched when the row is first hovered or focused, and
   // again after a reload dropped the cache while the row was still active.
   const prefetch = () => {
-    if (owner && record === undefined) void onLoadRecord()
+    if (owner && !fetched) void onLoadRecords()
   }
   const liRef = useRef<HTMLLIElement>(null)
   useEffect(() => {
@@ -110,8 +117,8 @@ export function RowItem({
   const hoverIn = async () => {
     prefetch()
     if (!owner) return
-    const rec = record === undefined ? await onLoadRecord() : record
-    if (rec && liRef.current?.matches(":hover")) onHoverPin(owner.rowId, rec)
+    const recs = (await loaded()).filter((r): r is PinRecord => r !== null)
+    if (recs.length && liRef.current?.matches(":hover")) onHoverPin(owner.rowId, recs)
   }
   // A row that unmounts under the pointer (a reload) never sees mouseleave.
   const hoverEnd = useRef(() => {})
@@ -137,7 +144,7 @@ export function RowItem({
       <span className="dr-row-num">{row.rowId}</span>
       <div className="dr-row-head">
         {row.status && <span className={`dr-status dr-status-${row.status}`}>{row.status}</span>}
-        {row.pin && (
+        {row.pins.length > 0 && (
           <span className="dr-pin" title="Pinned">
             📍
           </span>
@@ -172,7 +179,7 @@ export function RowItem({
             {owner && (
               <>
                 <ActionButton icon="pin" label="Go to pin" onClick={withTarget(onGoToPin)} />
-                {owner.pin.screenshot && (
+                {owner.pins[0].screenshot && (
                   <ActionButton
                     icon="screenshot"
                     label="Screenshot"
@@ -249,15 +256,18 @@ export function RowItem({
         </ul>
       )}
 
-      {shotOpen && owner?.pin.screenshot && (
+      {shotOpen && owner?.pins[0].screenshot && (
         <a
           className="dr-shot"
-          href={fileUrl(review, owner.pin.screenshot)}
+          href={fileUrl(review, owner.pins[0].screenshot)}
           target="_blank"
           rel="noreferrer"
           title="Open full size"
         >
-          <img src={fileUrl(review, owner.pin.screenshot)} alt={`Screenshot of ${owner.rowId}`} />
+          <img
+            src={fileUrl(review, owner.pins[0].screenshot)}
+            alt={`Screenshot of ${owner.rowId}`}
+          />
         </a>
       )}
 

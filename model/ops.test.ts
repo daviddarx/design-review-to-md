@@ -76,25 +76,33 @@ describe("ops", () => {
     expect(serializeFeedback(feedback)).toContain("  - Claude: late")
     expect(feedback.rows[3].status).toBe("review")
   })
-  it("setPin sets and clears", () => {
-    const pin = { path: "/x", screenshot: "a.png" }
-    const a = applyOp(parseFeedback(MD), { kind: "setPin", rowId: "5.a", pin }, [])
-    expect(a.feedback.rows[0].pin).toEqual(pin)
-    const b = applyOp(a.feedback, { kind: "setPin", rowId: "5.a", pin: undefined }, [])
-    expect(b.feedback.rows[0].pin).toBeUndefined()
+  it("addPin appends a pin; removePin takes one out by its place", () => {
+    const x = { path: "/x", screenshot: "a.png" }
+    const a = applyOp(parseFeedback(MD), { kind: "addPin", rowId: "5.a", pin: x }, [])
+    const b = applyOp(a.feedback, { kind: "addPin", rowId: "5.a", pin: { path: "/y" } }, [])
+    expect(b.feedback.rows[0].pins).toEqual([x, { path: "/y" }])
+    const c = applyOp(b.feedback, { kind: "removePin", rowId: "5.a", index: 0 }, [])
+    expect(c.feedback.rows[0].pins).toEqual([{ path: "/y" }])
+    expect(() => applyOp(c.feedback, { kind: "removePin", rowId: "5.a", index: 1 }, [])).toThrow(
+      expect.objectContaining({ code: "not-found" })
+    )
   })
-  it("newFeedback tags a title-only feedback open, and leaves a title with rows untagged", () => {
-    const bare = newFeedback(1, "Font weights", []).feedback
-    expect(bare.status).toBe("open")
+  it("newFeedback tags the title open, with or without rows", () => {
+    const bare = newFeedback(1, "Font weights", [], []).feedback
     expect(serializeFeedback(bare).split("\n")[0]).toBe("# 1. Font weights `open`")
-    expect(newFeedback(2, "Nav", [{ text: "a", children: [] }]).feedback.status).toBeUndefined()
+    expect(newFeedback(2, "Nav", [{ text: "a", children: [] }], []).feedback.status).toBe("open")
   })
 
   it("newFeedback labels rows and children", () => {
-    const { feedback, rowIds } = newFeedback(7, "T", [
-      { text: "x", children: [{ text: "y", children: [] }] },
-      { text: "z", children: [] },
-    ])
+    const { feedback, rowIds } = newFeedback(
+      7,
+      "T",
+      [
+        { text: "x", children: [{ text: "y", children: [] }] },
+        { text: "z", children: [] },
+      ],
+      []
+    )
     expect(rowIds).toEqual(["7.a", "7.a.1", "7.b"])
     expect(feedback.rows[0].status).toBe("open")
     expect(feedback.rows[0].children[0].label).toBe("1")

@@ -19,17 +19,19 @@ describe("markdown", () => {
     const p = parseFeedback(SPEC)
     expect(p.number).toBe(5)
     expect(p.title).toBe("Main navigation")
-    expect(p.pin).toEqual({
-      path: "/concept-08-4/tickets",
-      screenshot: "05-main-navigation/5-pin.png",
-    })
+    expect(p.pins).toEqual([
+      {
+        path: "/concept-08-4/tickets",
+        screenshot: "05-main-navigation/5-pin.png",
+      },
+    ])
     expect(p.rows.map((r) => r.label)).toEqual(["a", "b", "c", "d"])
     expect(p.rows.map((r) => r.status)).toEqual(["done", "open", "review", "open"])
     expect(p.rows[1].history).toEqual([
       { kind: "before", text: "Active state is hard to see" },
       { kind: "claude", text: "100% fails contrast on the hover fill, kept 80%" },
     ])
-    expect(p.rows[2].pin?.screenshot).toBe("05-main-navigation/5.c-pin.png")
+    expect(p.rows[2].pins[0].screenshot).toBe("05-main-navigation/5.c-pin.png")
   })
 
   it("round-trips the spec example byte-for-byte", () => {
@@ -89,10 +91,23 @@ A note before the rows.
   📍 (review tool)
 `
     const p = parseFeedback(md)
-    expect(p.pin).toEqual({ path: "/concept-08-4/tickets" })
-    expect(p.rows[0].pin).toEqual({ path: "(review tool)" })
+    expect(p.pins).toEqual([{ path: "/concept-08-4/tickets" }])
+    expect(p.rows[0].pins).toEqual([{ path: "(review tool)" }])
     expect(serializeFeedback(p)).toBe(md)
   })
+  it("several pins under one row keep their order", () => {
+    const md = `# 1. T \`open\`
+
+- a. one \`open\`
+  📍 /x — ![](01-t/1.a-pin.png)
+  📍 /y
+  📍 /z — ![](01-t/1.a-pin-3.png)
+`
+    const p = parseFeedback(md)
+    expect(p.rows[0].pins.map((x) => x.path)).toEqual(["/x", "/y", "/z"])
+    expect(serializeFeedback(p)).toBe(md)
+  })
+
   it("a trailing space after a status tag neither reopens the row nor doubles the tag", () => {
     const p = parseFeedback("# 1. T `review` \n\n- a. foo `done` \n  - Claude: fixed \n")
     expect(p.status).toBe("review")

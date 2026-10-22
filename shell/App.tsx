@@ -44,7 +44,9 @@ export function App() {
   if (reviewMode && !panelMounted) setPanelMounted(true)
   const [appendCapture, setAppendCapture] = useState<{ seq: number; capture: CapturedPin }>()
   const [drawerMarkers, setDrawerMarkers] = useState<Marker[]>([])
-  const [hoverMarker, setHoverMarker] = useState<Marker | null>(null)
+  const [hoverMarkers, setHoverMarkers] = useState<{ owner: string; markers: Marker[] } | null>(
+    null
+  )
   const drawerSeq = useRef(0)
   const appendSeq = useRef(0)
   const drawerRef = useRef(drawer)
@@ -85,31 +87,39 @@ export function App() {
     if (!reviewMode) picker.cancel()
   }, [reviewMode, picker.cancel])
 
-  // Only the row that set the hover marker may clear it: leaving one row and
-  // entering the next can arrive in either order.
-  const onHoverPin = (ownerRowId: string, record: PinRecord | null) => {
-    const step = record?.steps[0]
-    if (step) setHoverMarker({ key: `hover:${ownerRowId}`, label: ownerRowId, step })
-    else setHoverMarker((m) => (m?.label === ownerRowId ? null : m))
+  // Only the row that set the hover markers may clear them: leaving one row
+  // and entering the next can arrive in either order.
+  const onHoverPin = (ownerRowId: string, records: PinRecord[] | null) => {
+    if (!records) {
+      setHoverMarkers((m) => (m?.owner === ownerRowId ? null : m))
+      return
+    }
+    const markers = records.flatMap((record, i) => {
+      const step = record.steps[0]
+      return step ? [{ key: `hover:${ownerRowId}:${i}`, label: ownerRowId, step }] : []
+    })
+    setHoverMarkers({ owner: ownerRowId, markers })
   }
   const markers = useMemo(
-    () => (hoverMarker ? [...drawerMarkers, hoverMarker] : drawerMarkers),
-    [drawerMarkers, hoverMarker]
+    () => (hoverMarkers ? [...drawerMarkers, ...hoverMarkers.markers] : drawerMarkers),
+    [drawerMarkers, hoverMarkers]
   )
 
   const onGoToPin = async (_rowId: string, target: PinTarget) => {
     if (!frame) return
-    if (!target.record) return `No pin record for ${target.ownerRowId} — it cannot be found again.`
-    const result = await goToPin(frame, target.record, picker.flash)
+    const record = target.pins.find((p) => p.record)?.record
+    if (!record) return `No pin record for ${target.ownerRowId} — it cannot be found again.`
+    const result = await goToPin(frame, record, picker.flash)
     if (result === "found") return null
-    return target.record.steps[0]?.inTool ? TOOL_PIN_MISSING : PIN_MISSING
+    return record.steps[0]?.inTool ? TOOL_PIN_MISSING : PIN_MISSING
   }
 
-  // After the panel's own confirm. The snapshot is gitignored, so a pin
-  // made on another machine has none.
+  // After the panel's own confirm; the first pin's snapshot. It is
+  // gitignored, so a pin made on another machine has none.
   const onRestoreState = async (_rowId: string, target: PinTarget) => {
-    if (!review || !frame) return
-    const res = await fetch(fileUrl(review, statePathOf(target.recordPath))).catch(() => null)
+    const first = target.pins[0]
+    if (!review || !frame || !first) return
+    const res = await fetch(fileUrl(review, statePathOf(first.recordPath))).catch(() => null)
     if (!res?.ok) {
       return `No saved state for ${target.ownerRowId} on this machine — state files are not committed.`
     }
@@ -125,7 +135,7 @@ export function App() {
   // Only an API error (a refused file or line) reaches the panel's notice;
   // a missing `code` binary is only logged by the server.
   const onOpenSource = async (_rowId: string, target: PinTarget) => {
-    const source = target.record?.steps.at(-1)?.element.source
+    const source = target.pins.map((p) => p.record?.steps.at(-1)?.element.source).find(Boolean)
     if (source) await openEditor(source.file, source.line)
     return null
   }

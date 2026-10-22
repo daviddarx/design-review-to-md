@@ -1,6 +1,7 @@
 // Pure editor state of the feedback drawer: one tree per feedback, the title row
 // at the root. Every edit returns a new tree (or the same one when refused).
 import type { DraftRow, Op } from "../../model/ops.ts"
+import { pinAssetName } from "../../model/pins.ts"
 import type { PinRef, Feedback, Row } from "../../model/types.ts"
 import type { Asset } from "../api.ts"
 import type { CapturedPin } from "../pick/capture.ts"
@@ -9,21 +10,24 @@ export type { CapturedPin }
 
 export type DraftFile = { name: string; dataBase64: string }
 
-export type DraftNode = Omit<DraftRow, "children"> & {
+export type DraftNode = {
   id: string
+  text: string
   savedRowId?: string // "5", "5.c", "5.b.1" — set on rows read from disk
   savedText?: string
   label?: string // the saved row's own segment ("c", "1"), for display
   locked?: boolean // saved, and Claude has touched it: text changes go through Refine
+  savedPins: PinRef[] // the pins on disk, in their order there
+  keptPins: number[] // which of them stay (indexes into savedPins)
+  captures: CapturedPin[] // pins made in this drawer, added after the kept ones
   files: DraftFile[]
-  capture?: CapturedPin
   children: DraftNode[]
 }
 
 export type CreatePayload = {
   title: string
   rows: DraftRow[]
-  pin?: PinRef
+  pins?: PinRef[]
   assets: Asset[]
 }
 
@@ -34,7 +38,18 @@ const MAX_DEPTH = 2 // root 0 = feedback, 1 = letter, 2 = number
 let counter = 0
 const nextId = () => `d${++counter}`
 
-const blank = (): DraftNode => ({ id: nextId(), text: "", files: [], children: [] })
+const blank = (): DraftNode => ({
+  id: nextId(),
+  text: "",
+  savedPins: [],
+  keptPins: [],
+  captures: [],
+  files: [],
+  children: [],
+})
+
+// How many pins the row will have once saved.
+export const pinCount = (n: DraftNode) => n.keptPins.length + n.captures.length
 
 type Loc = { node: DraftNode; parent: DraftNode | null; index: number; depth: number }
 
@@ -85,7 +100,7 @@ function withChild(children: DraftNode[], node: DraftNode, at: number): DraftNod
 }
 
 export function newDraft(capture?: CapturedPin): DraftNode {
-  return { ...blank(), ...(capture ? { capture, pin: capture.pin } : {}) }
+  return { ...blank(), captures: capture ? [capture] : [] }
 }
 
 // Pin & add on an open drawer: a new top-level row carrying the capture,
@@ -94,7 +109,7 @@ export function appendCaptured(
   tree: DraftNode,
   capture: CapturedPin
 ): { tree: DraftNode; id: string } {
-  const row = { ...blank(), capture, pin: capture.pin }
+  const row = { ...blank(), captures: [capture] }
   return { tree: { ...tree, children: [...tree.children, row] }, id: row.id }
 }
 
@@ -102,7 +117,9 @@ function fromRow(row: Row, id: string): DraftNode {
   return {
     id: nextId(),
     text: row.text,
-    ...(row.pin ? { pin: row.pin } : {}),
+    savedPins: row.pins,
+    keptPins: row.pins.map((_, i) => i),
+    captures: [],
     savedRowId: id,
     savedText: row.text,
     label: row.label,
@@ -117,7 +134,9 @@ export function fromFeedback(feedback: Feedback): DraftNode {
   return {
     id: nextId(),
     text: feedback.title,
-    ...(feedback.pin ? { pin: feedback.pin } : {}),
+    savedPins: feedback.pins,
+    keptPins: feedback.pins.map((_, i) => i),
+    captures: [],
     savedRowId: id,
     savedText: feedback.title,
     label: id,
@@ -134,6 +153,23 @@ export function find(tree: DraftNode, id: string): DraftNode | undefined {
 
 export function updateNode(tree: DraftNode, id: string, patch: Partial<DraftNode>): DraftNode {
   return replace(tree, id, (n) => ({ ...n, ...patch }))
+}
+
+// Pin & add, or the row's pin button: one more pin on the row.
+export function addCapture(tree: DraftNode, id: string, capture: CapturedPin): DraftNode {
+  return replace(tree, id, (n) => ({ ...n, captures: [...n.captures, capture] }))
+}
+
+// A pin taken off in the page: a saved one by its index on disk, a new one
+// by its place among the captures.
+export type PinKey = { saved: number } | { capture: number }
+
+export function removePin(tree: DraftNode, id: string, key: PinKey): DraftNode {
+  return replace(tree, id, (n) =>
+    "saved" in key
+      ? { ...n, keptPins: n.keptPins.filter((i) => i !== key.saved) }
+      : { ...n, captures: n.captures.filter((_, j) => j !== key.capture) }
+  )
 }
 
 // Enter: an empty row below `id`; on the title row, the first row.
@@ -225,30 +261,41 @@ function nodeAssets(n: DraftNode, rowId: string): Asset[] {
   return out
 }
 
-function captureAssets(n: DraftNode, rowId: string): Asset[] {
-  const c = n.capture
-  if (!c) return []
+// The files of one captured pin, named for pin `index` of its row.
+function pinAssets(c: CapturedPin, rowId: string, index: number): Asset[] {
   const out: Asset[] = []
-  if (c.png) out.push({ rowId, name: "pin.png", dataBase64: c.png })
-  out.push({ rowId, name: "pin.json", dataBase64: textBase64(JSON.stringify(c.record, null, 2)) })
-  out.push({ rowId, name: "state.json", dataBase64: textBase64(c.state) })
+  const name = (file: "png" | "json" | "state") => pinAssetName(index, file)
+  if (c.png) out.push({ rowId, name: name("png"), dataBase64: c.png })
+  out.push({
+    rowId,
+    name: name("json"),
+    dataBase64: textBase64(JSON.stringify(c.record, null, 2)),
+  })
+  out.push({ rowId, name: name("state"), dataBase64: textBase64(c.state) })
   return out
 }
 
-const pinOf = (n: DraftNode) => n.capture?.pin ?? n.pin
+// A new row's captures are its only pins, numbered from the first.
+function captureAssets(n: DraftNode, rowId: string): Asset[] {
+  return n.captures.flatMap((c, j) => pinAssets(c, rowId, j))
+}
 
 // Unsaved rows with nothing in them are dropped on save.
 function prune(nodes: DraftNode[]): DraftNode[] {
   return nodes
     .map((n) => (n.savedRowId ? n : { ...n, children: prune(n.children) }))
     .filter(
-      (n) => n.savedRowId || n.text.trim() || n.files.length || n.capture || n.children.length
+      (n) =>
+        n.savedRowId || n.text.trim() || n.files.length || n.captures.length || n.children.length
     )
 }
 
 function toDraftRow(n: DraftNode): DraftRow {
-  const pin = pinOf(n)
-  return { text: n.text.trim(), ...(pin ? { pin } : {}), children: n.children.map(toDraftRow) }
+  return {
+    text: n.text.trim(),
+    ...(n.captures.length ? { pins: n.captures.map((c) => c.pin) } : {}),
+    children: n.children.map(toDraftRow),
+  }
 }
 
 // Assets of an unsaved subtree, addressed "$<prefix>", "$<prefix>.j".
@@ -261,11 +308,10 @@ function subtreeAssets(n: DraftNode, prefix: string): Asset[] {
 
 export function buildCreate(tree: DraftNode): CreatePayload {
   const rows = prune(tree.children)
-  const pin = pinOf(tree)
   return {
     title: tree.text.trim(),
     rows: rows.map(toDraftRow),
-    ...(pin ? { pin } : {}),
+    ...(tree.captures.length ? { pins: tree.captures.map((c) => c.pin) } : {}),
     assets: [
       ...nodeAssets(tree, "$feedback"),
       ...rows.flatMap((r, i) => subtreeAssets(r, `$${i}`)),
@@ -285,8 +331,9 @@ export function problem(tree: DraftNode): string | null {
 }
 
 // Saved feedback + edited tree → the ops that take one to the other: deletes,
-// then text edits and re-pins, then new rows (appended under their saved
-// parent). Files added to saved rows ride along with the first op.
+// then text edits, removed pins (last first, so the indexes stay true) and
+// added ones, then new rows (appended under their saved parent). Files added
+// to saved rows ride along with the first op.
 export function buildOps(feedback: Feedback, tree: DraftNode): PlannedOp[] {
   const present = new Set(flatten(tree).map((f) => f.node.savedRowId))
   const deletes: PlannedOp[] = []
@@ -309,11 +356,14 @@ export function buildOps(feedback: Feedback, tree: DraftNode): PlannedOp[] {
     if (!n.locked && text && text !== n.savedText) {
       edits.push({ op: { kind: "editText", rowId, text }, assets: [] })
     }
-    if (n.capture) {
-      edits.push({
-        op: { kind: "setPin", rowId, pin: n.capture.pin },
-        assets: captureAssets(n, rowId),
-      })
+    for (let i = n.savedPins.length - 1; i >= 0; i--) {
+      if (!n.keptPins.includes(i)) {
+        edits.push({ op: { kind: "removePin", rowId, index: i }, assets: [] })
+      }
+    }
+    // The server files an added pin under its next number.
+    for (const c of n.captures) {
+      edits.push({ op: { kind: "addPin", rowId, pin: c.pin }, assets: pinAssets(c, rowId, 0) })
     }
     if (n.files.length && !carrier) carrier = n
     files.push(...n.files.map((f) => ({ rowId, name: f.name, dataBase64: f.dataBase64 })))
@@ -333,11 +383,7 @@ export function buildOps(feedback: Feedback, tree: DraftNode): PlannedOp[] {
     if (ops.length) ops[0] = { ...ops[0], assets: [...files, ...ops[0].assets] }
     else {
       const holder = carrier as DraftNode | null
-      // Rewrites the row's own pin unchanged: the only op that touches nothing.
-      ops.push({
-        op: { kind: "setPin", rowId: holder!.savedRowId as string, pin: holder!.pin },
-        assets: files,
-      })
+      ops.push({ op: { kind: "attach", rowId: holder!.savedRowId as string }, assets: files })
     }
   }
   return ops
@@ -347,6 +393,6 @@ export function buildOps(feedback: Feedback, tree: DraftNode): PlannedOp[] {
 export function hasChanges(tree: DraftNode, feedback: Feedback | null): boolean {
   if (feedback) return buildOps(feedback, tree).length > 0
   return Boolean(
-    tree.text.trim() || tree.files.length || tree.capture || prune(tree.children).length
+    tree.text.trim() || tree.files.length || tree.captures.length || prune(tree.children).length
   )
 }
