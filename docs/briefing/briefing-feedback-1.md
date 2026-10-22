@@ -1,0 +1,33 @@
+## Design Review Tool - Feedback.
+
+- Feedback list:
+  - Make the text of feedback not bold
+  - Make the number of feedback bold
+  - Make the new feedback button being primary.
+  - No need of the 📍 when a pin is present. The "go to pin" on the right is enough. Rename it with "show pins", hover shortly display the pins, and click on it toogle the display/hide of them
+  - In my test, why the point "2" hasn't the tag open, and it's sub-point 2.a yes? both should have open?
+  - Screenshot: when toggled, display the screenshot as flying tooltip. Same size, but aboslute positioned above all, aligned bottom right with the button. Mouse out of the button when toggled on will toggled it out.
+  - Rename "Restore state" with "Restore corresponding app state"
+    - When clicked, display the popup white (no yellow) alos as a flying tooltip, like the image.
+  - In the list, do not indent the number of subpoints, just their Text
+  - In the screenshot, the swissmap isn't displayed, would it be possible to have it dispalyed?
+- New Feedback Drawer:
+  - Animation in still not ok, it has the same movement froth and a bit back as an ease bounce. Take same ease and duration as for the underlaying app
+  - No need of the "New" before the field for feedback
+    - Instead, put the number of the feedback, with minimal width like on the feedback list.
+    - Do this also for the sub-number: 1.a.b, 1.c.b. When indented, these number should stay in place, just the input text should be a bit indented.
+  - Shortcuts text: palce it at the bottom, with a grey line, like we have on feedback list. Take care that the height of this bar is same
+  - When a pin is settled, do not add an additional "📍 new" . Instead, add a red pill with small number in the button for the pinning.
+  - Allow to make several pins in the same feedback
+  - Removal of pin: on hover of the pins in the scene, display a cross/close icon in the middle of the circle of the pin, A click on the pin remove it.
+  - In the text input, also remove bold.
+  - Discard/Keep editiing: do not add a small card for this, just replace the "Cancel" & "Save" button in drawer header with "Keep editing" and "Discard" (primary)
+  - The indentation for feedback still do not work visually. I see the difference as the third level do not have a + button (end level), but no indentation.
+  - Icons groups: when several buttons with icon only are displayed next to each other, join them as buttons groups, like we did in the underlaying app. Also do for feedback list.
+  - Pinning: when I pin the main navigation panel (first level, extended on hover), the pind stay at the right position, but the panels hasn't hover anymore. Would it be possible to keep the panel open, or open it again, when I hover the pin? To have the real view. Again, it should be intrusive in the code base of the app underlaying app.
+  - Add screenshot:
+    - Display the small button for the added screenshot left aligned with the input text of the feedback.
+    - Allow the adding of screenshot by just draging them on the button to add screenshot, instead of click
+  - What is the "Panel" short cut, with arrow bottom and below?
+- In your files for the module, replace PointList with FeedbackList and all corresponding old names with Review/Feedback
+- Header Copy prompt: when the "Copied" is swap, the width of button should change.
