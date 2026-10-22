@@ -916,8 +916,32 @@ select.dr-review-select {
     sans-serif;
 }
 
-.dr-picker.dr-hidden {
-  display: none;
+/* Go to pin's outline: under the pins (.dr-markers), so the pin stays on
+   top of the element it marks. */
+.dr-flash-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483400;
+  pointer-events: none;
+}
+
+/* Where a pick was clicked, while its picture is still being taken. */
+.dr-pin-loader {
+  position: absolute;
+  box-sizing: border-box;
+  width: 28px;
+  height: 28px;
+  margin: -14px 0 0 -14px;
+  border: 3px solid rgb(225 29 72 / 0.25);
+  border-top-color: #e11d48;
+  border-radius: 50%;
+  animation: dr-spin 0.7s linear infinite;
+}
+
+@keyframes dr-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .dr-picker-box {

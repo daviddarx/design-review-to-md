@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import type { ReactNode } from "react"
-import { flushSync } from "react-dom"
 import type { PinRecord, PinStep } from "../../model/types.ts"
 import { grabPng, snapshotLocalStorage } from "./capture.ts"
 import type { CapturedPin } from "./capture.ts"
@@ -35,8 +34,6 @@ const SWALLOWED = [
 
 const isElement = (t: EventTarget | null): t is Element =>
   Boolean(t && (t as Node).nodeType === Node.ELEMENT_NODE)
-
-const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
 
 const block = (e: Event) => {
   e.preventDefault()
@@ -95,7 +92,7 @@ function stepOf({ el, mouse }: Picked): PinStep {
 // DOM is only ever read, never changed.
 export function usePicker(frame: HTMLIFrameElement | null): Picker {
   const [picking, setPicking] = useState(false)
-  const [grab, setGrab] = useState(false)
+  const [loading, setLoading] = useState<{ x: number; y: number } | null>(null)
   const [shown, setShown] = useState<Shown | null>(null)
   const [flashing, setFlashing] = useState(false)
   const [flashKey, setFlashKey] = useState(0)
@@ -227,36 +224,36 @@ export function usePicker(frame: HTMLIFrameElement | null): Picker {
     []
   )
 
-  const capture = useCallback(async (picked: Picked) => {
+  // The pin is handed back at once: the screenshot and the source lookup
+  // (the slow parts, up to seconds) finish in the background and write into
+  // it; `finishing` says when. Only the app is rendered, so the shell's
+  // layers never need hiding for the picture.
+  const capture = useCallback((picked: Picked): CapturedPin => {
     const step = stepOf(picked)
-    // Runs beside the screenshot; bounded, so it never holds the pin up.
     // Fresh maps every pick: the app may have changed since the last one.
     clearSourceCache()
     const source = sourceOf(picked.el)
     const record: PinRecord = { version: 1, at: new Date().toISOString(), steps: [step] }
-    const state = snapshotLocalStorage()
-    let png: string | undefined
-    const f = frameRef.current
-    if (f) {
-      const crop = frameBox(f)
-      const outline = shellBox(picked.el, f)
-      const off = crop
-      const click = { x: off.x + picked.mouse.x, y: off.y + picked.mouse.y }
-      // The outline layer may not be in the picture.
-      flushSync(() => setGrab(true))
-      await nextFrame()
-      await nextFrame()
-      try {
-        png = await grabPng(f, false, rect(crop), rect(outline), click)
-      } catch {
-        png = undefined
-      } finally {
-        setGrab(false)
-      }
+    const captured: CapturedPin = {
+      pin: { path: step.path },
+      record,
+      state: snapshotLocalStorage(),
     }
-    const found = await source
-    if (found) step.element.source = found
-    return { pin: { path: step.path }, record, ...(png ? { png } : {}), state }
+    const f = frameRef.current
+    const png = f
+      ? (() => {
+          const crop = frameBox(f)
+          const click = { x: crop.x + picked.mouse.x, y: crop.y + picked.mouse.y }
+          return grabPng(f, false, rect(crop), rect(shellBox(picked.el, f)), click).catch(
+            () => undefined
+          )
+        })()
+      : Promise.resolve(undefined)
+    captured.finishing = Promise.all([png, source]).then(([shot, found]) => {
+      if (shot) captured.png = shot
+      if (found) step.element.source = found
+    })
+    return captured
   }, [])
 
   const startPick = useCallback((): Promise<CapturedPin | null> => {
@@ -267,7 +264,15 @@ export function usePicker(frame: HTMLIFrameElement | null): Picker {
         hovered.current = null
         setPicking(true)
         const picked = await pickElement()
-        return picked ? await capture(picked) : null
+        if (!picked) return null
+        // At the click, under way until the pin's picture and source are in.
+        const f = frameRef.current
+        const off = f ? frameBox(f) : { x: 0, y: 0 }
+        const spot = { x: off.x + picked.mouse.x, y: off.y + picked.mouse.y }
+        setLoading(spot)
+        const captured = capture(picked)
+        void captured.finishing?.finally(() => setLoading((l) => (l === spot ? null : l)))
+        return captured
       } finally {
         hovered.current = null
         setPicking(false)
@@ -282,38 +287,46 @@ export function usePicker(frame: HTMLIFrameElement | null): Picker {
   // An unmount mid-pick must not leave listeners on either window.
   useEffect(() => () => cancelRef.current(), [])
 
+  const box = (className: string) =>
+    shown && (
+      <div
+        className={className}
+        style={{
+          left: shown.box.x,
+          top: shown.box.y,
+          width: shown.box.width,
+          height: shown.box.height,
+        }}
+      />
+    )
+
   const layer = (
-    <div
-      ref={layerRef}
-      className={["dr-picker", grab && "dr-hidden"].filter(Boolean).join(" ")}
-      aria-hidden="true"
-    >
-      {shown && (
-        <div
-          className={["dr-picker-box", !picking && "dr-picker-flash"].filter(Boolean).join(" ")}
-          style={{
-            left: shown.box.x,
-            top: shown.box.y,
-            width: shown.box.width,
-            height: shown.box.height,
-          }}
-        />
-      )}
-      {shown?.label && (
-        <div
-          className="dr-picker-label"
-          style={{
-            left: Math.max(4, shown.box.x),
-            top: shown.box.y > 26 ? shown.box.y - 24 : shown.box.y + shown.box.height + 4,
-          }}
-        >
-          {shown.label}
+    <>
+      {/* Go to pin's outline sits under the pins; the hovered one over all. */}
+      {!picking && (
+        <div className="dr-flash-layer" aria-hidden="true">
+          {box("dr-picker-box dr-picker-flash")}
         </div>
       )}
-      {picking && (
-        <div className="dr-picker-hint">Click to pin · ↑ / ↓ parent / child · Esc cancel</div>
-      )}
-    </div>
+      <div ref={layerRef} className="dr-picker" aria-hidden="true">
+        {picking && box("dr-picker-box")}
+        {shown?.label && (
+          <div
+            className="dr-picker-label"
+            style={{
+              left: Math.max(4, shown.box.x),
+              top: shown.box.y > 26 ? shown.box.y - 24 : shown.box.y + shown.box.height + 4,
+            }}
+          >
+            {shown.label}
+          </div>
+        )}
+        {picking && (
+          <div className="dr-picker-hint">Click to pin · ↑ / ↓ parent / child · Esc cancel</div>
+        )}
+        {loading && <div className="dr-pin-loader" style={{ left: loading.x, top: loading.y }} />}
+      </div>
+    </>
   )
 
   return {

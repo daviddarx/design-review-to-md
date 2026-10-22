@@ -5,11 +5,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { CapturedPin } from "./capture.ts"
 import { usePicker, type Picker } from "./Picker.tsx"
 
-// A render that fails — a stalled font or image fetch ends the same way.
+// A render that fails — a stalled font or image fetch ends the same way —
+// once the test calls `failRender`.
+let failRender = () => {}
 vi.mock("modern-screenshot", () => ({
-  domToCanvas: async () => {
-    throw new Error("render failed")
-  },
+  domToCanvas: () =>
+    new Promise((_, reject) => {
+      failRender = () => reject(new Error("render failed"))
+    }),
 }))
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -68,13 +71,20 @@ describe("usePicker", () => {
       result = await pending
     })
     expect(result).not.toBeNull()
+    // Handed back before its picture: a loader marks the click meanwhile.
+    expect(result!.finishing).toBeInstanceOf(Promise)
+    expect(host.querySelector(".dr-pin-loader")).not.toBeNull()
+    await act(async () => {
+      failRender()
+      await result!.finishing
+    })
+    expect(host.querySelector(".dr-pin-loader")).toBeNull()
     expect(result!.png).toBeUndefined()
     const here = location.pathname + location.search
     expect(result!.record.steps[0].path).toBe(here)
     expect(result!.record.steps[0].inTool).toBe(false)
     expect(result!.pin).toEqual({ path: here })
     expect(picker.picking).toBe(false)
-    expect(host.querySelector(".dr-picker")!.classList.contains("dr-hidden")).toBe(false)
 
     // Not stuck: the next pick starts.
     let again!: Promise<CapturedPin | null>

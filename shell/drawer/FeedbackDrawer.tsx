@@ -260,6 +260,8 @@ export function FeedbackDrawer({
     setSaving(true)
     setError(null)
     try {
+      // A pin made a moment ago may still be taking its picture.
+      await Promise.all(flatten(tree).flatMap(({ node }) => node.captures.map((c) => c.finishing)))
       if (!feedback) {
         await createFeedback(review, buildCreate(tree))
       } else {

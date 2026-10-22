@@ -4,8 +4,16 @@ import { domToCanvas } from "modern-screenshot"
 import type { PinRecord, PinRef } from "../../model/types.ts"
 
 // What a pick hands back. No `png` when the render failed or timed out: the
-// pin still records where and what, just without a picture.
-export type CapturedPin = { pin: PinRef; record: PinRecord; png?: string; state: string }
+// pin still records where and what, just without a picture. The pick hands
+// it back at once; the picture and the record's source are written into it
+// afterwards, and `finishing` settles once they are (saving waits for it).
+export type CapturedPin = {
+  pin: PinRef
+  record: PinRecord
+  png?: string
+  state: string
+  finishing?: Promise<void>
+}
 
 const OUTLINE = "#e11d48"
 
