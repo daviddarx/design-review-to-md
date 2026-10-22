@@ -174,3 +174,21 @@ plan beside it.
   enough for React `onPointerEnter` state (the 08.4 nav bar), never CSS
   `:hover`. The hovered pin holds its place meanwhile, or the app moving
   under it would end the hover and restart it in a loop.
+- **Look** (briefing-feedback-2): Tailwind slate for every grey (shadows
+  too); a 20px gutter (`--dr-gutter`); panel and drawer headers on the panel's
+  grey, no white.
+- **List**: the status pill sits right, before the actions, 28px tall like
+  them at the same type size; Edit is always the last action. Separators are
+  drawn above each row (`::before`): a feedback's across the panel, a
+  sub-row's from where its parent's text starts (`gutter + 5ch + 6px`, plus
+  16px per level). Attached files are an icon (`files`) whose hover opens a
+  flyout of links; a 200ms grace keeps it open across the gap. The
+  screenshot flyout sizes to the picture (`Flyout` takes `maxWidth`), image
+  only with a shadow. `Copied` gets a check icon.
+- **Which pins show**: one set at a time — the open drawer's; else the row
+  being hovered or switched on with Show pins; else, idle, every pin of the
+  review (the panel fetches every record with each load and hands them up
+  through `onAllPins`). "Display out the existing pins of the other points"
+  was read as _hide_ them while the drawer is open.
+- **Drawer**: the whole row is the drop target for files (highlighted);
+  sub-rows indent 24 / 48px; file chips are grey like the status tags.
