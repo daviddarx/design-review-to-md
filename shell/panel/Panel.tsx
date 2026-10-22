@@ -285,7 +285,10 @@ export function Panel({
           disabled={!review}
           title={review ? copyPromptText(review) : undefined}
         >
-          {copied ? "Copied" : "Copy prompt"}
+          {/* Keeps the button as wide as "Copy prompt" while it reads "Copied". */}
+          <span className="dr-swap" data-reserve="Copy prompt">
+            <span>{copied ? "Copied" : "Copy prompt"}</span>
+          </span>
         </button>
       </header>
 

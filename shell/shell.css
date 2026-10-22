@@ -146,6 +146,23 @@ select.dr-review-select {
   white-space: nowrap;
 }
 
+/* A label that changes without changing the button's width: the widest
+   label is laid out, invisibly, in the same cell. */
+.dr-swap {
+  display: inline-grid;
+  justify-items: center;
+}
+
+.dr-swap > *,
+.dr-swap::after {
+  grid-area: 1 / 1;
+}
+
+.dr-swap::after {
+  content: attr(data-reserve);
+  visibility: hidden;
+}
+
 .dr-button:hover:not(:disabled) {
   background: var(--dr-hover);
 }
