@@ -8,6 +8,7 @@ import type { PinTarget } from "./panel/listModel.ts"
 import { Panel } from "./panel/Panel.tsx"
 import { restoreLocalStorage } from "./pick/capture.ts"
 import { goToPin } from "./pick/goToPin.ts"
+import { useKeepCanvasPixels } from "./pick/keepCanvasPixels.ts"
 import { PinMarkers } from "./pick/PinMarkers.tsx"
 import type { Marker } from "./pick/PinMarkers.tsx"
 import { usePicker } from "./pick/Picker.tsx"
@@ -61,6 +62,7 @@ export function App() {
   const appendSeq = useRef(0)
   const drawerRef = useRef(drawer)
   useFrameUrl(frame)
+  useKeepCanvasPixels(frame) // the app's maps show in screenshots
   const picker = usePicker(frame)
 
   useEffect(() => {
