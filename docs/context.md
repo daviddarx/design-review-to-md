@@ -273,3 +273,21 @@ plan beside it.
   hover replay) is left in place, so existing ones still work. Tests stand the
   frame in for the test document and mock `modern-screenshot` — a real render
   walks back into the document through that frame and runs out of memory.
+- **Show pins finds the pin by itself** (his "globally, so that I don't have
+  to figure out each edge case"; Restore "should always do it as soon as the
+  pin can't be displayed"). `goToPin` now:
+  1. goes to the pin's full address — path, query **and hash** (the app
+     mirrors its surfaces in the URL; the work panel is `#wp/<id>`). The
+     hash was dropped before, which is why a work-panel pin never opened the
+     panel. A change of hash alone is followed by a reload, as the app may
+     not react to a same-page hash change it did not make;
+  2. reopens the popups the element was picked in (`openers`);
+  3. still missing: puts back the localStorage snapshot saved with the pin
+     (`restoreState`, required parameter) and reloads at the address, then
+     tries 2 again — the panel says the app data was replaced.
+     The Restore button, its confirm flyout and the `restore` icon are gone.
+     What this does not cover: state that lives only in memory (not in the URL,
+     not in localStorage) and opens on something other than an
+     `aria-expanded`/`aria-controls` trigger. State files are gitignored, so on
+     another machine step 3 is skipped. Old tool pins keep their path-only
+     behaviour.
