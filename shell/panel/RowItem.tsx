@@ -215,6 +215,7 @@ export function RowItem({
                     ref={peekButton}
                     icon="pin"
                     label="Show pins"
+                    data-pins-toggle // read by App: a press elsewhere in the panel switches it off
                     tip={owner.pins.length > 1 ? `Show the ${owner.pins.length} pins` : "Show pin"}
                     pressed={pinsShown}
                     onMouseEnter={() => void peekIn()}

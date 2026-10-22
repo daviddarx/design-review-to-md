@@ -151,6 +151,20 @@ export function App() {
     shownHover.current?.()
     shownHover.current = null
   }, [review])
+  // Like the screenshot: a press anywhere else in the panel switches it off.
+  const pinsOn = shown !== null
+  useEffect(() => {
+    if (!pinsOn) return
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as Element
+      if (!t.closest?.(".dr-panel") || t.closest("[data-pins-toggle]")) return
+      setShown(null)
+      shownHover.current?.()
+      shownHover.current = null
+    }
+    document.addEventListener("pointerdown", onDown, true)
+    return () => document.removeEventListener("pointerdown", onDown, true)
+  }, [pinsOn])
 
   // After the panel's own confirm; the first pin's snapshot. It is
   // gitignored, so a pin made on another machine has none.

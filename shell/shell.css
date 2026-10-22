@@ -458,6 +458,11 @@ select.dr-review-select {
   margin-top: 4px;
 }
 
+/* The status tag sits a little further from what is above it. */
+.dr-row-meta {
+  margin-top: 8px;
+}
+
 .dr-row-files a {
   overflow-wrap: anywhere;
   color: #334155;
@@ -717,11 +722,11 @@ select.dr-review-select {
   inset: 0;
   background: rgb(100 116 139 / 0.45);
   backdrop-filter: blur(2px);
-  animation: dr-fade-in 150ms ease-out both;
+  animation: dr-fade-in 112ms ease-out both;
 }
 
 .dr-leaving .dr-drawer-backdrop {
-  animation: dr-fade-out 150ms ease-in both;
+  animation: dr-fade-out 112ms ease-in both;
 }
 
 .dr-drawer {
@@ -731,11 +736,11 @@ select.dr-review-select {
   flex-direction: column;
   background: var(--dr-surface);
   box-shadow: -8px 0 24px rgb(15 23 42 / 0.12);
-  animation: dr-slide-in 300ms ease-in-out;
+  animation: dr-slide-in 225ms ease-in-out;
 }
 
 .dr-leaving .dr-drawer {
-  animation: dr-slide-out 300ms ease-in-out forwards;
+  animation: dr-slide-out 225ms ease-in-out forwards;
 }
 
 @keyframes dr-slide-in {
