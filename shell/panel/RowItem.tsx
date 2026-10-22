@@ -161,17 +161,20 @@ export function RowItem({
           />
         )}
 
-        {/* Under the text: the files as links, then the status. */}
-        {(row.attachments.length > 0 || row.status) && (
-          <div className="dr-row-meta">
+        {/* Under the text: the files as links on a line of their own, then
+            the status. */}
+        {row.attachments.length > 0 && (
+          <div className="dr-row-files">
             {row.attachments.map((a) => (
               <a key={a.path} href={fileUrl(review, a.path)} target="_blank" rel="noreferrer">
                 {a.name}
               </a>
             ))}
-            {row.status && (
-              <span className={`dr-status dr-status-${row.status}`}>{row.status}</span>
-            )}
+          </div>
+        )}
+        {row.status && (
+          <div className="dr-row-meta">
+            <span className={`dr-status dr-status-${row.status}`}>{row.status}</span>
           </div>
         )}
 
@@ -206,22 +209,19 @@ export function RowItem({
             )}
             {owner && (
               <>
-                <ActionButton
-                  ref={peekButton}
-                  icon="pin"
-                  label="Show pins"
-                  tip={
-                    row.inheritedPinFrom
-                      ? `Show the pins of ${row.inheritedPinFrom}`
-                      : owner.pins.length > 1
-                        ? `Show the ${owner.pins.length} pins`
-                        : "Show pin"
-                  }
-                  pressed={pinsShown}
-                  onMouseEnter={() => void peekIn()}
-                  onMouseLeave={() => onPeekPins(owner.rowId, null)}
-                  onClick={withTarget(onTogglePins)}
-                />
+                {/* Only on the row the pins belong to, as in the drawer. */}
+                {!row.inheritedPinFrom && (
+                  <ActionButton
+                    ref={peekButton}
+                    icon="pin"
+                    label="Show pins"
+                    tip={owner.pins.length > 1 ? `Show the ${owner.pins.length} pins` : "Show pin"}
+                    pressed={pinsShown}
+                    onMouseEnter={() => void peekIn()}
+                    onMouseLeave={() => onPeekPins(owner.rowId, null)}
+                    onClick={withTarget(onTogglePins)}
+                  />
+                )}
                 {shots.length > 0 && (
                   <ActionButton
                     ref={setShotButton}

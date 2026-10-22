@@ -360,7 +360,7 @@ select.dr-review-select {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
-  padding: 6px 0 64px;
+  padding: 0 0 64px;
 }
 
 .dr-empty {
@@ -413,6 +413,8 @@ select.dr-review-select {
 /* Number | text (its status tag first, history and files below) | the
    icon actions, all on the first line's top. */
 .dr-list > .dr-row {
+  padding-top: 8px;
+  padding-bottom: 8px;
   display: grid;
   grid-template-columns: minmax(5ch, max-content) minmax(0, 1fr) auto;
   align-items: start;
@@ -421,6 +423,7 @@ select.dr-review-select {
 
 .dr-row-side {
   display: flex;
+  margin-top: 8px;
 }
 
 /* The slot an Edit button takes on a feedback's own row. */
@@ -444,7 +447,9 @@ select.dr-review-select {
   line-height: 20px;
 }
 
-/* Under the text: the files as underlined links, then the status tag. */
+/* Under the text: the files as underlined links on their own line, then
+   the status tag on the next. */
+.dr-row-files,
 .dr-row-meta {
   display: flex;
   flex-wrap: wrap;
@@ -453,7 +458,7 @@ select.dr-review-select {
   margin-top: 4px;
 }
 
-.dr-row-meta a {
+.dr-row-files a {
   overflow-wrap: anywhere;
   color: #334155;
   font-size: 12px;

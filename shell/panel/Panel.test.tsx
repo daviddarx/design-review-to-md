@@ -129,7 +129,9 @@ describe("Panel", () => {
     await render()
     // Grey chips under the text, as in the drawer; no button for them.
     expect(action("5.d", "Attached files")).toBeNull()
-    const link = row("5.d").querySelector<HTMLAnchorElement>(".dr-row-meta a")!
+    const link = row("5.d").querySelector<HTMLAnchorElement>(".dr-row-files a")!
+    // On a line of their own, the status tag below them.
+    expect(link.parentElement!.nextElementSibling!.classList.contains("dr-row-meta")).toBe(true)
     expect(link.textContent).toBe("5.d-my shot.png")
     expect(link.getAttribute("href")).toBe(
       "/__review/files/08.4/05-main-navigation/5.d-my%20shot.png"
@@ -146,7 +148,9 @@ describe("Panel", () => {
     expect(host.querySelector(".dr-filters")?.textContent).toBe(
       "All 4Open 2To review 1Done 1＋ New feedback"
     )
-    expect(action("5.a", "Show pins")!.dataset.tip).toBe("Show the pins of 5")
+    // Only the row the pins belong to has Show pins.
+    expect(action("5", "Show pins")).not.toBeNull()
+    expect(action("5.a", "Show pins")).toBeNull()
   })
 
   it("Validate on a row to review validates it, then refetches", async () => {
@@ -184,13 +188,8 @@ describe("Panel", () => {
     await render()
     const labels = (id: string) =>
       [...row(id).querySelectorAll(".dr-action")].map((b) => b.getAttribute("aria-label"))
-    expect(labels("5.a")).toEqual(["Show pins", "Screenshot", "Restore corresponding app state"])
-    expect(labels("5.b")).toEqual([
-      "History",
-      "Show pins",
-      "Screenshot",
-      "Restore corresponding app state",
-    ])
+    expect(labels("5.a")).toEqual(["Screenshot", "Restore corresponding app state"])
+    expect(labels("5.b")).toEqual(["History", "Screenshot", "Restore corresponding app state"])
     expect(labels("5.c")).toEqual([
       "Validate",
       "Refine",
@@ -230,10 +229,9 @@ describe("Panel", () => {
     expect(host.querySelector(".dr-error")?.textContent).toContain("5.b is locked")
   })
 
-  it("Show pins is pressed on every row using the pins it shows", async () => {
+  it("Show pins is pressed on the row whose pins it shows", async () => {
     await render({ shownPinsOwner: "5" })
     expect(action("5", "Show pins")!.getAttribute("aria-pressed")).toBe("true")
-    expect(action("5.a", "Show pins")!.getAttribute("aria-pressed")).toBe("true")
     expect(action("5.c", "Show pins")!.getAttribute("aria-pressed")).toBe("false")
   })
 
