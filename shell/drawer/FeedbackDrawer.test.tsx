@@ -248,7 +248,7 @@ describe("FeedbackDrawer", () => {
       await new Promise((r) => setTimeout(r, 10))
     })
     expect(host.textContent).toContain("pin.png, State.JSON: this name is kept for pins")
-    expect([...host.querySelectorAll(".dr-file")].map((f) => f.textContent)).toEqual(["📎 ok.txt×"])
+    expect([...host.querySelectorAll(".dr-file")].map((f) => f.textContent)).toEqual(["ok.txt×"])
   })
 
   it("hides the pin action without a picker", async () => {

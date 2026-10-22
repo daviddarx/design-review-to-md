@@ -421,8 +421,7 @@ select.dr-review-select {
 }
 
 /* The column already indents them. */
-.dr-list > .dr-row > .dr-history,
-.dr-list > .dr-row > .dr-files {
+.dr-list > .dr-row > .dr-history {
   margin-left: 0;
 }
 
@@ -803,11 +802,11 @@ select.dr-review-select {
 }
 
 .dr-drawer-row.dr-depth-1 .dr-drawer-cell {
-  margin-left: 16px;
+  margin-left: 24px;
 }
 
 .dr-drawer-row.dr-depth-2 .dr-drawer-cell {
-  margin-left: 32px;
+  margin-left: 48px;
 }
 
 .dr-drawer-row .dr-files,
@@ -815,10 +814,10 @@ select.dr-review-select {
   margin-left: 0;
 }
 
-/* Files dragged over the attach button. */
-.dr-action-drop {
+/* Files dragged over the row: dropping attaches them to it. */
+.dr-drop-target {
   background: #dbeafe;
-  color: var(--dr-focus) !important;
+  box-shadow: inset 0 0 0 2px var(--dr-focus);
 }
 
 .dr-drawer-input {
@@ -851,25 +850,16 @@ select.dr-review-select {
   font-weight: 400;
 }
 
+/* Grey like the list's status tags, so it never reads as a field. */
 .dr-file {
   display: inline-flex;
   align-items: center;
   gap: 2px;
   padding: 0 2px 0 6px;
-  border: 1px solid #cbd5e1;
   border-radius: 4px;
-  background: #fff;
+  background: #e2e8f0;
+  color: #334155;
   font-size: 12px;
-}
-
-.dr-file a {
-  padding-right: 4px;
-  color: inherit;
-  text-decoration: none;
-}
-
-.dr-file a:hover {
-  text-decoration: underline;
 }
 
 .dr-file button {

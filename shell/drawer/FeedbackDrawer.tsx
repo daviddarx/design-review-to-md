@@ -359,6 +359,11 @@ export function FeedbackDrawer({
     e.dataTransfer.dropEffect = "copy"
     setDropTarget(id)
   }
+  // Leaving for one of the row's own children is not leaving the row.
+  const dragLeave = (id: string) => (e: DragEvent) => {
+    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return
+    setDropTarget((t) => (t === id ? null : t))
+  }
   const drop = (id: string) => (e: DragEvent) => {
     e.preventDefault()
     setDropTarget(null)
@@ -508,9 +513,9 @@ export function FeedbackDrawer({
                 edit(next, addedId(tree, next))
               }}
               onAttach={() => attach(node.id)}
-              onAttachDragOver={dragOver(node.id)}
-              onAttachDragLeave={() => setDropTarget(null)}
-              onAttachDrop={drop(node.id)}
+              onDragOver={dragOver(node.id)}
+              onDragLeave={dragLeave(node.id)}
+              onDrop={drop(node.id)}
               onPin={() => void pin(node.id)}
               onDelete={
                 depth > 0
@@ -552,15 +557,15 @@ type DrawerRowProps = {
   depth: number
   busy: boolean
   canPin: boolean
-  dropping: boolean // files are dragged over its attach button
+  dropping: boolean // files are dragged over the row
   onText(text: string): void
   onKeyDown(e: ReactKeyboardEvent<HTMLTextAreaElement>): void
   onFocus(): void
   onAddChild(): void
   onAttach(): void
-  onAttachDragOver(e: DragEvent): void
-  onAttachDragLeave(): void
-  onAttachDrop(e: DragEvent): void
+  onDragOver(e: DragEvent): void
+  onDragLeave(e: DragEvent): void
+  onDrop(e: DragEvent): void
   onPin(): void
   onDelete?: () => void
   onRemoveFile(name: string): void
@@ -580,9 +585,9 @@ function DrawerRow({
   onFocus,
   onAddChild,
   onAttach,
-  onAttachDragOver,
-  onAttachDragLeave,
-  onAttachDrop,
+  onDragOver,
+  onDragLeave,
+  onDrop,
   onPin,
   onDelete,
   onRemoveFile,
@@ -590,9 +595,18 @@ function DrawerRow({
   const pins = pinCount(node)
   return (
     <div
-      className={["dr-row", "dr-drawer-row", `dr-depth-${depth}`, busy && "dr-busy"]
+      className={[
+        "dr-row",
+        "dr-drawer-row",
+        `dr-depth-${depth}`,
+        busy && "dr-busy",
+        dropping && "dr-drop-target",
+      ]
         .filter(Boolean)
         .join(" ")}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
     >
       <span className="dr-row-num">{number}</span>
       <div className="dr-drawer-cell">
@@ -621,7 +635,7 @@ function DrawerRow({
           <ul className="dr-files" aria-label="Attachments">
             {node.files.map((f) => (
               <li key={f.name} className="dr-file">
-                📎 {f.name}
+                {f.name}
                 <button
                   type="button"
                   aria-label={`Remove ${f.name}`}
@@ -641,12 +655,8 @@ function DrawerRow({
         <ActionButton
           icon="attach"
           label="Attach a file"
-          tip="Attach a file (or drop it here)"
-          className={dropping ? "dr-action-drop" : undefined}
+          tip="Attach a file (or drop it on the row)"
           onClick={onAttach}
-          onDragOver={onAttachDragOver}
-          onDragLeave={onAttachDragLeave}
-          onDrop={onAttachDrop}
         />
         {canPin && (
           <ActionButton
