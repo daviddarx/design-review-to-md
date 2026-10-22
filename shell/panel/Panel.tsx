@@ -4,7 +4,8 @@ import type { Op } from "../../model/ops.ts"
 import type { PinRecord, Feedback } from "../../model/types.ts"
 import { applyOp, createReview, fileUrl, listReviews, readReview, useReviewFeed } from "../api.ts"
 import { readKey, writeKey } from "../prefs.ts"
-import { counts, flattenRows } from "./listModel.ts"
+import { Icon } from "./icons.tsx"
+import { counts, flattenRows, pinRecordPath } from "./listModel.ts"
 import type { Filter, PinTarget } from "./listModel.ts"
 import { FeedbackList } from "./FeedbackList.tsx"
 import { ShortcutHelp } from "./ShortcutHelp.tsx"
@@ -22,6 +23,7 @@ export type PanelProps = {
   onOpenSource(rowId: string, target: PinTarget): PinAction
   onPeekPins(ownerRowId: string, records: PinRecord[] | null): void // Show pins hovered, null when it ends
   shownPinsOwner: string | null // the row whose pins Show pins keeps on screen
+  onAllPins(groups: { owner: string; records: PinRecord[] }[]): void // every pinned row's pins, after each load
   drawer?: ReactNode // the feedback drawer, laid over everything but the resize edge
   reloadSignal?: number // a change refetches the review (after a drawer save)
 }
@@ -70,6 +72,7 @@ export function Panel({
   onOpenSource,
   onPeekPins,
   shownPinsOwner,
+  onAllPins,
   drawer,
   reloadSignal,
 }: PanelProps) {
@@ -183,6 +186,23 @@ export function Panel({
     [review]
   )
 
+  // Every pin of the review, for the page to show while nothing is picked
+  // out (all rows, whatever the filter).
+  useEffect(() => {
+    let live = true
+    const pinned = flattenRows(feedbacks, "all").filter((r) => r.pins.length)
+    void Promise.all(
+      pinned.map(async (r) => {
+        const paths = r.pins.map((pin, i) => pinRecordPath(pin, r.rowId, i, r.folder))
+        const records = await Promise.all(paths.map(loadRecord))
+        return { owner: r.rowId, records: records.filter((x): x is PinRecord => x !== null) }
+      })
+    ).then((groups) => live && onAllPins(groups))
+    return () => {
+      live = false
+    }
+  }, [feedbacks, loadRecord, onAllPins])
+
   // Ops refetch at once rather than waiting on the watcher; errors (409
   // locked, …) land in the inline message, never as a throw.
   const onOp = useCallback(
@@ -287,7 +307,14 @@ export function Panel({
         >
           {/* Keeps the button as wide as "Copy prompt" while it reads "Copied". */}
           <span className="dr-swap" data-reserve="Copy prompt">
-            <span>{copied ? "Copied" : "Copy prompt"}</span>
+            {copied ? (
+              <span className="dr-copied">
+                <Icon name="validate" />
+                Copied
+              </span>
+            ) : (
+              <span>Copy prompt</span>
+            )}
           </span>
         </button>
       </header>

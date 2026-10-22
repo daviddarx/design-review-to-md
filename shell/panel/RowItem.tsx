@@ -47,6 +47,23 @@ export function RowItem({
   const [busy, setBusy] = useState(false)
   const [shotButton, setShotButton] = useState<HTMLButtonElement | null>(null)
   const [restoreButton, setRestoreButton] = useState<HTMLButtonElement | null>(null)
+  const [filesOpen, setFilesOpen] = useState(false)
+  const [filesButton, setFilesButton] = useState<HTMLButtonElement | null>(null)
+
+  // The files' links open on hover and stay while the pointer is on the
+  // button or on them: crossing the gap between the two closes nothing.
+  const filesTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const filesHover = {
+    onMouseEnter: () => {
+      clearTimeout(filesTimer.current)
+      setFilesOpen(true)
+    },
+    onMouseLeave: () => {
+      clearTimeout(filesTimer.current)
+      filesTimer.current = setTimeout(() => setFilesOpen(false), 200)
+    },
+  }
+  useEffect(() => () => clearTimeout(filesTimer.current), [])
 
   const feedbackNumber = Number(row.rowId.split(".")[0])
   const fetched = records.every((r) => r !== undefined)
@@ -119,7 +136,7 @@ export function RowItem({
   peekEnd.current = () => owner && onPeekPins(owner.rowId, null)
   useEffect(() => () => peekEnd.current(), [])
 
-  // The flyouts are as wide as the row's text column.
+  // A flyout is at most as wide as the row's text column.
   const columnWidth = () => liRef.current?.querySelector(".dr-row-head")?.clientWidth ?? 320
   const shots = owner?.pins.flatMap((p) => (p.screenshot ? [p.screenshot] : [])) ?? []
 
@@ -134,17 +151,11 @@ export function RowItem({
       onFocus={prefetch}
     >
       <span className="dr-row-num">{row.rowId}</span>
+      {/* Line 1: the status and the icon actions, at the right. */}
       <div className="dr-row-head">
         {row.status && <span className={`dr-status dr-status-${row.status}`}>{row.status}</span>}
         {refining === null && (
           <ActionGroup>
-            {row.depth === 0 && (
-              <ActionButton
-                icon="edit"
-                label="Edit feedback"
-                onClick={() => onEditFeedback(feedbackNumber)}
-              />
-            )}
             {reviewing && <ActionButton icon="validate" label="Validate" onClick={validate} />}
             {reviewing && <ActionButton icon="refine" label="Refine" onClick={startRefine} />}
             {row.history.length > 0 && (
@@ -200,6 +211,24 @@ export function RowItem({
                 )}
               </>
             )}
+            {row.attachments.length > 0 && (
+              <ActionButton
+                ref={setFilesButton}
+                icon="files"
+                label="Attached files"
+                tip=""
+                pressed={filesOpen}
+                onClick={() => setFilesOpen(true)}
+                {...filesHover}
+              />
+            )}
+            {row.depth === 0 && (
+              <ActionButton
+                icon="edit"
+                label="Edit feedback"
+                onClick={() => onEditFeedback(feedbackNumber)}
+              />
+            )}
           </ActionGroup>
         )}
       </div>
@@ -240,22 +269,30 @@ export function RowItem({
         />
       )}
 
-      {row.attachments.length > 0 && (
-        <ul className="dr-files" aria-label="Attachments">
-          {row.attachments.map((a) => (
-            <li key={a.path} className="dr-file">
-              <a href={fileUrl(review, a.path)} target="_blank" rel="noreferrer">
-                📎 {a.name}
-              </a>
-            </li>
-          ))}
-        </ul>
+      {filesOpen && (
+        <Flyout
+          anchor={filesButton}
+          className="dr-file-links"
+          label={`Files of ${row.rowId}`}
+          onDismiss={() => setFilesOpen(false)}
+          {...filesHover}
+        >
+          <ul>
+            {row.attachments.map((a) => (
+              <li key={a.path}>
+                <a href={fileUrl(review, a.path)} target="_blank" rel="noreferrer">
+                  {a.name}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </Flyout>
       )}
 
       {shotOpen && owner && shots.length > 0 && (
         <Flyout
           anchor={shotButton}
-          width={columnWidth()}
+          maxWidth={columnWidth()}
           className="dr-shot"
           label={`Screenshot of ${owner.rowId}`}
         >

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { PinRecord } from "../model/types.ts"
 import { fileUrl, openEditor } from "./api.ts"
 import { FeedbackDrawer } from "./drawer/FeedbackDrawer.tsx"
@@ -59,6 +59,7 @@ export function App() {
   const [drawerMarkers, setDrawerMarkers] = useState<Marker[]>([])
   const [peeked, setPeeked] = useState<OwnedMarkers | null>(null) // Show pins hovered
   const [shown, setShown] = useState<OwnedMarkers | null>(null) // Show pins toggled on
+  const [allPins, setAllPins] = useState<OwnedMarkers[]>([]) // every pin of the review
   const drawerSeq = useRef(0)
   const appendSeq = useRef(0)
   const drawerRef = useRef(drawer)
@@ -106,11 +107,19 @@ export function App() {
     if (records) setPeeked(ownedMarkers(ownerRowId, records, "peek"))
     else setPeeked((m) => (m?.owner === ownerRowId ? null : m))
   }
+  const onAllPins = useCallback(
+    (groups: { owner: string; records: PinRecord[] }[]) =>
+      setAllPins(groups.map((g) => ownedMarkers(g.owner, g.records, "all"))),
+    []
+  )
+  // One set of pins at a time: the open drawer's; else the row hovered or
+  // switched on with Show pins; else, idle, every pin of the review.
   const markers = useMemo(() => {
-    const out = [...drawerMarkers, ...(shown?.markers ?? [])]
-    if (peeked && peeked.owner !== shown?.owner) out.push(...peeked.markers)
-    return out
-  }, [drawerMarkers, shown, peeked])
+    if (drawer) return drawerMarkers
+    if (peeked) return peeked.markers
+    if (shown) return shown.markers
+    return allPins.flatMap((g) => g.markers)
+  }, [drawer, drawerMarkers, peeked, shown, allPins])
 
   // Show pins on: the frame goes to the first pin's page, outlines its
   // element and hovers it (what opens on hover opens, as it was pinned), and
@@ -188,6 +197,7 @@ export function App() {
             onOpenSource={onOpenSource}
             onPeekPins={onPeekPins}
             shownPinsOwner={shown?.owner ?? null}
+            onAllPins={onAllPins}
             reloadSignal={reloadSignal}
             drawer={
               drawer &&

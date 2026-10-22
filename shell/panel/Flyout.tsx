@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import type { ReactNode } from "react"
+import type { ComponentProps, ReactNode } from "react"
 
 type Place = { left: number; top: number }
 
@@ -7,22 +7,27 @@ const GAP = 4
 
 // A box floating over everything, right-aligned under `anchor` (above it
 // when there is no room below). Fixed, so no scrolling list clips it; one
-// animation-frame loop keeps it on the anchor while the list scrolls.
+// animation-frame loop keeps it on the anchor while the list scrolls. As
+// wide as `width`, or as its content up to `maxWidth`. Hover handlers and
+// the like pass through.
 export function Flyout({
   anchor,
   width,
+  maxWidth,
   className,
   label,
   onDismiss,
   children,
+  ...rest
 }: {
   anchor: HTMLElement | null
-  width: number
+  width?: number
+  maxWidth?: number
   className?: string
   label: string
   onDismiss?: () => void // Esc, or a press outside the box and its anchor
   children: ReactNode
-}) {
+} & Omit<ComponentProps<"div">, "className" | "children" | "style" | "role">) {
   const ref = useRef<HTMLDivElement>(null)
   const [place, setPlace] = useState<Place | null>(null)
 
@@ -32,9 +37,10 @@ export function Flyout({
     const tick = () => {
       const a = anchor.getBoundingClientRect()
       const h = ref.current?.offsetHeight ?? 0
+      const w = ref.current?.offsetWidth ?? width ?? 0
       const below = a.bottom + GAP
       const top = below + h > window.innerHeight && a.top - GAP - h >= 0 ? a.top - GAP - h : below
-      const left = Math.max(GAP, a.right - width)
+      const left = Math.max(GAP, a.right - w)
       setPlace((p) => (p && p.left === left && p.top === top ? p : { left, top }))
       id = requestAnimationFrame(tick)
     }
@@ -73,7 +79,8 @@ export function Flyout({
       className={["dr-flyout", className].filter(Boolean).join(" ")}
       role="dialog"
       aria-label={label}
-      style={{ width, left: place?.left ?? -9999, top: place?.top ?? 0 }}
+      style={{ width, maxWidth, left: place?.left ?? -9999, top: place?.top ?? 0 }}
+      {...rest}
     >
       {children}
     </div>

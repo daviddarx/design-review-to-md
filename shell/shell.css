@@ -15,11 +15,11 @@ body {
 
 .dr-root {
   --dr-font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --dr-ink: #f5f5f5;
-  --dr-ink-muted: #a3a3a3;
-  --dr-bar: #1f1f1f;
-  --dr-bar-hover: #3a3a3a;
-  --dr-line: #e5e5e5;
+  --dr-ink: #f1f5f9;
+  --dr-ink-muted: #94a3b8;
+  --dr-bar: #1e293b;
+  --dr-bar-hover: #334155;
+  --dr-line: #e2e8f0;
   font-family: var(--dr-font);
 }
 
@@ -58,11 +58,12 @@ body {
 }
 
 .dr-panel {
-  --dr-text: #171717;
-  --dr-text-muted: #737373;
-  --dr-surface: #fafafa;
-  --dr-hover: #f0f0f0;
+  --dr-text: #0f172a;
+  --dr-text-muted: #64748b;
+  --dr-surface: #f8fafc;
+  --dr-hover: #f1f5f9;
   --dr-focus: #2563eb;
+  --dr-gutter: 20px; /* the panel's left and right inset */
   position: relative;
   flex: 0 0 auto;
   display: flex;
@@ -100,15 +101,14 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 10px 12px;
+  padding: 10px var(--dr-gutter);
   border-bottom: 1px solid var(--dr-line);
-  background: #fff;
 }
 
 .dr-input {
   height: 28px;
   padding: 0 8px;
-  border: 1px solid #d4d4d4;
+  border: 1px solid #cbd5e1;
   border-radius: 6px;
   background: #fff;
   color: var(--dr-text);
@@ -130,7 +130,7 @@ body {
 select.dr-review-select {
   appearance: none;
   padding-right: 28px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23737373' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   background-position: right 8px center;
   background-repeat: no-repeat;
 }
@@ -139,7 +139,7 @@ select.dr-review-select {
   flex: 0 0 auto;
   height: 28px;
   padding: 0 10px;
-  border: 1px solid #d4d4d4;
+  border: 1px solid #cbd5e1;
   border-radius: 6px;
   background: #fff;
   cursor: pointer;
@@ -163,6 +163,12 @@ select.dr-review-select {
   visibility: hidden;
 }
 
+.dr-copied {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .dr-button:hover:not(:disabled) {
   background: var(--dr-hover);
 }
@@ -179,7 +185,7 @@ select.dr-review-select {
 }
 
 .dr-button-primary:hover:not(:disabled) {
-  background: #404040;
+  background: #334155;
 }
 
 .dr-icon-button {
@@ -225,7 +231,7 @@ select.dr-review-select {
   background: var(--dr-bar);
   color: var(--dr-ink);
   font-size: 12px;
-  box-shadow: 0 6px 20px rgb(0 0 0 / 0.2);
+  box-shadow: 0 6px 20px rgb(15 23 42 / 0.2);
 }
 
 .dr-help:hover .dr-help-tip,
@@ -264,7 +270,7 @@ select.dr-review-select {
   align-items: first baseline;
   justify-content: space-between;
   gap: 8px;
-  padding: 8px 12px;
+  padding: 8px var(--dr-gutter);
   border-bottom: 1px solid var(--dr-line);
 }
 
@@ -283,7 +289,7 @@ select.dr-review-select {
 .dr-panel-foot {
   display: flex;
   justify-content: flex-end;
-  padding: 8px 12px;
+  padding: 8px var(--dr-gutter);
   border-top: 1px solid var(--dr-line);
 }
 
@@ -292,7 +298,7 @@ select.dr-review-select {
   box-sizing: border-box;
   width: 28px;
   height: 28px;
-  border: 1px solid #d4d4d4;
+  border: 1px solid #cbd5e1;
   background: #fff;
 }
 
@@ -312,7 +318,7 @@ select.dr-review-select {
 }
 
 .dr-chip[aria-checked="true"] {
-  border-color: #d4d4d4;
+  border-color: #cbd5e1;
   background: #fff;
   color: var(--dr-text) !important;
   font-weight: 600 !important;
@@ -329,7 +335,7 @@ select.dr-review-select {
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  margin: 8px 12px 0;
+  margin: 8px var(--dr-gutter) 0;
   padding: 6px 8px;
   border: 1px solid #fecaca;
   border-radius: 6px;
@@ -373,8 +379,35 @@ select.dr-review-select {
    (tags, text, history, files) starts at the tag's left edge. */
 .dr-row {
   position: relative;
-  padding: 6px 12px 8px;
+  padding: 6px var(--dr-gutter) 8px;
+}
+
+/* Each list row's separator is drawn above it: a feedback's across the
+   panel, a sub-row's from where its parent's text starts (5ch is the number
+   column, the list's 16px the indent of a row's content). */
+.dr-list {
   border-bottom: 1px solid var(--dr-line);
+}
+
+.dr-list > .dr-row::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  border-top: 1px solid var(--dr-line);
+}
+
+.dr-list > .dr-row:first-child::before {
+  display: none;
+}
+
+.dr-list > .dr-depth-1::before {
+  left: calc(var(--dr-gutter) + 5ch + 6px);
+}
+
+.dr-list > .dr-depth-2::before {
+  left: calc(var(--dr-gutter) + 5ch + 6px + 16px);
 }
 
 .dr-list > .dr-row {
@@ -410,6 +443,7 @@ select.dr-review-select {
 .dr-row-head {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 6px;
   min-height: 28px;
 }
@@ -442,9 +476,14 @@ select.dr-review-select {
   resize: vertical;
 }
 
+/* As tall as the icon actions beside it; the type stays small. */
 .dr-status {
-  padding: 0 6px;
-  border-radius: 4px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 6px;
   font:
     500 11px/18px ui-monospace,
     SFMono-Regular,
@@ -453,8 +492,8 @@ select.dr-review-select {
 }
 
 .dr-status-open {
-  background: #e5e5e5;
-  color: #404040;
+  background: #e2e8f0;
+  color: #334155;
 }
 
 .dr-status-review {
@@ -471,7 +510,7 @@ select.dr-review-select {
   margin: 0 0 4px 24px;
   padding: 0;
   list-style: none;
-  color: #a3a3a3;
+  color: #94a3b8;
   font-weight: 400;
 }
 
@@ -487,7 +526,6 @@ select.dr-review-select {
    ButtonGroup; the name shows as a tooltip below. */
 .dr-row-actions {
   display: flex;
-  margin-left: auto;
 }
 
 .dr-row-actions > .dr-action {
@@ -518,7 +556,7 @@ select.dr-review-select {
   width: 28px;
   height: 28px;
   padding: 0;
-  border: 1px solid #d4d4d4;
+  border: 1px solid #cbd5e1;
   border-radius: 6px;
   background: #fff;
   color: var(--dr-text-muted) !important;
@@ -527,7 +565,7 @@ select.dr-review-select {
 
 .dr-action:hover,
 .dr-action[aria-pressed="true"] {
-  background: #e5e5e5;
+  background: #e2e8f0;
   color: var(--dr-text) !important;
 }
 
@@ -552,6 +590,11 @@ select.dr-review-select {
 .dr-action:hover::after,
 .dr-action:focus-visible::after {
   display: block;
+}
+
+/* No tip where a flyout of its own opens on hover. */
+.dr-action[data-tip=""]::after {
+  display: none !important;
 }
 
 /* How many pins the row has, on the pin button's corner. */
@@ -580,27 +623,54 @@ select.dr-review-select {
   position: fixed;
   z-index: 2147483550;
   box-sizing: border-box;
-  border: 1px solid #d4d4d4;
+  border: 1px solid #cbd5e1;
   border-radius: 8px;
   background: #fff;
   color: var(--dr-text);
   font: 400 13px/1.45 var(--dr-font);
-  box-shadow: 0 8px 24px rgb(0 0 0 / 0.16);
+  box-shadow: 0 8px 24px rgb(15 23 42 / 0.16);
 }
 
-.dr-shot {
+/* Only the picture(s), each with its shadow: no frame, no blank sides. */
+.dr-flyout.dr-shot {
   display: grid;
-  gap: 1px;
-  overflow: hidden;
-  background: var(--dr-line);
+  justify-items: end;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .dr-shot img {
   display: block;
-  width: 100%;
+  max-width: 100%;
   max-height: 260px;
-  object-fit: contain;
+  border-radius: 6px;
   background: #fff;
+  box-shadow: 0 8px 24px rgb(15 23 42 / 0.2);
+}
+
+/* A row's attached files, as links. */
+.dr-file-links ul {
+  margin: 0;
+  padding: 6px 0;
+  list-style: none;
+}
+
+.dr-file-links a {
+  display: block;
+  max-width: 320px;
+  overflow: hidden;
+  padding: 3px 12px;
+  color: var(--dr-text);
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dr-file-links a:hover {
+  background: var(--dr-hover);
+  text-decoration: underline;
 }
 
 .dr-confirm {
@@ -646,7 +716,7 @@ select.dr-review-select {
   display: flex;
   flex-direction: column;
   background: var(--dr-surface);
-  box-shadow: -8px 0 24px rgb(0 0 0 / 0.12);
+  box-shadow: -8px 0 24px rgb(15 23 42 / 0.12);
   animation: dr-slide-in 300ms ease-in-out;
 }
 
@@ -690,9 +760,8 @@ select.dr-review-select {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 10px 12px;
+  padding: 10px var(--dr-gutter);
   border-bottom: 1px solid var(--dr-line);
-  background: #fff;
 }
 
 .dr-drawer-title {
@@ -724,7 +793,7 @@ select.dr-review-select {
   grid-template-columns: minmax(5ch, max-content) minmax(0, 1fr) auto;
   align-items: start;
   column-gap: 6px;
-  padding: 5px 12px;
+  padding: 5px var(--dr-gutter);
   border-bottom: 0;
 }
 
@@ -739,10 +808,6 @@ select.dr-review-select {
 
 .dr-drawer-row.dr-depth-2 .dr-drawer-cell {
   margin-left: 32px;
-}
-
-.dr-drawer-row .dr-row-actions {
-  margin-left: 0;
 }
 
 .dr-drawer-row .dr-files,
@@ -791,7 +856,7 @@ select.dr-review-select {
   align-items: center;
   gap: 2px;
   padding: 0 2px 0 6px;
-  border: 1px solid #d4d4d4;
+  border: 1px solid #cbd5e1;
   border-radius: 4px;
   background: #fff;
   font-size: 12px;
@@ -859,8 +924,8 @@ select.dr-review-select {
   position: absolute;
   padding: 3px 6px;
   border-radius: 4px;
-  background: #1f1f1f;
-  color: #f5f5f5;
+  background: #1e293b;
+  color: #f1f5f9;
   font:
     500 12px/16px system-ui,
     -apple-system,
@@ -877,8 +942,8 @@ select.dr-review-select {
   transform: translateX(-50%);
   padding: 6px 12px;
   border-radius: 999px;
-  background: #1f1f1f;
-  color: #f5f5f5;
+  background: #1e293b;
+  color: #f1f5f9;
   font:
     500 12px/16px system-ui,
     -apple-system,
@@ -886,7 +951,7 @@ select.dr-review-select {
     Roboto,
     sans-serif;
   white-space: nowrap;
-  box-shadow: 0 4px 16px rgb(0 0 0 / 0.25);
+  box-shadow: 0 4px 16px rgb(15 23 42 / 0.25);
 }
 
 /* Pins where the clicks landed: a teardrop whose tip is the click. Under
@@ -911,7 +976,7 @@ select.dr-review-select {
   border: 2px solid #fff;
   border-radius: 50% 50% 50% 0;
   background: #e11d48;
-  box-shadow: 0 2px 6px rgb(0 0 0 / 0.35);
+  box-shadow: 0 2px 6px rgb(15 23 42 / 0.35);
   transform: translateY(-100%) rotate(-45deg);
   transform-origin: 0 100%;
   /* Hovering a pin hovers its element in the app. */

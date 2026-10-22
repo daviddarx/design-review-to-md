@@ -93,6 +93,8 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
+const noop = () => {}
+
 async function render(extra: Partial<PanelProps> = {}) {
   await act(async () => {
     root.render(
@@ -106,6 +108,7 @@ async function render(extra: Partial<PanelProps> = {}) {
         onOpenSource={() => {}}
         onPeekPins={() => {}}
         shownPinsOwner={null}
+        onAllPins={noop}
         {...extra}
       />
     )
@@ -124,8 +127,12 @@ function key(el: HTMLElement, k: string, extra: KeyboardEventInit = {}) {
 describe("Panel", () => {
   it("renders a row's attachment lines as links to the file", async () => {
     await render()
-    const link = row("5.d").querySelector<HTMLAnchorElement>(".dr-files a")!
-    expect(link.textContent).toBe("📎 5.d-my shot.png")
+    // Hovering the files icon lists them.
+    await act(async () => {
+      action("5.d", "Attached files")!.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }))
+    })
+    const link = document.querySelector<HTMLAnchorElement>(".dr-file-links a")!
+    expect(link.textContent).toBe("5.d-my shot.png")
     expect(link.getAttribute("href")).toBe(
       "/__review/files/08.4/05-main-navigation/5.d-my%20shot.png"
     )
@@ -257,10 +264,10 @@ describe("Panel", () => {
   })
 
   it("a pin-record fetch overtaken by a reload does not refill the cache", async () => {
-    await render()
+    // Every pin's record is fetched with the review; this one is held.
     const record = deferred()
     held.set("/__review/files/08.4/05-main-navigation/5.c-pin.json", record.promise)
-    await act(async () => row("5.c").dispatchEvent(new MouseEvent("mouseover", { bubbles: true })))
+    await render()
     expect(calls.some((c) => c.url.endsWith("5.c-pin.json"))).toBe(true)
     await act(async () => FakeEventSource.last!.onmessage!({ data: '{"review":"08.4"}' }))
     const source = { file: "src/x.tsx", line: 3 }
