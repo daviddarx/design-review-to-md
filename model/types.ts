@@ -12,7 +12,7 @@ export type Row = {
   extra: string[] // unrecognised lines under this row, verbatim
   children: Row[]
 }
-export type Point = {
+export type Feedback = {
   number: number
   title: string
   status?: Status // tag on the title line, if any
@@ -20,9 +20,9 @@ export type Point = {
   history: HistoryEntry[]
   preamble: string[] // unrecognised lines between title/pin and the first row
   rows: Row[]
-  folder?: string // the point's asset folder; set by the API, never in the markdown
+  folder?: string // the feedback's asset folder; set by the API, never in the markdown
 }
-export type TopicMeta = { nextPoint: number } // derived from the point files, never stored
+export type ReviewMeta = { nextFeedback: number } // derived from the feedback files, never stored
 export type PinStep = {
   url: string
   path: string

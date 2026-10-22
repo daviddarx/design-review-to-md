@@ -1,11 +1,11 @@
 import { promises as fs } from "node:fs"
 import path from "node:path"
 import { randomBytes } from "node:crypto"
-import { parsePoint, serializePoint } from "../model/markdown.ts"
-import { pointFileBase } from "../model/labels.ts"
-import { applyOp as applyModelOp, newPoint, OpError } from "../model/ops.ts"
+import { parseFeedback, serializeFeedback } from "../model/markdown.ts"
+import { feedbackFileBase } from "../model/labels.ts"
+import { applyOp as applyModelOp, newFeedback, OpError } from "../model/ops.ts"
 import type { DraftRow, Op, OpResult } from "../model/ops.ts"
-import type { PinRef, Point, Row, TopicMeta } from "../model/types.ts"
+import type { PinRef, Feedback, Row, ReviewMeta } from "../model/types.ts"
 
 export type Asset = { rowId: string; name: string; dataBase64: string }
 
@@ -21,7 +21,7 @@ export class StorageError extends Error {
 const TOPIC_PATTERN = /^[A-Za-z0-9._ -]+$/
 const REAL_ROW_ID = /^\d+(\.[a-z]+(\.\d+)?)?$/
 
-function safeTopic(name: string): string {
+function safeReview(name: string): string {
   const trimmed = name.trim()
   if (!trimmed || !TOPIC_PATTERN.test(trimmed) || /^\.+$/.test(trimmed)) {
     throw new StorageError(400, `Invalid review name: ${JSON.stringify(name)}`)
@@ -50,7 +50,7 @@ function safeAssetName(name: string): string {
   return name
 }
 
-// "$0", "$0.1", … in the same pre-order that `newPoint` / `append` emit ids.
+// "$0", "$0.1", … in the same pre-order that `newFeedback` / `append` emit ids.
 function draftPaths(rows: DraftRow[]): string[] {
   const out: string[] = []
   rows.forEach((row, i) => {
@@ -67,11 +67,11 @@ function modelError(err: unknown): never {
   throw err
 }
 
-// Row (or the point itself) addressed by a real id like "5", "5.b", "5.b.1".
-function holderOf(point: Point, rowId: string): { pin?: PinRef } | undefined {
+// Row (or the feedback itself) addressed by a real id like "5", "5.b", "5.b.1".
+function holderOf(feedback: Feedback, rowId: string): { pin?: PinRef } | undefined {
   const [, ...labels] = rowId.split(".")
-  let holder: { pin?: PinRef } = point
-  let level: Row[] = point.rows
+  let holder: { pin?: PinRef } = feedback
+  let level: Row[] = feedback.rows
   for (const label of labels) {
     const row = level.find((r) => r.label === label)
     if (!row) return undefined
@@ -82,20 +82,20 @@ function holderOf(point: Point, rowId: string): { pin?: PinRef } | undefined {
 }
 
 // Each attachment gets a `📎 [file](folder/file)` line under its row, at the
-// row's text indent (the point's own go in the preamble). The row's text is
+// row's text indent (the feedback's own go in the preamble). The row's text is
 // never touched, and a line already present is not added twice.
-function linkAttachments(point: Point, folder: string, assets: Asset[]) {
+function linkAttachments(feedback: Feedback, folder: string, assets: Asset[]) {
   for (const a of assets) {
     if (PIN_ASSETS.has(a.name)) continue
     const file = `${a.rowId}-${a.name}`
     const link = `📎 [${file}](${folder}/${encodeURIComponent(file)})`
     const [, ...labels] = a.rowId.split(".")
     if (!labels.length) {
-      if (!point.preamble.some((l) => l.trim() === link)) point.preamble.push(link)
+      if (!feedback.preamble.some((l) => l.trim() === link)) feedback.preamble.push(link)
       continue
     }
     let row: Row | undefined
-    let level = point.rows
+    let level = feedback.rows
     for (const label of labels) {
       row = level.find((r) => r.label === label)
       if (!row) break
@@ -123,8 +123,8 @@ export class Storage {
     return run
   }
 
-  private topicDir(topic: string): string {
-    return path.join(this.root, safeTopic(topic))
+  private reviewDir(review: string): string {
+    return path.join(this.root, safeReview(review))
   }
 
   private async atomicWrite(file: string, data: string | Buffer) {
@@ -133,16 +133,16 @@ export class Storage {
     await fs.rename(tmp, file)
   }
 
-  // The point files are the only record: the next number is one past the
-  // highest on disk. Deleting the highest point frees its number again.
-  private async readMeta(dir: string): Promise<TopicMeta> {
-    const files = await this.pointFiles(dir)
-    return { nextPoint: Math.max(0, ...files.map((f) => f.number)) + 1 }
+  // The feedback files are the only record: the next number is one past the
+  // highest on disk. Deleting the highest feedback frees its number again.
+  private async readMeta(dir: string): Promise<ReviewMeta> {
+    const files = await this.feedbackFiles(dir)
+    return { nextFeedback: Math.max(0, ...files.map((f) => f.number)) + 1 }
   }
 
-  // A missing topic folder is an empty topic: git keeps no empty folder, so
-  // a topic whose last point was deleted (or never committed) has none.
-  private async pointFiles(dir: string): Promise<{ file: string; number: number }[]> {
+  // A missing review folder is an empty review: git keeps no empty folder, so
+  // a review whose last feedback was deleted (or never committed) has none.
+  private async feedbackFiles(dir: string): Promise<{ file: string; number: number }[]> {
     let names: string[]
     try {
       names = await fs.readdir(dir)
@@ -158,15 +158,15 @@ export class Storage {
   }
 
   // A first line too broken to name its number falls back to the file's.
-  private async readPoint(dir: string, file: string): Promise<Point> {
-    const point = parsePoint(await fs.readFile(path.join(dir, file), "utf8"))
-    if (!point.number) point.number = Number(/^(\d+)-/.exec(file)?.[1] ?? 0)
-    return point
+  private async readFeedback(dir: string, file: string): Promise<Feedback> {
+    const feedback = parseFeedback(await fs.readFile(path.join(dir, file), "utf8"))
+    if (!feedback.number) feedback.number = Number(/^(\d+)-/.exec(file)?.[1] ?? 0)
+    return feedback
   }
 
-  private async findPoint(dir: string, n: number) {
+  private async findFeedback(dir: string, n: number) {
     try {
-      const found = (await this.pointFiles(dir)).find((f) => f.number === n)
+      const found = (await this.feedbackFiles(dir)).find((f) => f.number === n)
       if (found) return found.file
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err
@@ -206,22 +206,26 @@ export class Storage {
   }
 
   // Points the written pin lines at the asset files that were saved with them.
-  private linkPins(point: Point, folder: string, ids: string[], assets: Asset[]) {
+  private linkPins(feedback: Feedback, folder: string, ids: string[], assets: Asset[]) {
     for (const id of ids) {
-      const holder = holderOf(point, id)
+      const holder = holderOf(feedback, id)
       if (holder?.pin && assets.some((a) => a.rowId === id && a.name === "pin.png")) {
         holder.pin = { ...holder.pin, screenshot: `${folder}/${id}-pin.png` }
       }
     }
   }
 
-  private mapAssets(assets: Asset[], pointNumber: number, draftMap: Map<string, string>): Asset[] {
+  private mapAssets(
+    assets: Asset[],
+    feedbackNumber: number,
+    draftMap: Map<string, string>
+  ): Asset[] {
     return assets.map((a) => {
       const name = safeAssetName(a.name)
       let rowId: string | undefined
-      if (a.rowId === "$point") rowId = String(pointNumber)
+      if (a.rowId === "$feedback") rowId = String(feedbackNumber)
       else if (a.rowId.startsWith("$")) rowId = draftMap.get(a.rowId)
-      else if (REAL_ROW_ID.test(a.rowId) && a.rowId.split(".")[0] === String(pointNumber)) {
+      else if (REAL_ROW_ID.test(a.rowId) && a.rowId.split(".")[0] === String(feedbackNumber)) {
         rowId = a.rowId
       }
       if (!rowId) throw new StorageError(400, `Unknown asset row ${a.rowId}`)
@@ -230,7 +234,7 @@ export class Storage {
     })
   }
 
-  async listTopics(): Promise<string[]> {
+  async listReviews(): Promise<string[]> {
     try {
       const entries = await fs.readdir(this.root, { withFileTypes: true })
       return entries
@@ -243,8 +247,8 @@ export class Storage {
     }
   }
 
-  async createTopic(name: string): Promise<string> {
-    const safe = safeTopic(name)
+  async createReview(name: string): Promise<string> {
+    const safe = safeReview(name)
     const dir = path.join(this.root, safe)
     return this.serial(async () => {
       await fs.mkdir(this.root, { recursive: true })
@@ -260,60 +264,65 @@ export class Storage {
     })
   }
 
-  async readTopic(
-    topic: string
-  ): Promise<{ meta: TopicMeta; points: { file: string; point: Point }[] }> {
-    const dir = this.topicDir(topic)
+  async readReview(
+    review: string
+  ): Promise<{ meta: ReviewMeta; feedbacks: { file: string; feedback: Feedback }[] }> {
+    const dir = this.reviewDir(review)
     const meta = await this.readMeta(dir)
-    const points = []
-    for (const { file } of await this.pointFiles(dir)) {
-      points.push({ file, point: await this.readPoint(dir, file) })
+    const feedbacks = []
+    for (const { file } of await this.feedbackFiles(dir)) {
+      feedbacks.push({ file, feedback: await this.readFeedback(dir, file) })
     }
-    return { meta, points }
+    return { meta, feedbacks }
   }
 
-  async createPoint(
-    topic: string,
+  async createFeedback(
+    review: string,
     title: string,
     rows: DraftRow[],
     pin: PinRef | undefined,
     assets: Asset[]
   ): Promise<{ number: number; rowIds: string[] }> {
-    const dir = this.topicDir(topic)
+    const dir = this.reviewDir(review)
     return this.serial(async () => {
       if (!title.trim()) throw new StorageError(400, "Feedback needs a title")
       const meta = await this.readMeta(dir)
-      const number = meta.nextPoint
+      const number = meta.nextFeedback
       await fs.mkdir(dir, { recursive: true })
       let created
       try {
-        created = newPoint(number, title.trim(), rows, pin)
+        created = newFeedback(number, title.trim(), rows, pin)
       } catch (err) {
         modelError(err)
       }
-      const { point, rowIds } = created
+      const { feedback, rowIds } = created
       const draftMap = new Map(draftPaths(rows).map((p, i) => [p, rowIds[i]]))
       const mapped = this.mapAssets(assets, number, draftMap)
-      const base = pointFileBase(number, point.title)
-      this.linkPins(point, base, [String(number), ...rowIds], mapped)
-      linkAttachments(point, base, mapped)
+      const base = feedbackFileBase(number, feedback.title)
+      this.linkPins(feedback, base, [String(number), ...rowIds], mapped)
+      linkAttachments(feedback, base, mapped)
       await this.writeAssets(dir, base, mapped)
-      await this.atomicWrite(path.join(dir, `${base}.md`), serializePoint(point))
+      await this.atomicWrite(path.join(dir, `${base}.md`), serializeFeedback(feedback))
       return { number, rowIds }
     })
   }
 
-  async applyOp(topic: string, pointNumber: number, op: Op, assets: Asset[]): Promise<OpResult> {
-    const dir = this.topicDir(topic)
+  async applyOp(
+    review: string,
+    feedbackNumber: number,
+    op: Op,
+    assets: Asset[]
+  ): Promise<OpResult> {
+    const dir = this.reviewDir(review)
     return this.serial(async () => {
-      const file = await this.findPoint(dir, pointNumber)
+      const file = await this.findFeedback(dir, feedbackNumber)
       const folder = file.replace(/\.md$/, "")
       // Fresh read every time: anything Claude wrote by hand survives.
-      const point = await this.readPoint(dir, file)
+      const feedback = await this.readFeedback(dir, file)
       let result: OpResult
       try {
         // Labels follow the rows on disk: past the highest sibling.
-        result = applyModelOp(point, op, [])
+        result = applyModelOp(feedback, op, [])
       } catch (err) {
         modelError(err)
       }
@@ -321,11 +330,11 @@ export class Storage {
       if (op.kind === "addChild") {
         draftPaths([op.row]).forEach((p, i) => draftMap.set(p, result.addedRowIds[i]))
       }
-      const mapped = this.mapAssets(assets, pointNumber, draftMap)
+      const mapped = this.mapAssets(assets, feedbackNumber, draftMap)
       const touched = [...result.addedRowIds]
       if (op.kind === "setPin") touched.push(op.rowId)
-      this.linkPins(result.point, folder, touched, mapped)
-      linkAttachments(result.point, folder, mapped)
+      this.linkPins(result.feedback, folder, touched, mapped)
+      linkAttachments(result.feedback, folder, mapped)
       await this.writeAssets(dir, folder, mapped)
       if (op.kind === "setPin" && !op.pin) {
         await this.removeAssets(dir, folder, [`${op.rowId}-pin.`])
@@ -344,22 +353,22 @@ export class Storage {
           result.deletedRowIds.map((id) => `${id}-`)
         )
       }
-      await this.atomicWrite(path.join(dir, file), serializePoint(result.point))
+      await this.atomicWrite(path.join(dir, file), serializeFeedback(result.feedback))
       return result
     })
   }
 
-  async deletePoint(topic: string, pointNumber: number): Promise<void> {
-    const dir = this.topicDir(topic)
+  async deleteFeedback(review: string, feedbackNumber: number): Promise<void> {
+    const dir = this.reviewDir(review)
     return this.serial(async () => {
-      const file = await this.findPoint(dir, pointNumber)
+      const file = await this.findFeedback(dir, feedbackNumber)
       await fs.rm(path.join(dir, file), { force: true })
       await fs.rm(path.join(dir, file.replace(/\.md$/, "")), { recursive: true, force: true })
     })
   }
 
-  assetPath(topic: string, relative: string): string {
-    const dir = this.topicDir(topic)
+  assetPath(review: string, relative: string): string {
+    const dir = this.reviewDir(review)
     const resolved = path.resolve(dir, relative)
     if (resolved !== dir && !resolved.startsWith(dir + path.sep)) {
       throw new StorageError(400, "Path escapes the review folder")

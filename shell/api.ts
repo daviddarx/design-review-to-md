@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react"
 import type { DraftRow, Op, OpResult } from "../model/ops.ts"
-import type { PinRef, Point, TopicMeta } from "../model/types.ts"
+import type { PinRef, Feedback, ReviewMeta } from "../model/types.ts"
 import type { Asset } from "../server/storage.ts"
 
 export type { Asset }
@@ -30,39 +30,39 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   return data as T
 }
 
-const topicPath = (topic: string) => `/topics/${encodeURIComponent(topic)}`
+const reviewPath = (review: string) => `/reviews/${encodeURIComponent(review)}`
 
-export function listTopics(): Promise<string[]> {
-  return request("GET", "/topics")
+export function listReviews(): Promise<string[]> {
+  return request("GET", "/reviews")
 }
 
 // Resolves to the sanitized folder name the server actually created.
-export function createTopic(name: string): Promise<{ name: string }> {
-  return request("POST", "/topics", { name })
+export function createReview(name: string): Promise<{ name: string }> {
+  return request("POST", "/reviews", { name })
 }
 
-export function readTopic(topic: string): Promise<{ meta: TopicMeta; points: Point[] }> {
-  return request("GET", topicPath(topic))
+export function readReview(review: string): Promise<{ meta: ReviewMeta; feedbacks: Feedback[] }> {
+  return request("GET", reviewPath(review))
 }
 
-export function createPoint(
-  topic: string,
+export function createFeedback(
+  review: string,
   draft: { title: string; rows: DraftRow[]; pin?: PinRef; assets?: Asset[] }
 ): Promise<{ number: number; rowIds: string[] }> {
-  return request("POST", `${topicPath(topic)}/points`, draft)
+  return request("POST", `${reviewPath(review)}/feedbacks`, draft)
 }
 
 export function applyOp(
-  topic: string,
-  point: number,
+  review: string,
+  feedback: number,
   op: Op,
   assets: Asset[] = []
 ): Promise<OpResult> {
-  return request("POST", `${topicPath(topic)}/points/${point}/ops`, { op, assets })
+  return request("POST", `${reviewPath(review)}/feedbacks/${feedback}/ops`, { op, assets })
 }
 
-export function deletePoint(topic: string, point: number): Promise<{ ok: true }> {
-  return request("DELETE", `${topicPath(topic)}/points/${point}`)
+export function deleteFeedback(review: string, feedback: number): Promise<{ ok: true }> {
+  return request("DELETE", `${reviewPath(review)}/feedbacks/${feedback}`)
 }
 
 export function openEditor(file: string, line: number): Promise<{ ok: true }> {
@@ -73,20 +73,20 @@ export function repoRoot(): Promise<{ root: string }> {
   return request("GET", "/repo-root")
 }
 
-// URL of a topic asset (screenshot, attachment, pin record).
-export function fileUrl(topic: string, relative: string): string {
+// URL of a review asset (screenshot, attachment, pin record).
+export function fileUrl(review: string, relative: string): string {
   const rest = relative.split("/").map(encodeURIComponent).join("/")
-  return `/__review/files/${encodeURIComponent(topic)}/${rest}`
+  return `/__review/files/${encodeURIComponent(review)}/${rest}`
 }
 
 // One EventSource on the change feed for the hook's lifetime; `onChange`
-// runs when the given topic changes on disk, and after a reconnect (changes
+// runs when the given review changes on disk, and after a reconnect (changes
 // may have been missed while the feed was down).
-export function useTopicFeed(topic: string | null, onChange: () => void) {
-  const topicRef = useRef(topic)
+export function useReviewFeed(review: string | null, onChange: () => void) {
+  const reviewRef = useRef(review)
   const onChangeRef = useRef(onChange)
   useEffect(() => {
-    topicRef.current = topic
+    reviewRef.current = review
     onChangeRef.current = onChange
   })
 
@@ -94,17 +94,17 @@ export function useTopicFeed(topic: string | null, onChange: () => void) {
     const source = new EventSource("/__review/events")
     let opened = false
     source.onopen = () => {
-      if (opened && topicRef.current) onChangeRef.current()
+      if (opened && reviewRef.current) onChangeRef.current()
       opened = true
     }
     source.onmessage = (e) => {
       let changed: unknown
       try {
-        changed = (JSON.parse(e.data) as { topic?: unknown }).topic
+        changed = (JSON.parse(e.data) as { review?: unknown }).review
       } catch {
         return
       }
-      if (topicRef.current && changed === topicRef.current) onChangeRef.current()
+      if (reviewRef.current && changed === reviewRef.current) onChangeRef.current()
     }
     return () => source.close()
   }, [])

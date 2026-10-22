@@ -2,8 +2,8 @@
 import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { parsePoint } from "../../model/markdown.ts"
-import { PointDrawer } from "./PointDrawer.tsx"
+import { parseFeedback } from "../../model/markdown.ts"
+import { FeedbackDrawer } from "./FeedbackDrawer.tsx"
 
 const SPEC = `# 5. Main navigation
 
@@ -18,7 +18,7 @@ type Call = { url: string; method: string; body: unknown }
 let root: Root
 let host: HTMLDivElement
 let calls: Call[]
-let topicStatus: number
+let reviewStatus: number
 let postStatus: number
 
 function json(data: unknown, status = 200) {
@@ -30,16 +30,16 @@ function json(data: unknown, status = 200) {
 
 beforeEach(() => {
   calls = []
-  topicStatus = 200
+  reviewStatus = 200
   postStatus = 200
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
       const method = init?.method ?? "GET"
       calls.push({ url, method, body: init?.body ? JSON.parse(String(init.body)) : undefined })
-      if (url === "/__review/api/topics/08.4" && method === "GET") {
-        if (topicStatus !== 200) return json({ error: "cannot read" }, topicStatus)
-        return json({ meta: { nextPoint: 6 }, points: [parsePoint(SPEC)] })
+      if (url === "/__review/api/reviews/08.4" && method === "GET") {
+        if (reviewStatus !== 200) return json({ error: "cannot read" }, reviewStatus)
+        return json({ meta: { nextFeedback: 6 }, feedbacks: [parseFeedback(SPEC)] })
       }
       if (postStatus !== 200) return json({ error: "disk full" }, postStatus)
       return json({ number: 6, rowIds: [] })
@@ -56,12 +56,17 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-async function render(pointNumber?: number) {
+async function render(feedbackNumber?: number) {
   const onClose = vi.fn()
   const onSaved = vi.fn()
   await act(async () => {
     root.render(
-      <PointDrawer topic="08.4" pointNumber={pointNumber} onClose={onClose} onSaved={onSaved} />
+      <FeedbackDrawer
+        review="08.4"
+        feedbackNumber={feedbackNumber}
+        onClose={onClose}
+        onSaved={onSaved}
+      />
     )
   })
   return { onClose, onSaved }
@@ -82,8 +87,8 @@ async function type(field: HTMLTextAreaElement, text: string) {
   })
 }
 
-describe("PointDrawer", () => {
-  it("writes a point with the outliner keys and saves on ⌘Enter", async () => {
+describe("FeedbackDrawer", () => {
+  it("writes a feedback with the outliner keys and saves on ⌘Enter", async () => {
     const { onClose, onSaved } = await render()
     await type(fields()[0], "Main nav")
     await act(async () => key(fields()[0], "Enter"))
@@ -95,7 +100,7 @@ describe("PointDrawer", () => {
     await act(async () => key(fields()[2], "Enter", { metaKey: true }))
     expect(posts()).toEqual([
       {
-        url: "/__review/api/topics/08.4/points",
+        url: "/__review/api/reviews/08.4/feedbacks",
         method: "POST",
         body: {
           title: "Main nav",
@@ -122,7 +127,7 @@ describe("PointDrawer", () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  it("edits a saved point: open rows editable, touched rows read-only, new rows added", async () => {
+  it("edits a saved feedback: open rows editable, touched rows read-only, new rows added", async () => {
     await render(5)
     // title + 5.b are editable; 5.a is done
     expect(fields().map((f) => f.value)).toEqual(["Main navigation", "Search field is misaligned"])
@@ -158,13 +163,13 @@ describe("PointDrawer", () => {
 
     await act(async () => trash().click())
     await act(async () => button("Delete").click())
-    expect(deletes().map((c) => c.url)).toEqual(["/__review/api/topics/08.4/points/5"])
+    expect(deletes().map((c) => c.url)).toEqual(["/__review/api/reviews/08.4/feedbacks/5"])
     expect(onSaved).toHaveBeenCalledTimes(1)
     expect(onClose).toHaveBeenCalledTimes(1)
     expect(confirm).not.toHaveBeenCalled()
   })
 
-  it("offers no point delete on a new point", async () => {
+  it("offers no feedback delete on a new feedback", async () => {
     await render()
     expect(host.querySelector('button[aria-label^="Delete this feedback"]')).toBeNull()
   })
@@ -197,13 +202,13 @@ describe("PointDrawer", () => {
     expect(document.activeElement).toBe(fields()[1])
   })
 
-  it("focuses the first editable row when an existing point opens", async () => {
+  it("focuses the first editable row when an existing feedback opens", async () => {
     await render(5)
     expect(document.activeElement).toBe(fields()[0])
   })
 
-  it("never saves when the point to edit could not be loaded", async () => {
-    topicStatus = 500
+  it("never saves when the feedback to edit could not be loaded", async () => {
+    reviewStatus = 500
     await render(5)
     const save = [...host.querySelectorAll("button")].find((b) => b.textContent === "Save")!
     expect(save.disabled).toBe(true)

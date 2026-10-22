@@ -1,4 +1,4 @@
-import type { HistoryEntry, PinRecord, PinRef, Point, Row, Status } from "../../model/types.ts"
+import type { HistoryEntry, PinRecord, PinRef, Feedback, Row, Status } from "../../model/types.ts"
 
 export type Filter = "all" | Status
 
@@ -11,10 +11,10 @@ export type FlatRow = {
   history: HistoryEntry[]
   inheritedPinFrom?: string // nearest pinned ancestor, when the row has no pin of its own
   attachments: Attachment[] // the row's `📎 [name](path)` lines
-  folder?: string // the point's asset folder, when the API sent it
+  folder?: string // the feedback's asset folder, when the API sent it
 }
 
-export type Attachment = { name: string; path: string } // path relative to the topic
+export type Attachment = { name: string; path: string } // path relative to the review
 
 const ATTACHMENT = /^\s*📎 \[(.+?)\]\((.+)\)\s*$/
 
@@ -26,7 +26,7 @@ function decode(s: string): string {
   }
 }
 
-// Attachment lines the server writes under a row (or in a point's preamble).
+// Attachment lines the server writes under a row (or in a feedback's preamble).
 export function attachmentsOf(lines: string[]): Attachment[] {
   return lines.flatMap((line) => {
     const m = ATTACHMENT.exec(line)
@@ -72,7 +72,7 @@ function withFolder(node: Node, folder: string) {
   node.children.forEach((c) => withFolder(c, folder))
 }
 
-function pointNode(p: Point): Node {
+function feedbackNode(p: Feedback): Node {
   const id = String(p.number)
   const node: Node = {
     row: {
@@ -91,7 +91,7 @@ function pointNode(p: Point): Node {
 }
 
 // A node survives a status filter when it matches or any descendant does,
-// so a sub-point is never shown without the rows above it.
+// so a row is never shown without the rows above it.
 function collect(node: Node, filter: Filter, out: FlatRow[]): boolean {
   const below: FlatRow[] = []
   let kept = false
@@ -103,24 +103,24 @@ function collect(node: Node, filter: Filter, out: FlatRow[]): boolean {
   return false
 }
 
-// Points and their rows in reading order, depth-first.
-export function flattenRows(points: Point[], filter: Filter): FlatRow[] {
+// Feedbacks and their rows in reading order, depth-first.
+export function flattenRows(feedbacks: Feedback[], filter: Filter): FlatRow[] {
   const out: FlatRow[] = []
-  for (const p of points) collect(pointNode(p), filter, out)
+  for (const p of feedbacks) collect(feedbackNode(p), filter, out)
   return out
 }
 
 // Rows per status; an untagged title row counts nowhere.
-export function counts(points: Point[]): Record<Status, number> {
+export function counts(feedbacks: Feedback[]): Record<Status, number> {
   const result: Record<Status, number> = { open: 0, review: 0, done: 0 }
-  for (const row of flattenRows(points, "all")) {
+  for (const row of flattenRows(feedbacks, "all")) {
     if (row.status && STATUSES.includes(row.status)) result[row.status]++
   }
   return result
 }
 
 // The md carries only the screenshot; the pin record sits beside it in the
-// point's asset folder, named after the row that owns the pin. A pin with
+// feedback's asset folder, named after the row that owns the pin. A pin with
 // no screenshot falls back on the folder the API reported.
 export function pinRecordPath(pin: PinRef, ownerRowId: string, folder?: string): string {
   const shot = pin.screenshot ?? ""
@@ -132,9 +132,9 @@ export function pinRecordPath(pin: PinRef, ownerRowId: string, folder?: string):
 // The localStorage snapshot beside a pin record.
 export const statePathOf = (recordPath: string) => recordPath.replace(/-pin\.json$/, "-state.json")
 
-// "New topic…" suggestion from the frame's first path segment:
+// "New review…" suggestion from the frame's first path segment:
 // `/concept-08-4/x` → `08.4`.
-export function suggestTopicName(pathname: string): string {
+export function suggestReviewName(pathname: string): string {
   const first = pathname.split("/").find(Boolean) ?? ""
   const concept = /^concept-(\d+)(?:-(\d+))?$/.exec(first)
   if (concept) return concept[2] ? `${concept[1]}.${concept[2]}` : concept[1]

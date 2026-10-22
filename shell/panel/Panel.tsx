@@ -1,28 +1,28 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { PointerEvent as ReactPointerEvent, ReactNode } from "react"
 import type { Op } from "../../model/ops.ts"
-import type { PinRecord, Point } from "../../model/types.ts"
-import { applyOp, createTopic, fileUrl, listTopics, readTopic, useTopicFeed } from "../api.ts"
+import type { PinRecord, Feedback } from "../../model/types.ts"
+import { applyOp, createReview, fileUrl, listReviews, readReview, useReviewFeed } from "../api.ts"
 import { readKey, writeKey } from "../prefs.ts"
 import { counts, flattenRows } from "./listModel.ts"
 import type { Filter, PinTarget } from "./listModel.ts"
-import { PointList } from "./PointList.tsx"
+import { FeedbackList } from "./FeedbackList.tsx"
 import { ShortcutHelp } from "./ShortcutHelp.tsx"
-import { TopicSelect } from "./TopicSelect.tsx"
+import { ReviewSelect } from "./ReviewSelect.tsx"
 
 export type PanelProps = {
-  topic: string | null
-  onTopicChange(t: string): void
-  onNewPoint(): void
-  onEditPoint(n: number): void
+  review: string | null
+  onReviewChange(t: string): void
+  onNewFeedback(): void
+  onEditFeedback(n: number): void
   // Go to pin / Restore state may answer with a notice for the panel to show
   // (the element is gone, the state file is missing).
   onGoToPin(rowId: string, target: PinTarget): PinAction
   onRestoreState(rowId: string, target: PinTarget): PinAction
   onOpenSource(rowId: string, target: PinTarget): PinAction
   onHoverPin(ownerRowId: string, record: PinRecord | null): void // a pinned row's hover, null when it ends
-  drawer?: ReactNode // the point drawer, laid over everything but the resize edge
-  reloadSignal?: number // a change refetches the topic (after a drawer save)
+  drawer?: ReactNode // the feedback drawer, laid over everything but the resize edge
+  reloadSignal?: number // a change refetches the review (after a drawer save)
 }
 
 type PinAction = void | Promise<string | null | void>
@@ -52,18 +52,18 @@ const FILTERS: { value: Filter; label: string }[] = [
   { value: "done", label: "Done" },
 ]
 
-export const copyPromptText = (topic: string) =>
-  `Work through the open feedback in docs/review/${topic}/ — follow packages/design-review/AGENTS.md.`
+export const copyPromptText = (review: string) =>
+  `Work through the open feedback in docs/review/${review}/ — follow packages/design-review/AGENTS.md.`
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err))
 
 // Docked right in review mode. The left edge resizes it, and the frame
 // beside it narrows for real.
 export function Panel({
-  topic,
-  onTopicChange,
-  onNewPoint,
-  onEditPoint,
+  review,
+  onReviewChange,
+  onNewFeedback,
+  onEditFeedback,
   onGoToPin,
   onRestoreState,
   onOpenSource,
@@ -73,8 +73,8 @@ export function Panel({
 }: PanelProps) {
   const preferred = useRef(readPreferredWidth())
   const [width, setWidth] = useState(() => clampWidth(preferred.current))
-  const [topics, setTopics] = useState<string[]>([])
-  const [points, setPoints] = useState<Point[]>([])
+  const [reviews, setReviews] = useState<string[]>([])
+  const [feedbacks, setFeedbacks] = useState<Feedback[]>([])
   const [loaded, setLoaded] = useState(false)
   const [filter, setFilter] = useState<Filter>("all")
   const [error, setError] = useState<string | null>(null)
@@ -98,20 +98,20 @@ export function Panel({
     return () => window.removeEventListener("resize", onResize)
   }, [])
 
-  const refreshTopics = useCallback(() => {
-    listTopics().then(setTopics, (err) => setError(message(err)))
+  const refreshReviews = useCallback(() => {
+    listReviews().then(setReviews, (err) => setError(message(err)))
   }, [])
-  useEffect(refreshTopics, [refreshTopics])
+  useEffect(refreshReviews, [refreshReviews])
 
   // A sequence number drops responses that a newer load has overtaken. Each
   // load also drops the cached pin records, since a re-pin rewrites them.
   const load = useCallback(() => {
-    if (!topic) return
+    if (!review) return
     const seq = ++loadSeq.current
-    readTopic(topic).then(
+    readReview(review).then(
       (data) => {
         if (seq !== loadSeq.current) return
-        setPoints(data.points)
+        setFeedbacks(data.feedbacks)
         setLoaded(true)
         setLoadError(null)
         cacheGen.current++
@@ -122,18 +122,18 @@ export function Panel({
         if (seq === loadSeq.current) setLoadError(message(err))
       }
     )
-  }, [topic])
+  }, [review])
 
-  // A new topic starts from nothing.
+  // A new review starts from nothing.
   useEffect(() => {
-    setPoints([])
+    setFeedbacks([])
     setLoaded(false)
     setError(null)
     setLoadError(null)
     load()
   }, [load])
 
-  useTopicFeed(topic, load)
+  useReviewFeed(review, load)
 
   const lastReload = useRef(reloadSignal)
   useEffect(() => {
@@ -158,17 +158,17 @@ export function Panel({
     setLeaving(covered ? null : lastDrawer.current)
   }
 
-  const tally = useMemo(() => counts(points), [points])
-  const rows = useMemo(() => flattenRows(points, filter), [points, filter])
+  const tally = useMemo(() => counts(feedbacks), [feedbacks])
+  const rows = useMemo(() => flattenRows(feedbacks, filter), [feedbacks, filter])
 
   const loadRecord = useCallback(
     (path: string): Promise<PinRecord | null> => {
-      if (!topic) return Promise.resolve(null)
+      if (!review) return Promise.resolve(null)
       const pending = inflight.current.get(path)
       if (pending) return pending
       // A fetch overtaken by a reload must not refill the cache it cleared.
       const gen = cacheGen.current
-      const promise = fetch(fileUrl(topic, path))
+      const promise = fetch(fileUrl(review, path))
         .then((res) => (res.ok ? (res.json() as Promise<PinRecord>) : null))
         .catch(() => null)
         .then((record) => {
@@ -178,16 +178,16 @@ export function Panel({
       inflight.current.set(path, promise)
       return promise
     },
-    [topic]
+    [review]
   )
 
   // Ops refetch at once rather than waiting on the watcher; errors (409
   // locked, …) land in the inline message, never as a throw.
   const onOp = useCallback(
     async (rowId: string, op: Op): Promise<boolean> => {
-      if (!topic) return false
+      if (!review) return false
       try {
-        await applyOp(topic, Number(rowId.split(".")[0]), op)
+        await applyOp(review, Number(rowId.split(".")[0]), op)
         setError(null)
         load()
         return true
@@ -196,7 +196,7 @@ export function Panel({
         return false
       }
     },
-    [topic, load]
+    [review, load]
   )
 
   const withNotice =
@@ -207,12 +207,12 @@ export function Panel({
       )
     }
 
-  const onCreateTopic = async (name: string) => {
+  const onCreateReview = async (name: string) => {
     try {
-      const created = await createTopic(name)
+      const created = await createReview(name)
       setError(null)
-      refreshTopics()
-      onTopicChange(created.name)
+      refreshReviews()
+      onReviewChange(created.name)
     } catch (err) {
       setError(message(err))
       throw err
@@ -220,9 +220,9 @@ export function Panel({
   }
 
   const copyPrompt = async () => {
-    if (!topic) return
+    if (!review) return
     try {
-      await navigator.clipboard.writeText(copyPromptText(topic))
+      await navigator.clipboard.writeText(copyPromptText(review))
       setCopied(true)
     } catch (err) {
       setError(`Could not copy: ${message(err)}`)
@@ -269,19 +269,19 @@ export function Panel({
       />
 
       <header className="dr-panel-head" inert={covered}>
-        <TopicSelect
-          topics={topics}
-          topic={topic}
-          onChange={onTopicChange}
-          onCreate={onCreateTopic}
-          onOpen={refreshTopics}
+        <ReviewSelect
+          reviews={reviews}
+          review={review}
+          onChange={onReviewChange}
+          onCreate={onCreateReview}
+          onOpen={refreshReviews}
         />
         <button
           type="button"
           className="dr-button"
           onClick={copyPrompt}
-          disabled={!topic}
-          title={topic ? copyPromptText(topic) : undefined}
+          disabled={!review}
+          title={review ? copyPromptText(review) : undefined}
         >
           {copied ? "Copied" : "Copy prompt"}
         </button>
@@ -305,7 +305,7 @@ export function Panel({
             </button>
           ))}
         </div>
-        <button type="button" className="dr-button" onClick={onNewPoint} disabled={!topic}>
+        <button type="button" className="dr-button" onClick={onNewFeedback} disabled={!review}>
           ＋ New feedback
         </button>
       </div>
@@ -327,20 +327,20 @@ export function Panel({
       )}
 
       <div className="dr-panel-body" inert={covered}>
-        {!topic ? (
+        {!review ? (
           <p className="dr-empty">Choose a review, or create one from the menu above.</p>
-        ) : !loaded ? null : points.length === 0 ? (
+        ) : !loaded ? null : feedbacks.length === 0 ? (
           <p className="dr-empty">No feedback yet</p>
         ) : rows.length === 0 ? (
           <p className="dr-empty">Nothing here with this status.</p>
         ) : (
-          <PointList
+          <FeedbackList
             rows={rows}
-            topic={topic}
+            review={review}
             records={records}
             onLoadRecord={loadRecord}
             onOp={onOp}
-            onEditPoint={onEditPoint}
+            onEditFeedback={onEditFeedback}
             onGoToPin={withNotice(onGoToPin)}
             onRestoreState={withNotice(onRestoreState)}
             onOpenSource={withNotice(onOpenSource)}

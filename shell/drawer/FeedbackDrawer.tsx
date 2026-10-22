@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import type { ChangeEvent, KeyboardEvent as ReactKeyboardEvent } from "react"
-import type { Point } from "../../model/types.ts"
-import { applyOp, createPoint, deletePoint, readTopic } from "../api.ts"
+import type { Feedback } from "../../model/types.ts"
+import { applyOp, createFeedback, deleteFeedback, readReview } from "../api.ts"
 import {
   appendCaptured,
   appendChild,
@@ -10,7 +10,7 @@ import {
   bytesToBase64,
   find,
   flatten,
-  fromPoint,
+  fromFeedback,
   hasChanges,
   indent,
   insertSiblingAfter,
@@ -24,15 +24,15 @@ import type { CapturedPin, DraftNode } from "./draft.ts"
 import type { Marker } from "../pick/PinMarkers.tsx"
 import { ActionButton } from "../panel/icons.tsx"
 
-export type PointDrawerProps = {
-  topic: string
-  pointNumber?: number // set: edit that saved point; unset: a new one
+export type FeedbackDrawerProps = {
+  review: string
+  feedbackNumber?: number // set: edit that saved feedback; unset: a new one
   initialCapture?: CapturedPin // Pin & add: the title row arrives pinned
   startPick?: (mode: "pin") => Promise<CapturedPin | null> // no 📍 without it
   // Pin & add while this drawer is open: each new `seq` appends a top-level
   // row carrying the capture, and focuses it.
   appendCapture?: { seq: number; capture: CapturedPin }
-  focusSignal?: number // a change pulls focus back into the drawer (New point while open)
+  focusSignal?: number // a change pulls focus back into the drawer (New feedback while open)
   onSaved?(): void
   onClose(): void
   onPinsChange?(markers: Marker[]): void // the pins made in this drawer, drawn on the page
@@ -65,11 +65,11 @@ function numberLabel(node: DraftNode, depth: number): string {
   return depth === 0 ? "New" : "·"
 }
 
-// One point, over the panel's list at full panel width. The title row is
+// One feedback, over the panel's list at full panel width. The title row is
 // the root; Enter / Tab / Shift+Tab / ⌘Enter / Esc drive it like an outliner.
-export function PointDrawer({
-  topic,
-  pointNumber,
+export function FeedbackDrawer({
+  review,
+  feedbackNumber,
   initialCapture,
   startPick,
   appendCapture,
@@ -77,41 +77,41 @@ export function PointDrawer({
   onSaved,
   onClose,
   onPinsChange,
-}: PointDrawerProps) {
+}: FeedbackDrawerProps) {
   const [tree, setTree] = useState<DraftNode>(() => newDraft(initialCapture))
-  const [point, setPoint] = useState<Point | null>(null)
-  const [loading, setLoading] = useState(pointNumber !== undefined)
+  const [feedback, setFeedback] = useState<Feedback | null>(null)
+  const [loading, setLoading] = useState(feedbackNumber !== undefined)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [confirmDiscard, setConfirmDiscard] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [focusId, setFocusId] = useState<string | null>(() =>
-    pointNumber === undefined ? tree.id : null
+    feedbackNumber === undefined ? tree.id : null
   )
   const rootRef = useRef<HTMLElement>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   const attachTo = useRef<string | null>(null)
   const lastFocused = useRef<string | null>(null)
-  const loadFailed = pointNumber !== undefined && !point && !loading
+  const loadFailed = feedbackNumber !== undefined && !feedback && !loading
 
-  const loadPoint = async (n: number) => {
-    const data = await readTopic(topic)
-    const found = data.points.find((p) => p.number === n)
+  const loadFeedback = async (n: number) => {
+    const data = await readReview(review)
+    const found = data.feedbacks.find((p) => p.number === n)
     if (!found) throw new Error(`Feedback ${n} no longer exists.`)
-    setPoint(found)
-    setTree(fromPoint(found))
+    setFeedback(found)
+    setTree(fromFeedback(found))
   }
 
   useEffect(() => {
-    if (pointNumber === undefined) return
+    if (feedbackNumber === undefined) return
     let live = true
-    readTopic(topic)
+    readReview(review)
       .then((data) => {
         if (!live) return
-        const found = data.points.find((p) => p.number === pointNumber)
-        if (!found) return setError(`Feedback ${pointNumber} no longer exists.`)
-        setPoint(found)
-        setTree(fromPoint(found))
+        const found = data.feedbacks.find((p) => p.number === feedbackNumber)
+        if (!found) return setError(`Feedback ${feedbackNumber} no longer exists.`)
+        setFeedback(found)
+        setTree(fromFeedback(found))
       })
       .catch((err) => live && setError(message(err)))
       .finally(() => {
@@ -122,7 +122,7 @@ export function PointDrawer({
     return () => {
       live = false
     }
-  }, [topic, pointNumber])
+  }, [review, feedbackNumber])
 
   // Focus never falls to <body>: the wanted row, else the first editable
   // row, else the drawer itself.
@@ -157,7 +157,7 @@ export function PointDrawer({
   }, [tree, onPinsChange])
   useEffect(() => () => onPinsChange?.([]), [onPinsChange])
 
-  // A capture arriving while the point still loads waits for it: the load
+  // A capture arriving while the feedback still loads waits for it: the load
   // replaces the whole tree.
   const seenAppend = useRef(appendCapture?.seq)
   useEffect(() => {
@@ -184,13 +184,13 @@ export function PointDrawer({
 
   const requestClose = () => {
     setConfirmDelete(false)
-    if (!saving && hasChanges(tree, point)) setConfirmDiscard(true)
+    if (!saving && hasChanges(tree, feedback)) setConfirmDiscard(true)
     else onClose()
   }
 
   const save = async () => {
-    // An edit whose point never loaded must not fall through to createPoint.
-    if (saving || loading || (pointNumber !== undefined && !point)) return
+    // An edit whose feedback never loaded must not fall through to createFeedback.
+    if (saving || loading || (feedbackNumber !== undefined && !feedback)) return
     const blocked = problem(tree)
     if (blocked) {
       setError(blocked)
@@ -200,21 +200,21 @@ export function PointDrawer({
     setSaving(true)
     setError(null)
     try {
-      if (!point) {
-        await createPoint(topic, buildCreate(tree))
+      if (!feedback) {
+        await createFeedback(review, buildCreate(tree))
       } else {
-        const ops = buildOps(point, tree)
+        const ops = buildOps(feedback, tree)
         let done = 0
         try {
           for (const { op, assets } of ops) {
-            await applyOp(topic, point.number, op, assets)
+            await applyOp(review, feedback.number, op, assets)
             done++
           }
         } catch (err) {
           if (!done) throw err
           // Part of it is on disk: show what is there now, never re-send it.
           onSaved?.()
-          await loadPoint(point.number).catch(() => undefined)
+          await loadFeedback(feedback.number).catch(() => undefined)
           setError(`Saved ${done} of ${ops.length} changes; the rest failed: ${message(err)}`)
           setFocusId(BACK)
           return
@@ -230,13 +230,13 @@ export function PointDrawer({
     }
   }
 
-  // After the inline confirm: the point's file and asset folder go.
-  const removePoint = async () => {
-    if (!point || saving) return
+  // After the inline confirm: the feedback's file and asset folder go.
+  const removeFeedback = async () => {
+    if (!feedback || saving) return
     setSaving(true)
     setError(null)
     try {
-      await deletePoint(topic, point.number)
+      await deleteFeedback(review, feedback.number)
       onSaved?.()
       onClose()
     } catch (err) {
@@ -344,7 +344,7 @@ export function PointDrawer({
     }
   }
 
-  const title = pointNumber === undefined ? "New feedback" : `Feedback ${pointNumber}`
+  const title = feedbackNumber === undefined ? "New feedback" : `Feedback ${feedbackNumber}`
 
   return (
     <section
@@ -357,7 +357,7 @@ export function PointDrawer({
     >
       <header className="dr-drawer-head">
         <strong className="dr-drawer-title">{title}</strong>
-        <span className="dr-drawer-topic">{topic}</span>
+        <span className="dr-drawer-review">{review}</span>
         <button type="button" className="dr-button" onClick={requestClose} title="Close (Esc)">
           Cancel
         </button>
@@ -390,18 +390,18 @@ export function PointDrawer({
         </div>
       )}
 
-      {confirmDelete && point && (
+      {confirmDelete && feedback && (
         <div
           className="dr-confirm dr-drawer-confirm"
           role="alertdialog"
           aria-label="Delete feedback?"
         >
-          <span>Delete feedback {point.number}? Its files go too.</span>
+          <span>Delete feedback {feedback.number}? Its files go too.</span>
           <span className="dr-confirm-actions">
             <button
               type="button"
               className="dr-button"
-              onClick={() => void removePoint()}
+              onClick={() => void removeFeedback()}
               disabled={saving}
               autoFocus
             >
@@ -448,7 +448,7 @@ export function PointDrawer({
               onDelete={
                 depth > 0
                   ? () => removeRow(node.id)
-                  : point
+                  : feedback
                     ? () => {
                         setConfirmDiscard(false)
                         setConfirmDelete(true)

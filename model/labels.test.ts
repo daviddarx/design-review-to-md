@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest"
-import { nextLabel, pointFileBase, rowIdOf, slugify } from "./labels.ts"
+import { nextLabel, feedbackFileBase, rowIdOf, slugify } from "./labels.ts"
 
 describe("labels", () => {
-  it("rowIdOf joins the point number and path", () => {
+  it("rowIdOf joins the feedback number and path", () => {
     expect(rowIdOf(5, ["b", "1"])).toBe("5.b.1")
     expect(rowIdOf(5, [])).toBe("5")
   })
@@ -17,11 +17,11 @@ describe("labels", () => {
   it("slugify folds, dashes, trims and caps", () => {
     expect(slugify("Größe & Farbe!")).toBe("grosse-farbe")
     expect(slugify("Über")).toBe("uber")
-    expect(slugify("!!!")).toBe("point")
+    expect(slugify("!!!")).toBe("feedback")
     expect(slugify("a".repeat(60))).toHaveLength(40)
   })
-  it("pointFileBase pads to two digits", () => {
-    expect(pointFileBase(5, "Main navigation")).toBe("05-main-navigation")
-    expect(pointFileBase(123, "x")).toBe("123-x")
+  it("feedbackFileBase pads to two digits", () => {
+    expect(feedbackFileBase(5, "Main navigation")).toBe("05-main-navigation")
+    expect(feedbackFileBase(123, "x")).toBe("123-x")
   })
 })

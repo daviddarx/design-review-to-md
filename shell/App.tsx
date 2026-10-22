@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import type { PinRecord } from "../model/types.ts"
 import { fileUrl, openEditor } from "./api.ts"
-import { PointDrawer } from "./drawer/PointDrawer.tsx"
+import { FeedbackDrawer } from "./drawer/FeedbackDrawer.tsx"
 import type { CapturedPin } from "./drawer/draft.ts"
 import { statePathOf } from "./panel/listModel.ts"
 import type { PinTarget } from "./panel/listModel.ts"
@@ -16,7 +16,7 @@ import { useFrameUrl, initialFrameSrc } from "./useFrameUrl.ts"
 import { useReviewMode } from "./useReviewMode.ts"
 import { useShortcut } from "./useShortcut.ts"
 
-type DrawerState = { key: number; pointNumber?: number; capture?: CapturedPin }
+type DrawerState = { key: number; feedbackNumber?: number; capture?: CapturedPin }
 
 export const PIN_MISSING =
   "Not on screen as it was — the faded pin marks where you clicked. Restore state to see it as it was."
@@ -35,13 +35,13 @@ export function isPinAndAdd(e: KeyboardEvent): boolean {
 export function App() {
   const [frame, setFrame] = useState<HTMLIFrameElement | null>(null)
   const [src] = useState(initialFrameSrc)
-  const [review, setReview] = useReviewMode(frame)
-  const [topic, setTopic] = useState(() => readKey("topic"))
+  const [reviewMode, setReviewMode] = useReviewMode(frame)
+  const [review, setReview] = useState(() => readKey("review") ?? readKey("topic")) // "topic": the key before the rename
   const [drawer, setDrawer] = useState<DrawerState | null>(null)
   const [reloadSignal, setReloadSignal] = useState(0)
   const [drawerFocus, setDrawerFocus] = useState(0)
-  const [panelMounted, setPanelMounted] = useState(review)
-  if (review && !panelMounted) setPanelMounted(true)
+  const [panelMounted, setPanelMounted] = useState(reviewMode)
+  if (reviewMode && !panelMounted) setPanelMounted(true)
   const [appendCapture, setAppendCapture] = useState<{ seq: number; capture: CapturedPin }>()
   const [drawerMarkers, setDrawerMarkers] = useState<Marker[]>([])
   const [hoverMarker, setHoverMarker] = useState<Marker | null>(null)
@@ -55,22 +55,22 @@ export function App() {
     drawerRef.current = drawer
   }, [drawer])
 
-  // Needs a topic. An open drawer is never replaced (that would throw its
+  // Needs a review. An open drawer is never replaced (that would throw its
   // draft away): it is focused instead.
-  const openDrawer = (open: { pointNumber?: number; capture?: CapturedPin } = {}) => {
+  const openDrawer = (open: { feedbackNumber?: number; capture?: CapturedPin } = {}) => {
     if (drawer) return setDrawerFocus((n) => n + 1)
-    if (!topic) return
+    if (!review) return
     setDrawer({ key: ++drawerSeq.current, ...open })
   }
 
-  // One drawer belongs to one topic.
-  useEffect(() => setDrawer(null), [topic])
+  // One drawer belongs to one review.
+  useEffect(() => setDrawer(null), [review])
 
-  // Pin & add: pick first, then a new point whose title row carries the
+  // Pin & add: pick first, then a new feedback whose title row carries the
   // pin — or, with a drawer already open, a new row in it (never a remount,
   // which would throw the draft away).
   const pinAndAdd = () => {
-    if (!topic) return
+    if (!review) return
     void picker.startPick().then((capture) => {
       if (!capture) return
       if (drawerRef.current) setAppendCapture({ seq: ++appendSeq.current, capture })
@@ -78,12 +78,12 @@ export function App() {
     })
   }
 
-  useShortcut(frame, review, isPinAndAdd, pinAndAdd)
+  useShortcut(frame, reviewMode, isPinAndAdd, pinAndAdd)
 
   // Leaving review mode ends a pick.
   useEffect(() => {
-    if (!review) picker.cancel()
-  }, [review, picker.cancel])
+    if (!reviewMode) picker.cancel()
+  }, [reviewMode, picker.cancel])
 
   // Only the row that set the hover marker may clear it: leaving one row and
   // entering the next can arrive in either order.
@@ -108,8 +108,8 @@ export function App() {
   // After the panel's own confirm. The snapshot is gitignored, so a pin
   // made on another machine has none.
   const onRestoreState = async (_rowId: string, target: PinTarget) => {
-    if (!topic || !frame) return
-    const res = await fetch(fileUrl(topic, statePathOf(target.recordPath))).catch(() => null)
+    if (!review || !frame) return
+    const res = await fetch(fileUrl(review, statePathOf(target.recordPath))).catch(() => null)
     if (!res?.ok) {
       return `No saved state for ${target.ownerRowId} on this machine — state files are not committed.`
     }
@@ -131,19 +131,19 @@ export function App() {
   }
 
   useEffect(() => {
-    if (topic) writeKey("topic", topic)
-  }, [topic])
+    if (review) writeKey("review", review)
+  }, [review])
 
   return (
-    <div className={review ? "dr-root dr-review" : "dr-root"}>
+    <div className={reviewMode ? "dr-root dr-review" : "dr-root"}>
       <iframe ref={setFrame} className="dr-frame" src={src} title="App under review" />
       {panelMounted && (
-        <div className={["dr-panel-host", !review && "dr-hidden"].filter(Boolean).join(" ")}>
+        <div className={["dr-panel-host", !reviewMode && "dr-hidden"].filter(Boolean).join(" ")}>
           <Panel
-            topic={topic}
-            onTopicChange={setTopic}
-            onNewPoint={() => openDrawer()}
-            onEditPoint={(n) => openDrawer({ pointNumber: n })}
+            review={review}
+            onReviewChange={setReview}
+            onNewFeedback={() => openDrawer()}
+            onEditFeedback={(n) => openDrawer({ feedbackNumber: n })}
             onGoToPin={onGoToPin}
             onRestoreState={onRestoreState}
             onOpenSource={onOpenSource}
@@ -151,11 +151,11 @@ export function App() {
             reloadSignal={reloadSignal}
             drawer={
               drawer &&
-              topic && (
-                <PointDrawer
+              review && (
+                <FeedbackDrawer
                   key={drawer.key}
-                  topic={topic}
-                  pointNumber={drawer.pointNumber}
+                  review={review}
+                  feedbackNumber={drawer.feedbackNumber}
                   initialCapture={drawer.capture}
                   startPick={() => picker.startPick()}
                   appendCapture={appendCapture}
@@ -169,7 +169,7 @@ export function App() {
           />
         </div>
       )}
-      <PinMarkers frame={frame} markers={markers} hidden={!review || picker.picking} />
+      <PinMarkers frame={frame} markers={markers} hidden={!reviewMode || picker.picking} />
       {picker.layer}
     </div>
   )

@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest"
-import { parsePoint } from "../../model/markdown.ts"
+import { parseFeedback } from "../../model/markdown.ts"
 import {
   counts,
   flattenRows,
   pinRecordPath,
   singleLine,
   statePathOf,
-  suggestTopicName,
+  suggestReviewName,
 } from "./listModel.ts"
 
 const SPEC = `# 5. Main navigation
@@ -31,7 +31,7 @@ const NESTED = `# 6. Font weights
 
 describe("flattenRows", () => {
   it("lists every row with its depth, in order", () => {
-    const rows = flattenRows([parsePoint(SPEC), parsePoint(NESTED)], "all")
+    const rows = flattenRows([parseFeedback(SPEC), parseFeedback(NESTED)], "all")
     expect(rows.map((r) => [r.rowId, r.depth])).toEqual([
       ["5", 0],
       ["5.a", 1],
@@ -49,7 +49,7 @@ describe("flattenRows", () => {
   })
 
   it("inherits the nearest ancestor's pin", () => {
-    const rows = flattenRows([parsePoint(SPEC), parsePoint(NESTED)], "all")
+    const rows = flattenRows([parseFeedback(SPEC), parseFeedback(NESTED)], "all")
     const byId = Object.fromEntries(rows.map((r) => [r.rowId, r]))
     expect(byId["5"].pin?.screenshot).toBe("05-main-navigation/5-pin.png")
     expect(byId["5"].inheritedPinFrom).toBeUndefined()
@@ -69,34 +69,34 @@ describe("flattenRows", () => {
   - 1. one \`open\`
 `
     const md2 = md.replace("# 7. T\n", "# 7. T\n\n📍 /y — ![](07-t/7-pin.png)\n")
-    const rows = flattenRows([parsePoint(md2)], "all")
+    const rows = flattenRows([parseFeedback(md2)], "all")
     expect(rows.find((r) => r.rowId === "7.a.1")?.inheritedPinFrom).toBe("7.a")
   })
 
   it("a status filter keeps matching rows and their ancestors", () => {
-    const rows = flattenRows([parsePoint(SPEC), parsePoint(NESTED)], "review")
+    const rows = flattenRows([parseFeedback(SPEC), parseFeedback(NESTED)], "review")
     expect(rows.map((r) => r.rowId)).toEqual(["5", "5.c", "6", "6.a", "6.a.1"])
   })
 
-  it("a filter drops a point with nothing matching", () => {
-    const rows = flattenRows([parsePoint(SPEC), parsePoint(NESTED)], "done")
+  it("a filter drops a feedback with nothing matching", () => {
+    const rows = flattenRows([parseFeedback(SPEC), parseFeedback(NESTED)], "done")
     expect(rows.map((r) => r.rowId)).toEqual(["5", "5.a", "6", "6.b"])
   })
 
   it("a title row with its own matching status is kept", () => {
     const md = "# 8. Spacing `review`\n\n- a. x `open`\n"
-    expect(flattenRows([parsePoint(md)], "review").map((r) => r.rowId)).toEqual(["8"])
+    expect(flattenRows([parseFeedback(md)], "review").map((r) => r.rowId)).toEqual(["8"])
   })
 })
 
 describe("counts", () => {
   it("counts the spec example's statuses", () => {
-    expect(counts([parsePoint(SPEC)])).toEqual({ open: 2, review: 1, done: 1 })
+    expect(counts([parseFeedback(SPEC)])).toEqual({ open: 2, review: 1, done: 1 })
   })
 
   it("counts nested rows and a tagged title", () => {
     const md = "# 8. Spacing `review`\n\n- a. x `open`\n  - 1. y `done`\n"
-    expect(counts([parsePoint(md)])).toEqual({ open: 1, review: 1, done: 1 })
+    expect(counts([parseFeedback(md)])).toEqual({ open: 1, review: 1, done: 1 })
   })
 })
 
@@ -106,27 +106,27 @@ describe("pinRecordPath", () => {
     expect(pinRecordPath(pin, "5.c")).toBe("05-main-navigation/5.c-pin.json")
   })
 
-  it("a screenshot at the topic root has no folder", () => {
+  it("a screenshot at the review root has no folder", () => {
     expect(pinRecordPath({ path: "/x", screenshot: "5-pin.png" }, "5")).toBe("5-pin.json")
   })
 
-  it("a pin without a screenshot uses the point's folder", () => {
+  it("a pin without a screenshot uses the feedback's folder", () => {
     expect(pinRecordPath({ path: "/x" }, "5.c", "05-nav")).toBe("05-nav/5.c-pin.json")
-    const [row] = flattenRows([{ ...parsePoint("# 5. T\n\n📍 /x\n"), folder: "05-t" }], "all")
+    const [row] = flattenRows([{ ...parseFeedback("# 5. T\n\n📍 /x\n"), folder: "05-t" }], "all")
     expect(row.folder).toBe("05-t")
     expect(statePathOf("05-t/5-pin.json")).toBe("05-t/5-state.json")
   })
 })
 
-describe("suggestTopicName", () => {
+describe("suggestReviewName", () => {
   it("turns a concept route into its version", () => {
-    expect(suggestTopicName("/concept-08-4/x")).toBe("08.4")
-    expect(suggestTopicName("/concept-06-2")).toBe("06.2")
+    expect(suggestReviewName("/concept-08-4/x")).toBe("08.4")
+    expect(suggestReviewName("/concept-06-2")).toBe("06.2")
   })
 
   it("falls back to the first segment, or nothing", () => {
-    expect(suggestTopicName("/settings/a")).toBe("settings")
-    expect(suggestTopicName("/")).toBe("")
+    expect(suggestReviewName("/settings/a")).toBe("settings")
+    expect(suggestReviewName("/")).toBe("")
   })
 })
 

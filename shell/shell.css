@@ -121,13 +121,13 @@ body {
   outline-offset: -1px;
 }
 
-.dr-topic {
+.dr-review-select {
   flex: 1 1 auto;
   min-width: 0;
 }
 
 /* Our own chevron: the native one sits flush against the border. */
-select.dr-topic {
+select.dr-review-select {
   appearance: none;
   padding-right: 28px;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23737373' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
@@ -583,7 +583,7 @@ select.dr-topic {
   gap: 6px;
 }
 
-/* Point drawer, as the app's own sheets do it: it slides in from the right
+/* Feedback drawer, as the app's own sheets do it: it slides in from the right
    over a slate backdrop that fades in, and both run backwards on close. The
    layer sits below the resize edge (z-index 2) so the panel stays
    resizable. */
@@ -665,7 +665,7 @@ select.dr-topic {
   flex: 0 0 auto;
 }
 
-.dr-drawer-topic {
+.dr-drawer-review {
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;

@@ -1,5 +1,5 @@
-export function rowIdOf(pointNumber: number, path: string[]): string {
-  return [String(pointNumber), ...path].join(".")
+export function rowIdOf(feedbackNumber: number, path: string[]): string {
+  return [String(feedbackNumber), ...path].join(".")
 }
 
 function lettersToNumber(s: string): number {
@@ -42,9 +42,9 @@ export function slugify(title: string): string {
     .replace(/^-+|-+$/g, "")
     .slice(0, 40)
     .replace(/-+$/g, "")
-  return slug || "point"
+  return slug || "feedback"
 }
 
-export function pointFileBase(n: number, title: string): string {
+export function feedbackFileBase(n: number, title: string): string {
   return `${String(n).padStart(2, "0")}-${slugify(title)}`
 }

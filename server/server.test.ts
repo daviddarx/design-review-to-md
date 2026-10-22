@@ -8,12 +8,12 @@ import { Storage } from "./storage.ts"
 import { createReviewServer, isLocalHost } from "./server.ts"
 import { resolveEditorTarget } from "./openEditor.ts"
 import { createShellBuild } from "./shellBuild.ts"
-import { topicOf } from "./events.ts"
+import { reviewOf } from "./events.ts"
 import { parseArgs } from "./cli.ts"
 
 let root: string
 let upstream: http.Server
-let review: http.Server
+let reviewServer: http.Server
 let base: string
 
 function listen(server: http.Server): Promise<number> {
@@ -68,16 +68,16 @@ beforeEach(async () => {
     socket.pipe(socket)
   })
   const targetPort = await listen(upstream)
-  review = createReviewServer({
+  reviewServer = createReviewServer({
     targetPort,
     storage: new Storage(root),
     shellAssets: async () => ({ js: "console.log('shell')", css: "body{}" }),
   })
-  base = `http://localhost:${await listen(review)}`
+  base = `http://localhost:${await listen(reviewServer)}`
 })
 
 afterEach(async () => {
-  await close(review)
+  await close(reviewServer)
   await close(upstream)
   await fs.rm(root, { recursive: true, force: true })
 })
@@ -156,7 +156,7 @@ describe("dispatch", () => {
       expect(res.status, host).toBe(200)
     }
     for (const host of ["evil.example", `evil.example:${port}`, "localhost.evil.example"]) {
-      const res = await request("GET", "/__review/api/topics", { headers: { host } })
+      const res = await request("GET", "/__review/api/reviews", { headers: { host } })
       expect(res.status, host).toBe(403)
     }
     expect(isLocalHost(undefined)).toBe(false)
@@ -190,15 +190,15 @@ describe("dispatch", () => {
 })
 
 describe("api", () => {
-  it("topic routes round-trip", async () => {
-    const created = await request("POST", "/__review/api/topics", { json: { name: "my topic" } })
+  it("review routes round-trip", async () => {
+    const created = await request("POST", "/__review/api/reviews", { json: { name: "my review" } })
     expect(created.status).toBe(200)
-    expect(JSON.parse(created.body)).toEqual({ name: "my-topic" })
+    expect(JSON.parse(created.body)).toEqual({ name: "my-review" })
 
-    const list = await request("GET", "/__review/api/topics")
-    expect(JSON.parse(list.body)).toEqual(["my-topic"])
+    const list = await request("GET", "/__review/api/reviews")
+    expect(JSON.parse(list.body)).toEqual(["my-review"])
 
-    const point = await request("POST", "/__review/api/topics/my-topic/points", {
+    const feedback = await request("POST", "/__review/api/reviews/my-review/feedbacks", {
       json: {
         title: "Header spacing",
         rows: [{ text: "Too tight", children: [] }],
@@ -207,57 +207,57 @@ describe("api", () => {
         ],
       },
     })
-    expect(point.status).toBe(200)
-    expect(JSON.parse(point.body)).toEqual({ number: 1, rowIds: ["1.a"] })
+    expect(feedback.status).toBe(200)
+    expect(JSON.parse(feedback.body)).toEqual({ number: 1, rowIds: ["1.a"] })
 
-    const topic = JSON.parse((await request("GET", "/__review/api/topics/my-topic")).body)
-    expect(topic.meta).toEqual({ nextPoint: 2 })
-    expect(topic.points).toHaveLength(1)
-    expect(topic.points[0]).toMatchObject({
+    const review = JSON.parse((await request("GET", "/__review/api/reviews/my-review")).body)
+    expect(review.meta).toEqual({ nextFeedback: 2 })
+    expect(review.feedbacks).toHaveLength(1)
+    expect(review.feedbacks[0]).toMatchObject({
       number: 1,
       title: "Header spacing",
       folder: "01-header-spacing",
     })
-    expect(topic.points[0].rows[0]).toMatchObject({ label: "a", text: "Too tight" })
+    expect(review.feedbacks[0].rows[0]).toMatchObject({ label: "a", text: "Too tight" })
 
-    const file = await request("GET", "/__review/files/my-topic/01-header-spacing/1.a-note.txt")
+    const file = await request("GET", "/__review/files/my-review/01-header-spacing/1.a-note.txt")
     expect(file.status).toBe(200)
     expect(file.body).toBe("hi")
 
-    const op = await request("POST", "/__review/api/topics/my-topic/points/1/ops", {
+    const op = await request("POST", "/__review/api/reviews/my-review/feedbacks/1/ops", {
       json: { op: { kind: "setStatus", rowId: "1.a", status: "done" }, assets: [] },
     })
     expect(op.status).toBe(200)
-    expect(JSON.parse(op.body).point.rows[0].status).toBe("done")
+    expect(JSON.parse(op.body).feedback.rows[0].status).toBe("done")
 
-    const del = await request("DELETE", "/__review/api/topics/my-topic/points/1")
+    const del = await request("DELETE", "/__review/api/reviews/my-review/feedbacks/1")
     expect(del.status).toBe(200)
-    const after = JSON.parse((await request("GET", "/__review/api/topics/my-topic")).body)
-    expect(after.points).toEqual([])
+    const after = JSON.parse((await request("GET", "/__review/api/reviews/my-review")).body)
+    expect(after.feedbacks).toEqual([])
   })
 
   it("maps storage errors to their status and never crashes", async () => {
-    expect((await request("DELETE", "/__review/api/topics/missing/points/1")).status).toBe(404)
-    expect((await request("POST", "/__review/api/topics", { json: { name: "../x" } })).status).toBe(
-      400
-    )
-    await request("POST", "/__review/api/topics", { json: { name: "t" } })
-    const dup = await request("POST", "/__review/api/topics", { json: { name: "t" } })
+    expect((await request("DELETE", "/__review/api/reviews/missing/feedbacks/1")).status).toBe(404)
+    expect(
+      (await request("POST", "/__review/api/reviews", { json: { name: "../x" } })).status
+    ).toBe(400)
+    await request("POST", "/__review/api/reviews", { json: { name: "t" } })
+    const dup = await request("POST", "/__review/api/reviews", { json: { name: "t" } })
     expect(dup.status).toBe(409)
     expect(JSON.parse(dup.body).error).toBeTruthy()
-    const bad = await request("POST", "/__review/api/topics", {
+    const bad = await request("POST", "/__review/api/reviews", {
       headers: { "content-type": "application/json" },
     })
     expect(bad.status).toBe(400)
-    expect((await request("GET", "/__review/api/topics")).status).toBe(200)
+    expect((await request("GET", "/__review/api/reviews")).status).toBe(200)
   })
 
   it("refuses a write that is not JSON or comes from another site", async () => {
-    const text = await request("POST", "/__review/api/topics", {
+    const text = await request("POST", "/__review/api/reviews", {
       headers: { "content-type": "text/plain" },
     })
     expect(text.status).toBe(415)
-    const cross = await request("POST", "/__review/api/topics", {
+    const cross = await request("POST", "/__review/api/reviews", {
       json: { name: "x" },
       headers: { "sec-fetch-site": "cross-site" },
     })
@@ -279,7 +279,7 @@ describe("api", () => {
 })
 
 describe("events", () => {
-  it("emits an SSE event when a file in a topic changes", async () => {
+  it("emits an SSE event when a file in a review changes", async () => {
     await fs.mkdir(path.join(root, "alpha"))
     const message = await new Promise<string>((resolve, reject) => {
       const req = http.get(base + "/__review/events", (res) => {
@@ -294,7 +294,7 @@ describe("events", () => {
             resolve(m[1])
           }
         })
-        // Give the watcher a beat, then touch a file inside the topic.
+        // Give the watcher a beat, then touch a file inside the review.
         setTimeout(() => {
           fs.writeFile(path.join(root, "alpha", ".tmp-ignored"), "x")
             .then(() => fs.writeFile(path.join(root, "alpha", "01-x.md"), "# 1. X\n"))
@@ -305,18 +305,18 @@ describe("events", () => {
         if ((err as NodeJS.ErrnoException).code !== "ECONNRESET") reject(err)
       })
     })
-    expect(JSON.parse(message)).toEqual({ topic: "alpha" })
+    expect(JSON.parse(message)).toEqual({ review: "alpha" })
   })
 })
 
-describe("topicOf", () => {
+describe("reviewOf", () => {
   it("names the first segment and skips dot-files", () => {
-    expect(topicOf("alpha/01-x.md")).toBe("alpha")
-    expect(topicOf("alpha/01-x/1.a-state.json")).toBe("alpha")
-    expect(topicOf("alpha")).toBe("alpha")
-    expect(topicOf("alpha/.tmp-abc")).toBeNull()
-    expect(topicOf(".DS_Store")).toBeNull()
-    expect(topicOf("")).toBeNull()
+    expect(reviewOf("alpha/01-x.md")).toBe("alpha")
+    expect(reviewOf("alpha/01-x/1.a-state.json")).toBe("alpha")
+    expect(reviewOf("alpha")).toBe("alpha")
+    expect(reviewOf("alpha/.tmp-abc")).toBeNull()
+    expect(reviewOf(".DS_Store")).toBeNull()
+    expect(reviewOf("")).toBeNull()
   })
 })
 

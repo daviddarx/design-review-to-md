@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
-import { OpError, applyOp, newPoint } from "./ops.ts"
-import { parsePoint, serializePoint } from "./markdown.ts"
+import { OpError, applyOp, newFeedback } from "./ops.ts"
+import { parseFeedback, serializeFeedback } from "./markdown.ts"
 
 const MD = `# 5. Nav
 
@@ -14,35 +14,39 @@ const MD = `# 5. Nav
 
 describe("ops", () => {
   it("refine moves the old text into Before and reopens", () => {
-    const { point } = applyOp(parsePoint(MD), { kind: "refine", rowId: "5.c", text: "new" }, [])
-    const c = point.rows[2]
+    const { feedback } = applyOp(
+      parseFeedback(MD),
+      { kind: "refine", rowId: "5.c", text: "new" },
+      []
+    )
+    const c = feedback.rows[2]
     expect(c.text).toBe("new")
     expect(c.history.at(-1)).toEqual({ kind: "before", text: "three" })
     expect(c.status).toBe("open")
   })
   it("editText is refused once Claude has written on the row", () => {
     expect(() =>
-      applyOp(parsePoint(MD), { kind: "editText", rowId: "5.c", text: "x" }, [])
+      applyOp(parseFeedback(MD), { kind: "editText", rowId: "5.c", text: "x" }, [])
     ).toThrowError(OpError)
     expect(() =>
-      applyOp(parsePoint(MD), { kind: "editText", rowId: "5.c", text: "x" }, [])
+      applyOp(parseFeedback(MD), { kind: "editText", rowId: "5.c", text: "x" }, [])
     ).toThrow(expect.objectContaining({ code: "locked" }))
-    const ok = applyOp(parsePoint(MD), { kind: "editText", rowId: "5.d", text: "x" }, [])
-    expect(ok.point.rows[3].text).toBe("x")
+    const ok = applyOp(parseFeedback(MD), { kind: "editText", rowId: "5.d", text: "x" }, [])
+    expect(ok.feedback.rows[3].text).toBe("x")
   })
   it("unknown rows throw not-found", () => {
     expect(() =>
-      applyOp(parsePoint(MD), { kind: "setStatus", rowId: "5.z", status: "done" }, [])
+      applyOp(parseFeedback(MD), { kind: "setStatus", rowId: "5.z", status: "done" }, [])
     ).toThrowError(OpError)
     expect(() =>
-      applyOp(parsePoint(MD), { kind: "setStatus", rowId: "6.a", status: "done" }, [])
+      applyOp(parseFeedback(MD), { kind: "setStatus", rowId: "6.a", status: "done" }, [])
     ).toThrowError(OpError)
   })
   it("addChild after deleting the last child skips the retired label", () => {
-    const del = applyOp(parsePoint(MD), { kind: "deleteRow", rowId: "5.d" }, [])
+    const del = applyOp(parseFeedback(MD), { kind: "deleteRow", rowId: "5.d" }, [])
     expect(del.retired).toContain("5.d")
     const add = applyOp(
-      del.point,
+      del.feedback,
       { kind: "addChild", rowId: "5", row: { text: "five", children: [] } },
       del.retired
     )
@@ -51,72 +55,72 @@ describe("ops", () => {
   })
   it("addChild numbers sub-rows", () => {
     const add = applyOp(
-      parsePoint(MD),
+      parseFeedback(MD),
       { kind: "addChild", rowId: "5.b", row: { text: "s2", children: [] } },
       []
     )
     expect(add.addedRowIds).toEqual(["5.b.2"])
   })
   it("deleteRow reports every removed descendant id", () => {
-    const r = applyOp(parsePoint(MD), { kind: "deleteRow", rowId: "5.b" }, [])
+    const r = applyOp(parseFeedback(MD), { kind: "deleteRow", rowId: "5.b" }, [])
     expect(r.deletedRowIds).toEqual(["5.b", "5.b.1"])
     expect(r.retired).toEqual(["5.b", "5.b.1"])
   })
   it("setStatus keeps a Claude line written after the panel loaded", () => {
-    const loaded = parsePoint(MD)
-    const fresh = parsePoint(
+    const loaded = parseFeedback(MD)
+    const fresh = parseFeedback(
       MD.replace("- d. four `open`\n", "- d. four `open`\n  - Claude: late\n")
     )
-    const { point } = applyOp(fresh, { kind: "setStatus", rowId: "5.d", status: "review" }, [])
+    const { feedback } = applyOp(fresh, { kind: "setStatus", rowId: "5.d", status: "review" }, [])
     expect(loaded.rows[3].history).toEqual([])
-    expect(serializePoint(point)).toContain("  - Claude: late")
-    expect(point.rows[3].status).toBe("review")
+    expect(serializeFeedback(feedback)).toContain("  - Claude: late")
+    expect(feedback.rows[3].status).toBe("review")
   })
   it("setPin sets and clears", () => {
     const pin = { path: "/x", screenshot: "a.png" }
-    const a = applyOp(parsePoint(MD), { kind: "setPin", rowId: "5.a", pin }, [])
-    expect(a.point.rows[0].pin).toEqual(pin)
-    const b = applyOp(a.point, { kind: "setPin", rowId: "5.a", pin: undefined }, [])
-    expect(b.point.rows[0].pin).toBeUndefined()
+    const a = applyOp(parseFeedback(MD), { kind: "setPin", rowId: "5.a", pin }, [])
+    expect(a.feedback.rows[0].pin).toEqual(pin)
+    const b = applyOp(a.feedback, { kind: "setPin", rowId: "5.a", pin: undefined }, [])
+    expect(b.feedback.rows[0].pin).toBeUndefined()
   })
-  it("newPoint tags a title-only feedback open, and leaves a title with rows untagged", () => {
-    const bare = newPoint(1, "Font weights", []).point
+  it("newFeedback tags a title-only feedback open, and leaves a title with rows untagged", () => {
+    const bare = newFeedback(1, "Font weights", []).feedback
     expect(bare.status).toBe("open")
-    expect(serializePoint(bare).split("\n")[0]).toBe("# 1. Font weights `open`")
-    expect(newPoint(2, "Nav", [{ text: "a", children: [] }]).point.status).toBeUndefined()
+    expect(serializeFeedback(bare).split("\n")[0]).toBe("# 1. Font weights `open`")
+    expect(newFeedback(2, "Nav", [{ text: "a", children: [] }]).feedback.status).toBeUndefined()
   })
 
-  it("newPoint labels rows and children", () => {
-    const { point, rowIds } = newPoint(7, "T", [
+  it("newFeedback labels rows and children", () => {
+    const { feedback, rowIds } = newFeedback(7, "T", [
       { text: "x", children: [{ text: "y", children: [] }] },
       { text: "z", children: [] },
     ])
     expect(rowIds).toEqual(["7.a", "7.a.1", "7.b"])
-    expect(point.rows[0].status).toBe("open")
-    expect(point.rows[0].children[0].label).toBe("1")
+    expect(feedback.rows[0].status).toBe("open")
+    expect(feedback.rows[0].children[0].label).toBe("1")
   })
-  it("refine on the point id moves the title into Before and reopens", () => {
+  it("refine on the feedback id moves the title into Before and reopens", () => {
     const md = "# 5. Nav `done`\n\n- a. one `open`\n"
-    const { point } = applyOp(parsePoint(md), { kind: "refine", rowId: "5", text: "New" }, [])
-    expect(point.title).toBe("New")
-    expect(point.history).toEqual([{ kind: "before", text: "Nav" }])
-    expect(point.status).toBe("open")
+    const { feedback } = applyOp(parseFeedback(md), { kind: "refine", rowId: "5", text: "New" }, [])
+    expect(feedback.title).toBe("New")
+    expect(feedback.history).toEqual([{ kind: "before", text: "Nav" }])
+    expect(feedback.status).toBe("open")
   })
-  it("editText on the point id is silent while open and locked otherwise", () => {
-    const ok = applyOp(parsePoint(MD), { kind: "editText", rowId: "5", text: "Z" }, [])
-    expect(ok.point.title).toBe("Z")
-    const reviewed = parsePoint("# 5. Nav `review`\n\n- a. one `open`\n")
+  it("editText on the feedback id is silent while open and locked otherwise", () => {
+    const ok = applyOp(parseFeedback(MD), { kind: "editText", rowId: "5", text: "Z" }, [])
+    expect(ok.feedback.title).toBe("Z")
+    const reviewed = parseFeedback("# 5. Nav `review`\n\n- a. one `open`\n")
     expect(() => applyOp(reviewed, { kind: "editText", rowId: "5", text: "Z" }, [])).toThrow(
       expect.objectContaining({ code: "locked" })
     )
-    const claude = parsePoint("# 5. Nav\n\n- Claude: hi\n\n- a. one `open`\n")
+    const claude = parseFeedback("# 5. Nav\n\n- Claude: hi\n\n- a. one `open`\n")
     expect(() => applyOp(claude, { kind: "editText", rowId: "5", text: "Z" }, [])).toThrow(
       expect.objectContaining({ code: "locked" })
     )
   })
-  it("a point with status open round-trips", () => {
+  it("a feedback with status open round-trips", () => {
     const md = "# 5. Nav `open`\n\n- a. one `open`\n"
-    expect(serializePoint(parsePoint(md))).toBe(md)
-    expect(parsePoint(md).status).toBe("open")
+    expect(serializeFeedback(parseFeedback(md))).toBe(md)
+    expect(parseFeedback(md).status).toBe("open")
   })
 })

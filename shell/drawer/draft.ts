@@ -1,7 +1,7 @@
-// Pure editor state of the point drawer: one tree per point, the title row
+// Pure editor state of the feedback drawer: one tree per feedback, the title row
 // at the root. Every edit returns a new tree (or the same one when refused).
 import type { DraftRow, Op } from "../../model/ops.ts"
-import type { PinRef, Point, Row } from "../../model/types.ts"
+import type { PinRef, Feedback, Row } from "../../model/types.ts"
 import type { Asset } from "../api.ts"
 import type { CapturedPin } from "../pick/capture.ts"
 
@@ -29,7 +29,7 @@ export type CreatePayload = {
 
 export type PlannedOp = { op: Op; assets: Asset[] }
 
-const MAX_DEPTH = 2 // root 0 = point, 1 = letter, 2 = number
+const MAX_DEPTH = 2 // root 0 = feedback, 1 = letter, 2 = number
 
 let counter = 0
 const nextId = () => `d${++counter}`
@@ -112,18 +112,19 @@ function fromRow(row: Row, id: string): DraftNode {
   }
 }
 
-export function fromPoint(point: Point): DraftNode {
-  const id = String(point.number)
+export function fromFeedback(feedback: Feedback): DraftNode {
+  const id = String(feedback.number)
   return {
     id: nextId(),
-    text: point.title,
-    ...(point.pin ? { pin: point.pin } : {}),
+    text: feedback.title,
+    ...(feedback.pin ? { pin: feedback.pin } : {}),
     savedRowId: id,
-    savedText: point.title,
+    savedText: feedback.title,
     label: id,
-    locked: (point.status ?? "open") !== "open" || point.history.some((h) => h.kind === "claude"),
+    locked:
+      (feedback.status ?? "open") !== "open" || feedback.history.some((h) => h.kind === "claude"),
     files: [],
-    children: point.rows.map((r) => fromRow(r, `${id}.${r.label}`)),
+    children: feedback.rows.map((r) => fromRow(r, `${id}.${r.label}`)),
   }
 }
 
@@ -135,7 +136,7 @@ export function updateNode(tree: DraftNode, id: string, patch: Partial<DraftNode
   return replace(tree, id, (n) => ({ ...n, ...patch }))
 }
 
-// Enter: an empty row below `id`; on the title row, the first sub-point.
+// Enter: an empty row below `id`; on the title row, the first row.
 export function insertSiblingAfter(tree: DraftNode, id: string): DraftNode {
   const loc = locate(tree, id)
   if (!loc) return tree
@@ -265,7 +266,10 @@ export function buildCreate(tree: DraftNode): CreatePayload {
     title: tree.text.trim(),
     rows: rows.map(toDraftRow),
     ...(pin ? { pin } : {}),
-    assets: [...nodeAssets(tree, "$point"), ...rows.flatMap((r, i) => subtreeAssets(r, `$${i}`))],
+    assets: [
+      ...nodeAssets(tree, "$feedback"),
+      ...rows.flatMap((r, i) => subtreeAssets(r, `$${i}`)),
+    ],
   }
 }
 
@@ -280,10 +284,10 @@ export function problem(tree: DraftNode): string | null {
   return null
 }
 
-// Saved point + edited tree → the ops that take one to the other: deletes,
+// Saved feedback + edited tree → the ops that take one to the other: deletes,
 // then text edits and re-pins, then new rows (appended under their saved
 // parent). Files added to saved rows ride along with the first op.
-export function buildOps(point: Point, tree: DraftNode): PlannedOp[] {
+export function buildOps(feedback: Feedback, tree: DraftNode): PlannedOp[] {
   const present = new Set(flatten(tree).map((f) => f.node.savedRowId))
   const deletes: PlannedOp[] = []
   const walkSaved = (rows: Row[], parent: string) => {
@@ -293,7 +297,7 @@ export function buildOps(point: Point, tree: DraftNode): PlannedOp[] {
       else walkSaved(r.children, id)
     }
   }
-  walkSaved(point.rows, String(point.number))
+  walkSaved(feedback.rows, String(feedback.number))
 
   const edits: PlannedOp[] = []
   const adds: PlannedOp[] = []
@@ -340,8 +344,8 @@ export function buildOps(point: Point, tree: DraftNode): PlannedOp[] {
 }
 
 // Esc asks before throwing this away.
-export function hasChanges(tree: DraftNode, point: Point | null): boolean {
-  if (point) return buildOps(point, tree).length > 0
+export function hasChanges(tree: DraftNode, feedback: Feedback | null): boolean {
+  if (feedback) return buildOps(feedback, tree).length > 0
   return Boolean(
     tree.text.trim() || tree.files.length || tree.capture || prune(tree.children).length
   )

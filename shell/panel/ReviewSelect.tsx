@@ -1,19 +1,19 @@
 import { useState } from "react"
-import { suggestTopicName } from "./listModel.ts"
+import { suggestReviewName } from "./listModel.ts"
 
 const NEW = "\u0000new"
 
-type TopicSelectProps = {
-  topics: string[]
-  topic: string | null
-  onChange(topic: string): void
+type ReviewSelectProps = {
+  reviews: string[]
+  review: string | null
+  onChange(review: string): void
   onCreate(name: string): Promise<void>
   onOpen(): void // refresh the folder list before it is shown
 }
 
-// Topic folders in a native select; "New review…" swaps it for an inline
+// Review folders in a native select; "New review…" swaps it for an inline
 // field holding a name suggested from the current URL.
-export function TopicSelect({ topics, topic, onChange, onCreate, onOpen }: TopicSelectProps) {
+export function ReviewSelect({ reviews, review, onChange, onCreate, onOpen }: ReviewSelectProps) {
   const [draft, setDraft] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -33,7 +33,7 @@ export function TopicSelect({ topics, topic, onChange, onCreate, onOpen }: Topic
     }
     return (
       <input
-        className="dr-input dr-topic"
+        className="dr-input dr-review-select"
         aria-label="New review name"
         autoFocus
         value={draft}
@@ -57,23 +57,23 @@ export function TopicSelect({ topics, topic, onChange, onCreate, onOpen }: Topic
 
   return (
     <select
-      className="dr-input dr-topic"
+      className="dr-input dr-review-select"
       aria-label="Review"
-      value={topic ?? ""}
+      value={review ?? ""}
       onPointerDown={onOpen}
       onFocus={onOpen}
       onChange={(e) => {
-        if (e.target.value === NEW) setDraft(suggestTopicName(location.pathname))
+        if (e.target.value === NEW) setDraft(suggestReviewName(location.pathname))
         else if (e.target.value) onChange(e.target.value)
       }}
     >
-      {!topic && (
+      {!review && (
         <option value="" disabled>
           Choose a review
         </option>
       )}
-      {topic && !topics.includes(topic) && <option value={topic}>{topic}</option>}
-      {topics.map((t) => (
+      {review && !reviews.includes(review) && <option value={review}>{review}</option>}
+      {reviews.map((t) => (
         <option key={t} value={t}>
           {t}
         </option>

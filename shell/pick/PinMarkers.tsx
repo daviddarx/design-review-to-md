@@ -5,8 +5,8 @@ import type { PinStep } from "../../model/types.ts"
 // or nothing for a drawer row not saved yet).
 export type Marker = { key: string; label: string; step: PinStep }
 
-type Point = { x: number; y: number; exact: boolean }
-type Placed = { key: string; label: string } & Point
+type Spot = { x: number; y: number; exact: boolean }
+type Placed = { key: string; label: string } & Spot
 
 function query(doc: Document | null | undefined, selector: string): Element | null {
   try {
@@ -23,7 +23,7 @@ const clamp01 = (n: number) => Math.min(1, Math.max(0, n))
 // resizing); otherwise, for an app pin on its own page, at the click's
 // recorded viewport position (`exact: false`). Nothing for an app pin while
 // the frame shows another page, or a tool pin whose element is gone.
-export function markerPoint(step: PinStep, frame: HTMLIFrameElement | null): Point | null {
+export function markerPoint(step: PinStep, frame: HTMLIFrameElement | null): Spot | null {
   let doc: Document | null | undefined = document
   let off = { x: 0, y: 0 }
   if (!step.inTool) {

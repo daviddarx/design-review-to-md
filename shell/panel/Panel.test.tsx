@@ -2,7 +2,7 @@
 import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { parsePoint } from "../../model/markdown.ts"
+import { parseFeedback } from "../../model/markdown.ts"
 import { Panel, type PanelProps } from "./Panel.tsx"
 
 const SPEC = `# 5. Main navigation
@@ -37,7 +37,7 @@ let root: Root
 let host: HTMLDivElement
 let calls: Call[]
 let opStatus: number
-let topicStatus: number
+let reviewStatus: number
 // One-shot: the next request to a URL answers with this promise instead.
 let held: Map<string, Promise<Response>>
 
@@ -57,7 +57,7 @@ function json(data: unknown, status = 200) {
 beforeEach(() => {
   calls = []
   opStatus = 200
-  topicStatus = 200
+  reviewStatus = 200
   held = new Map()
   localStorage.clear()
   vi.stubGlobal("EventSource", FakeEventSource)
@@ -71,10 +71,10 @@ beforeEach(() => {
         held.delete(url)
         return hold
       }
-      if (url === "/__review/api/topics") return json(["08.4"])
-      if (url === "/__review/api/topics/08.4") {
-        if (topicStatus !== 200) return json({ error: "cannot read topic" }, topicStatus)
-        return json({ meta: { nextPoint: 6 }, points: [parsePoint(SPEC)] })
+      if (url === "/__review/api/reviews") return json(["08.4"])
+      if (url === "/__review/api/reviews/08.4") {
+        if (reviewStatus !== 200) return json({ error: "cannot read review" }, reviewStatus)
+        return json({ meta: { nextFeedback: 6 }, feedbacks: [parseFeedback(SPEC)] })
       }
       if (url.endsWith("/ops")) {
         return opStatus === 200 ? json({}) : json({ error: "5.b is locked" }, opStatus)
@@ -97,10 +97,10 @@ async function render(extra: Partial<PanelProps> = {}) {
   await act(async () => {
     root.render(
       <Panel
-        topic="08.4"
-        onTopicChange={() => {}}
-        onNewPoint={() => {}}
-        onEditPoint={() => {}}
+        review="08.4"
+        onReviewChange={() => {}}
+        onNewFeedback={() => {}}
+        onEditFeedback={() => {}}
         onGoToPin={() => {}}
         onRestoreState={() => {}}
         onOpenSource={() => {}}
@@ -131,7 +131,7 @@ describe("Panel", () => {
     expect(link.target).toBe("_blank")
   })
 
-  it("lists the topic's rows with counts", async () => {
+  it("lists the review's rows with counts", async () => {
     await render()
     const ids = [...host.querySelectorAll("[data-row-id]")].map((el) =>
       el.getAttribute("data-row-id")
@@ -145,16 +145,16 @@ describe("Panel", () => {
 
   it("Validate on a row to review validates it, then refetches", async () => {
     await render()
-    const before = calls.filter((c) => c.url === "/__review/api/topics/08.4").length
+    const before = calls.filter((c) => c.url === "/__review/api/reviews/08.4").length
     await act(async () => action("5.c", "Validate")!.click())
     expect(opCalls()).toEqual([
       {
-        url: "/__review/api/topics/08.4/points/5/ops",
+        url: "/__review/api/reviews/08.4/feedbacks/5/ops",
         method: "POST",
         body: { op: { kind: "setStatus", rowId: "5.c", status: "done" }, assets: [] },
       },
     ])
-    expect(calls.filter((c) => c.url === "/__review/api/topics/08.4").length).toBe(before + 1)
+    expect(calls.filter((c) => c.url === "/__review/api/reviews/08.4").length).toBe(before + 1)
   })
 
   it("Refine opens the field; Enter sends one line", async () => {
@@ -221,7 +221,7 @@ describe("Panel", () => {
   it("a busy row keeps its depth class and gains dr-busy", async () => {
     await render()
     const op = deferred()
-    held.set("/__review/api/topics/08.4/points/5/ops", op.promise)
+    held.set("/__review/api/reviews/08.4/feedbacks/5/ops", op.promise)
     await act(async () => action("5.c", "Validate")!.click())
     expect(row("5.c").classList.contains("dr-depth-1")).toBe(true)
     expect(row("5.c").classList.contains("dr-busy")).toBe(true)
@@ -235,7 +235,7 @@ describe("Panel", () => {
     held.set("/__review/files/08.4/05-main-navigation/5.c-pin.json", record.promise)
     await act(async () => row("5.c").dispatchEvent(new MouseEvent("mouseover", { bubbles: true })))
     expect(calls.some((c) => c.url.endsWith("5.c-pin.json"))).toBe(true)
-    await act(async () => FakeEventSource.last!.onmessage!({ data: '{"topic":"08.4"}' }))
+    await act(async () => FakeEventSource.last!.onmessage!({ data: '{"review":"08.4"}' }))
     const source = { file: "src/x.tsx", line: 3 }
     const step = { element: { source } }
     await act(async () => record.resolve(json({ version: 1, at: "", steps: [step] })))
@@ -243,11 +243,11 @@ describe("Panel", () => {
   })
 
   it("a successful load clears an earlier load error", async () => {
-    topicStatus = 500
+    reviewStatus = 500
     await render()
-    expect(host.querySelector(".dr-error")?.textContent).toContain("cannot read topic")
-    topicStatus = 200
-    await act(async () => FakeEventSource.last!.onmessage!({ data: '{"topic":"08.4"}' }))
+    expect(host.querySelector(".dr-error")?.textContent).toContain("cannot read review")
+    reviewStatus = 200
+    await act(async () => FakeEventSource.last!.onmessage!({ data: '{"review":"08.4"}' }))
     expect(host.querySelector(".dr-error")).toBeNull()
   })
 

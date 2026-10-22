@@ -8,12 +8,12 @@ import type { FlatRow, PinTarget } from "./listModel.ts"
 
 export type RowItemProps = {
   row: FlatRow
-  topic: string
+  review: string
   owner: { rowId: string; pin: PinRef } | undefined // the pin this row uses, own or inherited
   record: PinRecord | null | undefined // undefined: not fetched yet
   onLoadRecord(): Promise<PinRecord | null>
   onOp(op: Op): Promise<boolean>
-  onEditPoint(n: number): void
+  onEditFeedback(n: number): void
   onGoToPin(rowId: string, target: PinTarget): void
   onRestoreState(rowId: string, target: PinTarget): void
   onOpenSource(rowId: string, target: PinTarget): void
@@ -34,12 +34,12 @@ export function isTyping(target: EventTarget | null): boolean {
 
 export function RowItem({
   row,
-  topic,
+  review,
   owner,
   record,
   onLoadRecord,
   onOp,
-  onEditPoint,
+  onEditFeedback,
   onGoToPin,
   onRestoreState,
   onOpenSource,
@@ -51,7 +51,7 @@ export function RowItem({
   const [confirming, setConfirming] = useState(false)
   const [busy, setBusy] = useState(false)
 
-  const pointNumber = Number(row.rowId.split(".")[0])
+  const feedbackNumber = Number(row.rowId.split(".")[0])
   const source = record?.steps.at(-1)?.element.source
 
   const run = async (op: Op) => {
@@ -156,7 +156,7 @@ export function RowItem({
               <ActionButton
                 icon="edit"
                 label="Edit feedback"
-                onClick={() => onEditPoint(pointNumber)}
+                onClick={() => onEditFeedback(feedbackNumber)}
               />
             )}
             {reviewing && <ActionButton icon="validate" label="Validate" onClick={validate} />}
@@ -241,7 +241,7 @@ export function RowItem({
         <ul className="dr-files" aria-label="Attachments">
           {row.attachments.map((a) => (
             <li key={a.path} className="dr-file">
-              <a href={fileUrl(topic, a.path)} target="_blank" rel="noreferrer">
+              <a href={fileUrl(review, a.path)} target="_blank" rel="noreferrer">
                 📎 {a.name}
               </a>
             </li>
@@ -252,12 +252,12 @@ export function RowItem({
       {shotOpen && owner?.pin.screenshot && (
         <a
           className="dr-shot"
-          href={fileUrl(topic, owner.pin.screenshot)}
+          href={fileUrl(review, owner.pin.screenshot)}
           target="_blank"
           rel="noreferrer"
           title="Open full size"
         >
-          <img src={fileUrl(topic, owner.pin.screenshot)} alt={`Screenshot of ${owner.rowId}`} />
+          <img src={fileUrl(review, owner.pin.screenshot)} alt={`Screenshot of ${owner.rowId}`} />
         </a>
       )}
 

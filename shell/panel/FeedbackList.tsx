@@ -5,13 +5,13 @@ import type { FlatRow, PinTarget } from "./listModel.ts"
 import { pinRecordPath } from "./listModel.ts"
 import { isTyping, RowItem } from "./RowItem.tsx"
 
-type PointListProps = {
+type FeedbackListProps = {
   rows: FlatRow[]
-  topic: string
+  review: string
   records: Record<string, PinRecord | null>
   onLoadRecord(path: string): Promise<PinRecord | null>
   onOp(rowId: string, op: Op): Promise<boolean>
-  onEditPoint(n: number): void
+  onEditFeedback(n: number): void
   onGoToPin(rowId: string, target: PinTarget): void
   onRestoreState(rowId: string, target: PinTarget): void
   onOpenSource(rowId: string, target: PinTarget): void
@@ -20,7 +20,7 @@ type PointListProps = {
 
 // The flat rows as one list; ↑/↓ move focus between rows, from a row or
 // from any button inside one.
-export function PointList({ rows, records, onLoadRecord, onOp, ...rest }: PointListProps) {
+export function FeedbackList({ rows, records, onLoadRecord, onOp, ...rest }: FeedbackListProps) {
   const byId = new Map(rows.map((r) => [r.rowId, r]))
 
   const onKeyDown = (e: ReactKeyboardEvent<HTMLUListElement>) => {

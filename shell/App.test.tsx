@@ -23,7 +23,7 @@ function json(data: unknown) {
 beforeEach(() => {
   localStorage.clear()
   localStorage.setItem("design-review:mode", "on")
-  localStorage.setItem("design-review:topic", "08.4")
+  localStorage.setItem("design-review:review", "08.4")
   vi.stubGlobal("EventSource", FakeEventSource)
   vi.stubGlobal(
     "ResizeObserver",
@@ -35,8 +35,8 @@ beforeEach(() => {
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string) => {
-      if (url === "/__review/api/topics") return json(["08.4"])
-      return json({ meta: { nextPoint: 1 }, points: [] })
+      if (url === "/__review/api/reviews") return json(["08.4"])
+      return json({ meta: { nextFeedback: 1 }, feedbacks: [] })
     })
   )
   host = document.createElement("div")
@@ -114,7 +114,7 @@ async function pick(el: Element) {
 const pins = () => [...host.querySelectorAll(".dr-drawer .dr-pin")].map((p) => p.textContent)
 
 describe("Pin & add", () => {
-  it("⌃P picks, and the click opens a new point whose title row is pinned", async () => {
+  it("⌃P picks, and the click opens a new feedback whose title row is pinned", async () => {
     await act(async () => root.render(<App />))
     await ctrlP()
     expect(host.querySelector(".dr-picker-hint")).not.toBeNull()

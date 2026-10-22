@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest"
-import { parsePoint } from "../../model/markdown.ts"
+import { parseFeedback } from "../../model/markdown.ts"
 import {
   appendCaptured,
   appendChild,
   buildCreate,
   buildOps,
-  fromPoint,
+  fromFeedback,
   indent,
   insertSiblingAfter,
   newDraft,
@@ -85,7 +85,7 @@ describe("outline edits", () => {
     })
   })
 
-  it("Enter adds a sibling below, and on the title the first sub-point", () => {
+  it("Enter adds a sibling below, and on the title the first row", () => {
     const a = node("a")
     const tree = node("title", [a, node("b")])
     const next = insertSiblingAfter(tree, a.id)
@@ -94,7 +94,7 @@ describe("outline edits", () => {
   })
 
   it("new rows never land between saved rows (they are appended on save)", () => {
-    const tree = fromPoint(parsePoint(POINT))
+    const tree = fromFeedback(parseFeedback(POINT))
     const a = tree.children[0]
     const next = insertSiblingAfter(tree, a.id)
     expect(next.children.map((c) => c.text)).toEqual([
@@ -154,9 +154,9 @@ describe("saving", () => {
     const payload = buildCreate(tree)
     expect(payload.pin).toEqual({ path: "/x", screenshot: "" })
     expect(payload.assets.map((a) => `${a.rowId} ${a.name}`)).toEqual([
-      "$point pin.png",
-      "$point pin.json",
-      "$point state.json",
+      "$feedback pin.png",
+      "$feedback pin.json",
+      "$feedback state.json",
     ])
     expect(atob(payload.assets[2].dataBase64)).toBe("{}")
   })
@@ -167,10 +167,10 @@ describe("saving", () => {
       record: { version: 1 as const, at: "t", steps: [] },
       state: "{}",
     }
-    const point = parsePoint(POINT)
-    const { tree, id } = appendCaptured(fromPoint(point), capture)
+    const feedback = parseFeedback(POINT)
+    const { tree, id } = appendCaptured(fromFeedback(feedback), capture)
     expect(tree.children.at(-1)).toMatchObject({ id, text: "", capture, pin: { path: "/y" } })
-    const added = buildOps(point, updateNode(tree, id, { text: "New" })).at(-1)!
+    const added = buildOps(feedback, updateNode(tree, id, { text: "New" })).at(-1)!
     expect(added.op).toEqual({
       kind: "addChild",
       rowId: "5",
@@ -183,7 +183,7 @@ describe("saving", () => {
   })
 
   it("marks saved rows with a Claude note or a non-open status read-only", () => {
-    const tree = fromPoint(parsePoint(POINT))
+    const tree = fromFeedback(parseFeedback(POINT))
     expect(tree.savedRowId).toBe("5")
     expect(tree.children.map((c) => [c.savedRowId, c.locked])).toEqual([
       ["5.a", true],
@@ -192,9 +192,9 @@ describe("saving", () => {
     ])
   })
 
-  it("turns edits on a saved point into ops", () => {
-    const point = parsePoint(POINT)
-    let tree = fromPoint(point)
+  it("turns edits on a saved feedback into ops", () => {
+    const feedback = parseFeedback(POINT)
+    let tree = fromFeedback(feedback)
     const [a, , c] = tree.children
     tree = remove(tree, a.id)
     tree = updateNode(tree, c.id, { text: "Search field is off" })
@@ -207,7 +207,7 @@ describe("saving", () => {
     tree = updateNode(tree, tree.children[1].children[0].id, {
       files: [{ name: "note.txt", dataBase64: "DDD" }],
     })
-    expect(buildOps(point, tree)).toEqual([
+    expect(buildOps(feedback, tree)).toEqual([
       {
         op: { kind: "deleteRow", rowId: "5.a" },
         assets: [{ rowId: "5.c.1", name: "note.txt", dataBase64: "DDD" }],
@@ -220,18 +220,18 @@ describe("saving", () => {
     ])
   })
 
-  it("carries files on an otherwise unchanged point with a no-op pin write", () => {
-    const point = parsePoint(POINT)
-    let tree = fromPoint(point)
+  it("carries files on an otherwise unchanged feedback with a no-op pin write", () => {
+    const feedback = parseFeedback(POINT)
+    let tree = fromFeedback(feedback)
     tree = updateNode(tree, tree.children[0].id, {
       files: [{ name: "a.png", dataBase64: "EEE" }],
     })
-    expect(buildOps(point, tree)).toEqual([
+    expect(buildOps(feedback, tree)).toEqual([
       {
         op: { kind: "setPin", rowId: "5.a", pin: undefined },
         assets: [{ rowId: "5.a", name: "a.png", dataBase64: "EEE" }],
       },
     ])
-    expect(buildOps(point, fromPoint(point))).toEqual([])
+    expect(buildOps(feedback, fromFeedback(feedback))).toEqual([])
   })
 })

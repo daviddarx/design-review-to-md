@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { parsePoint, serializePoint } from "./markdown.ts"
+import { parseFeedback, serializeFeedback } from "./markdown.ts"
 
 const SPEC = `# 5. Main navigation
 
@@ -16,7 +16,7 @@ const SPEC = `# 5. Main navigation
 
 describe("markdown", () => {
   it("parses the spec example", () => {
-    const p = parsePoint(SPEC)
+    const p = parseFeedback(SPEC)
     expect(p.number).toBe(5)
     expect(p.title).toBe("Main navigation")
     expect(p.pin).toEqual({
@@ -33,18 +33,18 @@ describe("markdown", () => {
   })
 
   it("round-trips the spec example byte-for-byte", () => {
-    expect(serializePoint(parsePoint(SPEC))).toBe(SPEC)
+    expect(serializeFeedback(parseFeedback(SPEC))).toBe(SPEC)
   })
 
   it("a row without a tag reads as open", () => {
     const md = "# 1. T\n\n- a. plain\n"
-    const p = parsePoint(md)
+    const p = parseFeedback(md)
     expect(p.rows[0].status).toBe("open")
-    expect(serializePoint(p)).toBe("# 1. T\n\n- a. plain `open`\n")
+    expect(serializeFeedback(p)).toBe("# 1. T\n\n- a. plain `open`\n")
   })
 
   it("a trailing backticked non-status word stays in the text", () => {
-    const p = parsePoint("# 1. T\n\n- a. Use `font-semibold`\n")
+    const p = parseFeedback("# 1. T\n\n- a. Use `font-semibold`\n")
     expect(p.rows[0].text).toBe("Use `font-semibold`")
     expect(p.rows[0].status).toBe("open")
   })
@@ -59,13 +59,13 @@ A note before the rows.
   A free paragraph under b.
 - c. three \`done\`
 `
-    const p = parsePoint(md)
+    const p = parseFeedback(md)
     expect(p.preamble).toEqual(["A note before the rows."])
     expect(p.rows[1].extra).toEqual(["  A free paragraph under b."])
-    expect(serializePoint(p)).toBe(md)
+    expect(serializeFeedback(p)).toBe(md)
   })
 
-  it("sub-sub-points", () => {
+  it("sub-sub-feedbacks", () => {
     const md = `# 1. T
 
 - a. one \`open\`
@@ -74,10 +74,10 @@ A note before the rows.
   - 2. inner two \`review\`
 - c. three \`done\`
 `
-    const p = parsePoint(md)
+    const p = parseFeedback(md)
     expect(p.rows[1].children[0].label).toBe("1")
     expect(p.rows[1].children[1].status).toBe("review")
-    expect(serializePoint(p)).toBe(md)
+    expect(serializeFeedback(p)).toBe(md)
   })
 
   it("a pin without a screenshot round-trips", () => {
@@ -88,18 +88,18 @@ A note before the rows.
 - a. one \`open\`
   📍 (review tool)
 `
-    const p = parsePoint(md)
+    const p = parseFeedback(md)
     expect(p.pin).toEqual({ path: "/concept-08-4/tickets" })
     expect(p.rows[0].pin).toEqual({ path: "(review tool)" })
-    expect(serializePoint(p)).toBe(md)
+    expect(serializeFeedback(p)).toBe(md)
   })
   it("a trailing space after a status tag neither reopens the row nor doubles the tag", () => {
-    const p = parsePoint("# 1. T `review` \n\n- a. foo `done` \n  - Claude: fixed \n")
+    const p = parseFeedback("# 1. T `review` \n\n- a. foo `done` \n  - Claude: fixed \n")
     expect(p.status).toBe("review")
     expect(p.rows[0].text).toBe("foo")
     expect(p.rows[0].status).toBe("done")
     expect(p.rows[0].history).toEqual([{ kind: "claude", text: "fixed" }])
-    expect(serializePoint(p)).toBe("# 1. T `review`\n\n- a. foo `done`\n  - Claude: fixed\n")
+    expect(serializeFeedback(p)).toBe("# 1. T `review`\n\n- a. foo `done`\n  - Claude: fixed\n")
   })
 
   it("a CRLF file parses like its LF twin", () => {
@@ -113,7 +113,7 @@ A note before the rows.
   - 1. inner \`review\`
 `
     const crlf = md.replace(/\n/g, "\r\n")
-    expect(parsePoint(crlf)).toEqual(parsePoint(md))
-    expect(serializePoint(parsePoint(crlf))).toBe(md)
+    expect(parseFeedback(crlf)).toEqual(parseFeedback(md))
+    expect(serializeFeedback(parseFeedback(crlf))).toBe(md)
   })
 })

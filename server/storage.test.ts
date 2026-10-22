@@ -21,87 +21,89 @@ type D = { text: string; children: D[] }
 const row = (text: string, children: D[] = []): D => ({ text, children })
 const pin = { path: "Home > Nav", screenshot: "x" }
 
-describe("topics", () => {
-  it("rejects unsafe topic names", async () => {
+describe("reviews", () => {
+  it("rejects unsafe review names", async () => {
     for (const bad of ["../x", "a/b", "  ", ".."]) {
-      await expect(storage.createTopic(bad)).rejects.toMatchObject({
+      await expect(storage.createReview(bad)).rejects.toMatchObject({
         name: "StorageError",
         status: 400,
       })
     }
-    await expect(storage.createTopic("../x")).rejects.toBeInstanceOf(StorageError)
+    await expect(storage.createReview("../x")).rejects.toBeInstanceOf(StorageError)
   })
 
   it("returns the sanitized name it created", async () => {
-    expect(await storage.createTopic("  my topic ")).toBe("my-topic")
+    expect(await storage.createReview("  my review ")).toBe("my-review")
     expect(storage.root).toBe(path.resolve(root))
   })
 
   it("turns spaces into dashes and lists sorted", async () => {
-    await storage.createTopic("b topic")
-    await storage.createTopic("a")
-    expect(await storage.listTopics()).toEqual(["a", "b-topic"])
-    expect((await storage.readTopic("a")).meta).toEqual({ nextPoint: 1 })
+    await storage.createReview("b review")
+    await storage.createReview("a")
+    expect(await storage.listReviews()).toEqual(["a", "b-review"])
+    expect((await storage.readReview("a")).meta).toEqual({ nextFeedback: 1 })
     expect(await fs.readdir(path.join(root, "a"))).toEqual([])
   })
 
-  it("a missing topic folder reads as an empty topic, and its first point creates it", async () => {
-    expect(await storage.readTopic("gone")).toEqual({ meta: { nextPoint: 1 }, points: [] })
-    expect((await storage.createPoint("gone", "First", [], undefined, [])).number).toBe(1)
+  it("a missing review folder reads as an empty review, and its first feedback creates it", async () => {
+    expect(await storage.readReview("gone")).toEqual({ meta: { nextFeedback: 1 }, feedbacks: [] })
+    expect((await storage.createFeedback("gone", "First", [], undefined, [])).number).toBe(1)
     expect(existsSync(path.join(root, "gone", "01-first.md"))).toBe(true)
   })
 })
 
-describe("points", () => {
-  it("the next number is one past the highest point file, gaps included", async () => {
-    await storage.createTopic("t")
-    for (let i = 0; i < 3; i++) await storage.createPoint("t", `P${i}`, [], undefined, [])
-    await storage.deletePoint("t", 2)
-    expect((await storage.createPoint("t", "Next", [], undefined, [])).number).toBe(4)
+describe("feedbacks", () => {
+  it("the next number is one past the highest feedback file, gaps included", async () => {
+    await storage.createReview("t")
+    for (let i = 0; i < 3; i++) await storage.createFeedback("t", `P${i}`, [], undefined, [])
+    await storage.deleteFeedback("t", 2)
+    expect((await storage.createFeedback("t", "Next", [], undefined, [])).number).toBe(4)
     // Deleting the highest frees its number.
-    await storage.deletePoint("t", 4)
-    expect((await storage.readTopic("t")).meta).toEqual({ nextPoint: 4 })
-    expect(existsSync(path.join(root, "t", "topic.json"))).toBe(false)
+    await storage.deleteFeedback("t", 4)
+    expect((await storage.readReview("t")).meta).toEqual({ nextFeedback: 4 })
+    expect(existsSync(path.join(root, "t", "review.json"))).toBe(false)
   })
 
   it("a broken first line takes its number from the file name", async () => {
-    await storage.createTopic("t")
-    await storage.createPoint("t", "Nav", [row("one")], undefined, [])
+    await storage.createReview("t")
+    await storage.createFeedback("t", "Nav", [row("one")], undefined, [])
     const file = path.join(root, "t", "01-nav.md")
     const md = await fs.readFile(file, "utf8")
     await fs.writeFile(file, md.replace("# 1. Nav", "#1 Nav"))
-    const [{ point }] = (await storage.readTopic("t")).points
-    expect(point.number).toBe(1)
+    const [{ feedback }] = (await storage.readReview("t")).feedbacks
+    expect(feedback.number).toBe(1)
     await storage.applyOp("t", 1, { kind: "editText", rowId: "1.a", text: "uno" }, [])
     expect(await fs.readFile(file, "utf8")).toContain("- a. uno `open`")
   })
 
   it("refuses an attachment spelled like a pin file in another case", async () => {
-    await storage.createTopic("t")
+    await storage.createReview("t")
     for (const name of ["PIN.png", "Pin.Json", "STATE.JSON"]) {
       await expect(
-        storage.createPoint("t", "Nav", [], undefined, [{ rowId: "$point", name, dataBase64: PNG }])
+        storage.createFeedback("t", "Nav", [], undefined, [
+          { rowId: "$feedback", name, dataBase64: PNG },
+        ])
       ).rejects.toMatchObject({ status: 400 })
     }
     // the picker's own names still go through
-    await storage.createPoint("t", "Nav", [], { path: "/a" }, [
-      { rowId: "$point", name: "pin.png", dataBase64: PNG },
-      { rowId: "$point", name: "pin.json", dataBase64: PNG },
-      { rowId: "$point", name: "state.json", dataBase64: PNG },
+    await storage.createFeedback("t", "Nav", [], { path: "/a" }, [
+      { rowId: "$feedback", name: "pin.png", dataBase64: PNG },
+      { rowId: "$feedback", name: "pin.json", dataBase64: PNG },
+      { rowId: "$feedback", name: "state.json", dataBase64: PNG },
     ])
     expect(existsSync(path.join(root, "t", "01-nav", "1-state.json"))).toBe(true)
   })
 
-  it("createPoint writes the file and assets", async () => {
-    await storage.createTopic("t")
+  it("createFeedback writes the file and assets", async () => {
+    await storage.createReview("t")
     await fs.writeFile(path.join(root, "t", "04-earlier.md"), "# 4. Earlier\n")
-    const res = await storage.createPoint(
+    const res = await storage.createFeedback(
       "t",
       "Main navigation",
       [row("first", [row("sub")]), row("second")],
       pin,
       [
-        { rowId: "$point", name: "pin.png", dataBase64: PNG },
+        { rowId: "$feedback", name: "pin.png", dataBase64: PNG },
         { rowId: "$0.0", name: "pin.png", dataBase64: PNG },
         { rowId: "$1", name: "shot.png", dataBase64: PNG },
       ]
@@ -114,26 +116,26 @@ describe("points", () => {
     const md = await fs.readFile(path.join(dir, "05-main-navigation.md"), "utf8")
     expect(md).toContain("# 5. Main navigation")
     expect(md).toContain("📍 Home > Nav — ![](05-main-navigation/5-pin.png)")
-    const topic = await storage.readTopic("t")
-    expect(topic.points[1].point.rows[0].children[0].text).toBe("sub")
-    expect(topic.meta.nextPoint).toBe(6)
+    const review = await storage.readReview("t")
+    expect(review.feedbacks[1].feedback.rows[0].children[0].text).toBe("sub")
+    expect(review.meta.nextFeedback).toBe(6)
   })
 
   it("creates no asset folder without assets", async () => {
-    await storage.createTopic("t")
-    await storage.createPoint("t", "Plain", [], undefined, [])
+    await storage.createReview("t")
+    await storage.createFeedback("t", "Plain", [], undefined, [])
     expect(existsSync(path.join(root, "t", "01-plain"))).toBe(false)
   })
 
   it("rejects bad asset names and unknown ids", async () => {
-    await storage.createTopic("t")
+    await storage.createReview("t")
     for (const asset of [
-      { rowId: "$point", name: "../evil.png", dataBase64: PNG },
-      { rowId: "$point", name: "a/b.png", dataBase64: PNG },
+      { rowId: "$feedback", name: "../evil.png", dataBase64: PNG },
+      { rowId: "$feedback", name: "a/b.png", dataBase64: PNG },
       { rowId: "$9", name: "x.png", dataBase64: PNG },
       { rowId: "7.a", name: "x.png", dataBase64: PNG },
     ]) {
-      await expect(storage.createPoint("t", "T", [], undefined, [asset])).rejects.toMatchObject({
+      await expect(storage.createFeedback("t", "T", [], undefined, [asset])).rejects.toMatchObject({
         status: 400,
       })
     }
@@ -142,8 +144,8 @@ describe("points", () => {
 
 describe("applyOp", () => {
   it("reads the file fresh", async () => {
-    await storage.createTopic("t")
-    await storage.createPoint("t", "Nav", [row("one")], undefined, [])
+    await storage.createReview("t")
+    await storage.createFeedback("t", "Nav", [row("one")], undefined, [])
     const file = path.join(root, "t", "01-nav.md")
     const md = await fs.readFile(file, "utf8")
     await fs.writeFile(file, md.replace("`open`\n", "`open`\n  - Claude: tried it\n"))
@@ -154,8 +156,8 @@ describe("applyOp", () => {
   })
 
   it("maps OpError to status codes", async () => {
-    await storage.createTopic("t")
-    await storage.createPoint("t", "Nav", [row("one")], undefined, [])
+    await storage.createReview("t")
+    await storage.createFeedback("t", "Nav", [row("one")], undefined, [])
     await expect(
       storage.applyOp("t", 1, { kind: "setStatus", rowId: "1.z", status: "done" }, [])
     ).rejects.toMatchObject({ status: 404 })
@@ -169,8 +171,8 @@ describe("applyOp", () => {
   })
 
   it("addChild maps draft-relative asset ids", async () => {
-    await storage.createTopic("t")
-    await storage.createPoint("t", "Nav", [row("one")], undefined, [])
+    await storage.createReview("t")
+    await storage.createFeedback("t", "Nav", [row("one")], undefined, [])
     const res = await storage.applyOp(
       "t",
       1,
@@ -186,9 +188,9 @@ describe("applyOp", () => {
   })
 
   it("a re-pin without a picture writes a bare pin line and drops the old png", async () => {
-    await storage.createTopic("t")
-    await storage.createPoint("t", "Nav", [], { path: "/a" }, [
-      { rowId: "$point", name: "pin.png", dataBase64: PNG },
+    await storage.createReview("t")
+    await storage.createFeedback("t", "Nav", [], { path: "/a" }, [
+      { rowId: "$feedback", name: "pin.png", dataBase64: PNG },
     ])
     expect(await fs.readFile(path.join(root, "t", "01-nav.md"), "utf8")).toContain(
       "📍 /a — ![](01-nav/1-pin.png)"
@@ -203,9 +205,9 @@ describe("applyOp", () => {
   })
 
   it("links every attachment under its row, and the link round-trips", async () => {
-    await storage.createTopic("t")
-    await storage.createPoint("t", "Nav", [row("one", [row("kid")]), row("two")], undefined, [
-      { rowId: "$point", name: "overview.pdf", dataBase64: PNG },
+    await storage.createReview("t")
+    await storage.createFeedback("t", "Nav", [row("one", [row("kid")]), row("two")], undefined, [
+      { rowId: "$feedback", name: "overview.pdf", dataBase64: PNG },
       { rowId: "$0", name: "pin.png", dataBase64: PNG },
       { rowId: "$0", name: "pin.json", dataBase64: PNG },
       { rowId: "$0", name: "state.json", dataBase64: PNG },
@@ -234,18 +236,18 @@ describe("applyOp", () => {
       { rowId: "1.b", name: "ref.png", dataBase64: PNG },
       { rowId: "1.b", name: "more.txt", dataBase64: PNG },
     ])
-    const [{ point }] = (await storage.readTopic("t")).points
-    expect(point.rows[1].text).toBe("two!")
-    expect(point.rows[1].extra).toEqual([
+    const [{ feedback }] = (await storage.readReview("t")).feedbacks
+    expect(feedback.rows[1].text).toBe("two!")
+    expect(feedback.rows[1].extra).toEqual([
       "  📎 [1.b-ref.png](01-nav/1.b-ref.png)",
       "  📎 [1.b-more.txt](01-nav/1.b-more.txt)",
     ])
-    expect(point.preamble).toEqual(["📎 [1-overview.pdf](01-nav/1-overview.pdf)"])
+    expect(feedback.preamble).toEqual(["📎 [1-overview.pdf](01-nav/1-overview.pdf)"])
   })
 
   it("links an attachment of a row added with addChild", async () => {
-    await storage.createTopic("t")
-    await storage.createPoint("t", "Nav", [row("one")], undefined, [])
+    await storage.createReview("t")
+    await storage.createFeedback("t", "Nav", [row("one")], undefined, [])
     await storage.applyOp("t", 1, { kind: "addChild", rowId: "1.a", row: row("kid") }, [
       { rowId: "$0", name: "a.png", dataBase64: PNG },
     ])
@@ -254,8 +256,8 @@ describe("applyOp", () => {
   })
 
   it("deleteRow removes the row's assets", async () => {
-    await storage.createTopic("t")
-    await storage.createPoint("t", "Nav", [row("one"), row("two")], undefined, [
+    await storage.createReview("t")
+    await storage.createFeedback("t", "Nav", [row("one"), row("two")], undefined, [
       { rowId: "$0", name: "pin.png", dataBase64: PNG },
       { rowId: "$1", name: "pin.png", dataBase64: PNG },
     ])
@@ -266,26 +268,26 @@ describe("applyOp", () => {
   })
 
   it("keeps the file name when the title is refined", async () => {
-    await storage.createTopic("t")
-    await storage.createPoint("t", "Nav", [], undefined, [])
+    await storage.createReview("t")
+    await storage.createFeedback("t", "Nav", [], undefined, [])
     await storage.applyOp("t", 1, { kind: "refine", rowId: "1", text: "Menu" }, [])
     expect(existsSync(path.join(root, "t", "01-nav.md"))).toBe(true)
-    expect((await storage.readTopic("t")).points[0].point.title).toBe("Menu")
+    expect((await storage.readReview("t")).feedbacks[0].feedback.title).toBe("Menu")
   })
 
-  it("deletePoint removes the file and the asset folder", async () => {
-    await storage.createTopic("t")
-    await storage.createPoint("t", "Nav", [], undefined, [
-      { rowId: "$point", name: "pin.png", dataBase64: PNG },
+  it("deleteFeedback removes the file and the asset folder", async () => {
+    await storage.createReview("t")
+    await storage.createFeedback("t", "Nav", [], undefined, [
+      { rowId: "$feedback", name: "pin.png", dataBase64: PNG },
     ])
-    await storage.deletePoint("t", 1)
+    await storage.deleteFeedback("t", 1)
     expect(existsSync(path.join(root, "t", "01-nav.md"))).toBe(false)
     expect(existsSync(path.join(root, "t", "01-nav"))).toBe(false)
   })
 })
 
 describe("assetPath", () => {
-  it("stays inside the topic folder", () => {
+  it("stays inside the review folder", () => {
     expect(storage.assetPath("t", "01-nav/1-pin.png")).toBe(
       path.join(root, "t", "01-nav/1-pin.png")
     )

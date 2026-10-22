@@ -5,15 +5,15 @@ import path from "node:path"
 const DEBOUNCE_MS = 100
 const KEEPALIVE_MS = 25_000
 
-// Topic a watched path belongs to (its first segment), or null for a path
+// The review folder a watched path belongs to (its first segment), or null for a path
 // through any dot-file — storage's `.tmp-*` atomic writes, `.DS_Store`.
-export function topicOf(relative: string): string | null {
+export function reviewOf(relative: string): string | null {
   const parts = relative.split(/[\\/]/).filter(Boolean)
   if (!parts.length || parts.some((p) => p.startsWith("."))) return null
   return parts[0]
 }
 
-// SSE change feed: one `data: {"topic": …}` per changed topic, debounced.
+// SSE change feed: one `data: {"review": …}` per changed review, debounced.
 export function createChangeFeed(root: string) {
   const clients = new Set<http.ServerResponse>()
   const pending = new Set<string>()
@@ -21,8 +21,8 @@ export function createChangeFeed(root: string) {
 
   const flush = () => {
     timer = undefined
-    for (const topic of pending) {
-      const msg = `data: ${JSON.stringify({ topic })}\n\n`
+    for (const review of pending) {
+      const msg = `data: ${JSON.stringify({ review })}\n\n`
       for (const res of clients) res.write(msg)
     }
     pending.clear()
@@ -31,12 +31,12 @@ export function createChangeFeed(root: string) {
   let watcher: FSWatcher | undefined
   try {
     watcher = watch(root, { recursive: true }, (_event, filename) => {
-      const topic = filename ? topicOf(filename.toString()) : null
-      if (!topic) return
+      const review = filename ? reviewOf(filename.toString()) : null
+      if (!review) return
       // macOS reports a change to the watched folder itself under its own
-      // basename; that is not a topic unless one really has that name.
-      if (topic === path.basename(root) && !existsSync(path.join(root, topic))) return
-      pending.add(topic)
+      // basename; that is not a review unless one really has that name.
+      if (review === path.basename(root) && !existsSync(path.join(root, review))) return
+      pending.add(review)
       timer ??= setTimeout(flush, DEBOUNCE_MS)
     })
     watcher.on("error", (err) => console.error(`[design-review] watch error: ${err.message}`))

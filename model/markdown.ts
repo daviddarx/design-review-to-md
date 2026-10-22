@@ -1,4 +1,4 @@
-import type { HistoryEntry, PinRef, Point, Row, Status } from "./types.ts"
+import type { HistoryEntry, PinRef, Feedback, Row, Status } from "./types.ts"
 
 const TITLE = /^# (\d+)\. (.*?)(?: `(open|review|done)`)?$/
 const ROW = /^(\s*)- ([a-z]+|\d+)\. (.*?)(?: `(open|review|done)`)?$/
@@ -7,11 +7,11 @@ const PIN = /^(\s*)📍 (.*?)(?: — !\[\]\((.*)\))?$/
 
 type Open = { row: Row; indent: number }
 
-export function parsePoint(source: string): Point {
+export function parseFeedback(source: string): Feedback {
   // A CRLF checkout reads like its LF twin.
   const md = source.replace(/\r\n/g, "\n")
   const lines = (md.endsWith("\n") ? md.slice(0, -1) : md).split("\n")
-  const point: Point = {
+  const feedback: Feedback = {
     number: 0,
     title: "",
     history: [],
@@ -21,9 +21,9 @@ export function parsePoint(source: string): Point {
   let i = 0
   const title = TITLE.exec((lines[0] ?? "").trimEnd())
   if (title) {
-    point.number = Number(title[1])
-    point.title = title[2]
-    if (title[3]) point.status = title[3] as Status
+    feedback.number = Number(title[1])
+    feedback.title = title[2]
+    if (title[3]) feedback.status = title[3] as Status
     i = 1
   }
 
@@ -59,7 +59,7 @@ export function parsePoint(source: string): Point {
       }
       const parent = stack[stack.length - 1]?.row
       if (parent) parent.children.push(made)
-      else point.rows.push(made)
+      else feedback.rows.push(made)
       stack.push({ row: made, indent })
       continue
     }
@@ -69,14 +69,14 @@ export function parsePoint(source: string): Point {
     if (pin) {
       const ref: PinRef = pin[3] ? { path: pin[2], screenshot: pin[3] } : { path: pin[2] }
       if (owner) owner.pin = ref
-      else point.pin = ref
+      else feedback.pin = ref
     } else if (history) {
       const entry: HistoryEntry = {
         kind: history[2] === "Before" ? "before" : "claude",
         text: history[3],
       }
       if (owner) owner.history.push(entry)
-      else point.history.push(entry)
+      else feedback.history.push(entry)
     } else if (owner) {
       owner.extra.push(lines[i])
     } else {
@@ -87,8 +87,8 @@ export function parsePoint(source: string): Point {
   // Blank lines around the header are canonical spacing, not content.
   while (header.length && header[0] === "") header.shift()
   while (header.length && header[header.length - 1] === "") header.pop()
-  point.preamble = header
-  return point
+  feedback.preamble = header
+  return feedback
 }
 
 function pinLine(pin: PinRef, indent: string): string {
@@ -110,7 +110,7 @@ function rowLines(row: Row, depth: number): string[] {
   return out
 }
 
-export function serializePoint(p: Point): string {
+export function serializeFeedback(p: Feedback): string {
   const out = [`# ${p.number}. ${p.title}${p.status ? ` \`${p.status}\`` : ""}`]
   const meta: string[] = []
   if (p.pin) meta.push(pinLine(p.pin, ""))

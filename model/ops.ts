@@ -1,5 +1,5 @@
 import { nextLabel } from "./labels.ts"
-import type { PinRef, Point, Row, Status } from "./types.ts"
+import type { PinRef, Feedback, Row, Status } from "./types.ts"
 
 export type DraftRow = { text: string; pin?: PinRef; children: DraftRow[] }
 export type Op =
@@ -10,7 +10,7 @@ export type Op =
   | { kind: "setPin"; rowId: string; pin: PinRef | undefined }
   | { kind: "deleteRow"; rowId: string }
 export type OpResult = {
-  point: Point
+  feedback: Feedback
   retired: string[]
   addedRowIds: string[]
   deletedRowIds: string[]
@@ -25,14 +25,14 @@ export class OpError extends Error {
   }
 }
 
-// Resolves "5.b.1" to the chain of rows below the point; [] is the point itself.
-function resolve(point: Point, rowId: string): Row[] {
+// Resolves "5.b.1" to the chain of rows below the feedback; [] is the feedback itself.
+function resolve(feedback: Feedback, rowId: string): Row[] {
   const [num, ...path] = rowId.split(".")
-  if (Number(num) !== point.number || path.length > 2) {
+  if (Number(num) !== feedback.number || path.length > 2) {
     throw new OpError("not-found", `No row ${rowId}`)
   }
   const chain: Row[] = []
-  let level = point.rows
+  let level = feedback.rows
   for (const label of path) {
     const row = level.find((r) => r.label === label)
     if (!row) throw new OpError("not-found", `No row ${rowId}`)
@@ -42,8 +42,8 @@ function resolve(point: Point, rowId: string): Row[] {
   return chain
 }
 
-function target(point: Point, rowId: string): Row {
-  const row = resolve(point, rowId).at(-1)
+function target(feedback: Feedback, rowId: string): Row {
+  const row = resolve(feedback, rowId).at(-1)
   if (!row) throw new OpError("not-found", `${rowId} is a feedback title, not a row`)
   return row
 }
@@ -96,10 +96,10 @@ function append(
   }
 }
 
-export function applyOp(point: Point, op: Op, retired: string[]): OpResult {
-  const next = structuredClone(point)
+export function applyOp(feedback: Feedback, op: Op, retired: string[]): OpResult {
+  const next = structuredClone(feedback)
   const result: OpResult = {
-    point: next,
+    feedback: next,
     retired: [...retired],
     addedRowIds: [],
     deletedRowIds: [],
@@ -166,13 +166,13 @@ export function applyOp(point: Point, op: Op, retired: string[]): OpResult {
   return result
 }
 
-export function newPoint(
+export function newFeedback(
   number: number,
   title: string,
   rows: DraftRow[],
   pin?: PinRef
-): { point: Point; rowIds: string[] } {
-  const point: Point = {
+): { feedback: Feedback; rowIds: string[] } {
+  const feedback: Feedback = {
     number,
     title,
     ...(pin ? { pin } : {}),
@@ -181,9 +181,9 @@ export function newPoint(
     rows: [],
   }
   const rowIds: string[] = []
-  append(point.rows, rows, String(number), 1, [], rowIds)
+  append(feedback.rows, rows, String(number), 1, [], rowIds)
   // A feedback that is only a title is itself the thing to do: it carries
   // the tag, so it counts, filters and reaches Claude like a row.
-  if (point.rows.length === 0) point.status = "open"
-  return { point, rowIds }
+  if (feedback.rows.length === 0) feedback.status = "open"
+  return { feedback, rowIds }
 }

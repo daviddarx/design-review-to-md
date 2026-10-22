@@ -66,7 +66,7 @@ function decode(segment: string): string {
   }
 }
 
-function pointNumber(segment: string): number {
+function feedbackNumber(segment: string): number {
   if (!/^\d+$/.test(segment)) throw new HttpError(400, "Invalid feedback number")
   return Number(segment)
 }
@@ -98,7 +98,7 @@ export async function handleApi(
   const { storage } = ctx
   const method = req.method ?? "GET"
   if (method !== "GET") guardWrite(req)
-  const [head, rawTopic, sub, rawN, tail] = parts
+  const [head, rawReview, sub, rawN, tail] = parts
 
   // The shell strips it from a source map's absolute `file://` paths to
   // record a pin's source repo-relative.
@@ -110,33 +110,33 @@ export async function handleApi(
     openEditor(ctx.repoRoot, body.file, body.line)
     return sendJson(res, 200, { ok: true })
   }
-  if (head !== "topics") throw new HttpError(404, "Not found")
+  if (head !== "reviews") throw new HttpError(404, "Not found")
 
   if (parts.length === 1) {
-    if (method === "GET") return sendJson(res, 200, await storage.listTopics())
+    if (method === "GET") return sendJson(res, 200, await storage.listReviews())
     if (method === "POST") {
       const { name } = await readJson(req)
       if (typeof name !== "string") throw new HttpError(400, "name must be a string")
-      return sendJson(res, 200, { name: await storage.createTopic(name) })
+      return sendJson(res, 200, { name: await storage.createReview(name) })
     }
   }
-  const topic = rawTopic === undefined ? "" : decode(rawTopic)
+  const review = rawReview === undefined ? "" : decode(rawReview)
 
   if (parts.length === 2 && method === "GET") {
-    const { meta, points } = await storage.readTopic(topic)
+    const { meta, feedbacks } = await storage.readReview(review)
     // `folder` lets the shell find a pin's record and state when the pin
     // line has no screenshot to derive it from.
     return sendJson(res, 200, {
       meta,
-      points: points.map((p) => ({ ...p.point, folder: p.file.replace(/\.md$/, "") })),
+      feedbacks: feedbacks.map((p) => ({ ...p.feedback, folder: p.file.replace(/\.md$/, "") })),
     })
   }
-  if (sub === "points") {
+  if (sub === "feedbacks") {
     if (parts.length === 3 && method === "POST") {
       const body = await readJson(req)
       if (typeof body.title !== "string") throw new HttpError(400, "title must be a string")
-      const result = await storage.createPoint(
-        topic,
+      const result = await storage.createFeedback(
+        review,
         body.title,
         arrayOf(body.rows, "rows"),
         (body.pin ?? undefined) as never,
@@ -145,11 +145,11 @@ export async function handleApi(
       return sendJson(res, 200, result)
     }
     if (parts.length === 5 && tail === "ops" && method === "POST") {
-      const n = pointNumber(rawN)
+      const n = feedbackNumber(rawN)
       const body = await readJson(req)
       if (!body.op || typeof body.op !== "object") throw new HttpError(400, "op is required")
       const result = await storage.applyOp(
-        topic,
+        review,
         n,
         body.op as never,
         arrayOf(body.assets, "assets", [])
@@ -157,7 +157,7 @@ export async function handleApi(
       return sendJson(res, 200, result)
     }
     if (parts.length === 4 && method === "DELETE") {
-      await storage.deletePoint(topic, pointNumber(rawN))
+      await storage.deleteFeedback(review, feedbackNumber(rawN))
       return sendJson(res, 200, { ok: true })
     }
   }
@@ -176,12 +176,12 @@ const TYPES: Record<string, string> = {
   ".txt": "text/plain; charset=utf-8",
 }
 
-// /__review/files/:topic/* — a topic asset, confined to the topic folder.
+// /__review/files/:review/* — a review asset, confined to the review folder.
 export async function handleFile(res: http.ServerResponse, parts: string[], ctx: ApiContext) {
-  const [rawTopic, ...rest] = parts
-  if (!rawTopic || !rest.length) throw new HttpError(404, "Not found")
+  const [rawReview, ...rest] = parts
+  if (!rawReview || !rest.length) throw new HttpError(404, "Not found")
   const relative = rest.map(decode).join("/")
-  const file = ctx.storage.assetPath(decode(rawTopic), relative)
+  const file = ctx.storage.assetPath(decode(rawReview), relative)
   let stat
   try {
     stat = await fs.stat(file)
