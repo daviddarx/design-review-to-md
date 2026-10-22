@@ -104,7 +104,6 @@ async function render(extra: Partial<PanelProps> = {}) {
         onNewFeedback={() => {}}
         onEditFeedback={() => {}}
         onTogglePins={() => {}}
-        onRestoreState={() => {}}
         onOpenSource={() => {}}
         onPeekPins={() => {}}
         shownPinsOwner={null}
@@ -188,15 +187,9 @@ describe("Panel", () => {
     await render()
     const labels = (id: string) =>
       [...row(id).querySelectorAll(".dr-action")].map((b) => b.getAttribute("aria-label"))
-    expect(labels("5.a")).toEqual(["Screenshot", "Restore corresponding app state"])
-    expect(labels("5.b")).toEqual(["History", "Screenshot", "Restore corresponding app state"])
-    expect(labels("5.c")).toEqual([
-      "Validate",
-      "Refine",
-      "Show pins",
-      "Screenshot",
-      "Restore corresponding app state",
-    ])
+    expect(labels("5.a")).toEqual(["Screenshot"])
+    expect(labels("5.b")).toEqual(["History", "Screenshot"])
+    expect(labels("5.c")).toEqual(["Validate", "Refine", "Show pins", "Screenshot"])
   })
 
   it("letters typed on a row do nothing", async () => {
@@ -252,10 +245,10 @@ describe("Panel", () => {
     expect(document.querySelector(".dr-flyout")).toBeNull()
   })
 
-  it("Restore asks in a flyout that Esc closes", async () => {
+  it("Esc closes the screenshot flyout", async () => {
     await render()
-    await act(async () => action("5.c", "Restore corresponding app state")!.click())
-    expect(document.querySelector(".dr-flyout.dr-confirm")).not.toBeNull()
+    await act(async () => action("5.c", "Screenshot")!.click())
+    expect(document.querySelector(".dr-flyout.dr-shot")).not.toBeNull()
     await act(async () => {
       document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))
     })
@@ -328,18 +321,6 @@ describe("Panel", () => {
     await act(async () => go.click())
     await act(async () => {})
     expect(host.querySelector(".dr-error")).toBeNull()
-  })
-
-  it("the restore confirm takes Esc from anywhere inside", async () => {
-    await render()
-    const restore = [...row("5.c").querySelectorAll("button")].find(
-      (b) => b.getAttribute("aria-label") === "Restore corresponding app state"
-    )!
-    await act(async () => restore.click())
-    const confirm = row("5.c").querySelector<HTMLElement>(".dr-confirm")!
-    const primary = confirm.querySelector<HTMLElement>(".dr-button-primary")!
-    await act(async () => key(primary, "Escape"))
-    expect(row("5.c").querySelector(".dr-confirm")).toBeNull()
   })
 
   it("a closed drawer slides out before it unmounts, over a fading backdrop", async () => {

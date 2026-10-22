@@ -19,7 +19,6 @@ export type PanelProps = {
   // Show pins / Restore state may answer with a notice for the panel to show
   // (the element is gone, the state file is missing).
   onTogglePins(rowId: string, target: PinTarget): PinAction
-  onRestoreState(rowId: string, target: PinTarget): PinAction
   onOpenSource(rowId: string, target: PinTarget): PinAction
   onPeekPins(ownerRowId: string, records: PinRecord[] | null): void // Show pins hovered, null when it ends
   shownPinsOwner: string | null // the row whose pins Show pins keeps on screen
@@ -68,7 +67,6 @@ export function Panel({
   onNewFeedback,
   onEditFeedback,
   onTogglePins,
-  onRestoreState,
   onOpenSource,
   onPeekPins,
   shownPinsOwner,
@@ -379,7 +377,6 @@ export function Panel({
             onOp={onOp}
             onEditFeedback={onEditFeedback}
             onTogglePins={withNotice(onTogglePins)}
-            onRestoreState={withNotice(onRestoreState)}
             onOpenSource={withNotice(onOpenSource)}
             onPeekPins={onPeekPins}
             shownPinsOwner={shownPinsOwner}

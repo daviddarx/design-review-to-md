@@ -695,17 +695,6 @@ select.dr-review-select {
   box-shadow: 0 8px 24px rgb(15 23 42 / 0.2);
 }
 
-.dr-confirm {
-  display: grid;
-  gap: 8px;
-  padding: 10px 12px;
-}
-
-.dr-confirm-actions {
-  display: flex;
-  gap: 6px;
-}
-
 /* Feedback drawer, as the app's own sheets do it: it slides in from the right
    over a slate backdrop that fades in, and both run backwards on close. The
    layer sits below the resize edge (z-index 2) so the panel stays

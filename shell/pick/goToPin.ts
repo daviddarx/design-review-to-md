@@ -70,55 +70,44 @@ function loaded(frame: HTMLIFrameElement): Promise<void> {
   })
 }
 
-// The app page a pin was made on. A tool pin records "(review tool)" as its
-// path; the shell's own URL, which mirrors the frame's, says where the app was.
-function appPathOf(step: PinStep): string | null {
-  if (!step.inTool) return step.path
+// The app address a pin was made at — path, query and hash, since the app
+// mirrors its open surfaces there (the work panel is `#wp/…`). A tool pin
+// records "(review tool)" as its path; the shell's own URL, which mirrors the
+// frame's, says where the app was (and drops the hash, as before).
+function appUrlOf(step: PinStep): string | null {
   try {
     const url = new URL(step.url)
-    return url.pathname + url.search
+    return url.pathname + url.search + (step.inTool ? "" : url.hash)
   } catch {
-    return null
+    return step.inTool ? null : step.path
   }
 }
 
-// Takes the frame to the pin's page (a real navigation when the path
-// differs), scrolls the element into view and has `flash` outline it. A pin
-// inside the tool's own UI also brings the app back to the page it was on,
-// then outlines the tool element if it is open.
-export async function goToPin(
-  frame: HTMLIFrameElement,
-  record: PinRecord,
-  flash: (el: Element) => void
-): Promise<"found" | "missing"> {
-  const step = record.steps[0]
-  if (!step) return "missing"
+function hereOf(win: Window): string {
+  try {
+    return win.location.pathname + win.location.search + win.location.hash
+  } catch {
+    return "" // a cross-origin page in the frame: navigate away from it
+  }
+}
+
+// Brings the frame to `to`, as a fresh load: a change of hash alone would be
+// a same-page navigation the app may not follow. `force` reloads even when
+// the frame is already there (after a state restore).
+async function arrive(frame: HTMLIFrameElement, win: Window, to: string, force: boolean) {
+  const here = hereOf(win)
+  if (here === to && !force) return
+  const done = loaded(frame)
+  const samePage = here.replace(/#.*$/, "") === to.replace(/#.*$/, "")
+  if (here !== to) win.location.assign(to)
+  if (samePage || here === to) win.location.reload()
+  await done
+}
+
+// The element on the page now, opening the popups it was picked in when
+// they are closed.
+async function locate(frame: HTMLIFrameElement, step: PinStep): Promise<Element | null> {
   const { selector } = step.element
-
-  const win = frame.contentWindow
-  const path = appPathOf(step)
-  if (win && path) {
-    let here = ""
-    try {
-      here = win.location.pathname + win.location.search
-    } catch {
-      // Cross-origin page in the frame: navigate away from it.
-    }
-    if (here !== path) {
-      const done = loaded(frame)
-      win.location.assign(path)
-      await done
-    }
-  }
-
-  if (step.inTool) {
-    const el = query(document, selector)
-    if (!el) return "missing"
-    flash(el)
-    return "found"
-  }
-  if (!win) return "missing"
-
   const doc = () => frame.contentDocument
   const openers = step.openers ?? []
   // The element, or — when it lives in a popup that is closed — its first
@@ -131,8 +120,46 @@ export async function goToPin(
     const target = await openPopups(d, openers, selector)
     el = await waitFor(() => query(d, target))
   }
+  return el
+}
+
+// Takes the frame to the pin's address, opens the popups the element was in,
+// scrolls it into view and has `flash` outline it. Still not there, the app
+// state saved with the pin is put back (`restoreState` writes it and says
+// whether there was one) and the page loaded again: "restored". A pin inside
+// the tool's own UI brings the app back to the page it was on, then outlines
+// the tool element if it is open.
+export async function goToPin(
+  frame: HTMLIFrameElement,
+  record: PinRecord,
+  flash: (el: Element) => void,
+  restoreState: () => Promise<boolean>
+): Promise<"found" | "restored" | "missing"> {
+  const step = record.steps[0]
+  if (!step) return "missing"
+
+  const win = frame.contentWindow
+  const to = appUrlOf(step)
+  if (win && to) await arrive(frame, win, to, false)
+
+  if (step.inTool) {
+    const el = query(document, step.element.selector)
+    if (!el) return "missing"
+    flash(el)
+    return "found"
+  }
+  if (!win || !to) return "missing"
+
+  let el = await locate(frame, step)
+  let result: "found" | "restored" = "found"
+  if (!el) {
+    if (!(await restoreState())) return "missing"
+    await arrive(frame, win, to, true)
+    el = await locate(frame, step)
+    result = "restored"
+  }
   if (!el) return "missing"
   el.scrollIntoView({ block: "center" })
   flash(el)
-  return "found"
+  return result
 }

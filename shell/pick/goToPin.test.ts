@@ -18,6 +18,8 @@ const record = (selector: string, inTool: boolean): PinRecord => ({
   ],
 })
 
+const noState = async () => false
+
 afterEach(() => {
   document.body.innerHTML = ""
 })
@@ -27,15 +29,15 @@ describe("goToPin", () => {
     document.body.innerHTML = `<div class="dr-toolbar"><button data-slot="x">Pin</button></div>`
     const flash = vi.fn()
     const frame = document.createElement("iframe")
-    expect(await goToPin(frame, record('[data-slot="x"]', true), flash)).toBe("found")
+    expect(await goToPin(frame, record('[data-slot="x"]', true), flash, noState)).toBe("found")
     expect(flash).toHaveBeenCalledWith(document.querySelector("button"))
   })
 
   it("reports a selector that finds nothing as missing", async () => {
     const flash = vi.fn()
     const frame = document.createElement("iframe")
-    expect(await goToPin(frame, record("#gone", true), flash)).toBe("missing")
-    expect(await goToPin(frame, { version: 1, at: "t", steps: [] }, flash)).toBe("missing")
+    expect(await goToPin(frame, record("#gone", true), flash, noState)).toBe("missing")
+    expect(await goToPin(frame, { version: 1, at: "t", steps: [] }, flash, noState)).toBe("missing")
     expect(flash).not.toHaveBeenCalled()
   })
 })
@@ -43,13 +45,18 @@ describe("goToPin", () => {
 // A frame stand-in: `assign` "navigates" and fires `load` on the next tick.
 function fakeFrame(pathname: string, doc: Document) {
   const listeners = new Set<() => void>()
+  const load = () => setTimeout(() => listeners.forEach((l) => l()), 0)
   const location = {
     pathname,
     search: "",
+    hash: "",
     assign: vi.fn((to: string) => {
-      location.pathname = to
-      setTimeout(() => listeners.forEach((l) => l()), 0)
+      const url = new URL(to, "http://localhost:3000")
+      const samePage = url.pathname === location.pathname && url.search === location.search
+      Object.assign(location, { pathname: url.pathname, search: url.search, hash: url.hash })
+      if (!samePage) load() // a hash alone does not load the page
     }),
+    reload: vi.fn(load),
   }
   const frame = {
     contentWindow: { location },
@@ -61,9 +68,10 @@ function fakeFrame(pathname: string, doc: Document) {
 }
 
 describe("goToPin in the frame", () => {
-  const appRecord = (selector: string, path: string): PinRecord => {
+  const appRecord = (selector: string, path: string, hash = ""): PinRecord => {
     const r = record(selector, false)
     r.steps[0].path = path
+    r.steps[0].url = `http://localhost:3000${path}${hash}`
     return r
   }
 
@@ -74,7 +82,9 @@ describe("goToPin in the frame", () => {
     el.scrollIntoView = vi.fn()
     const { frame, location } = fakeFrame("/elsewhere", doc)
     const flash = vi.fn()
-    expect(await goToPin(frame, appRecord('[data-slot="go"]', "/tickets"), flash)).toBe("found")
+    expect(await goToPin(frame, appRecord('[data-slot="go"]', "/tickets"), flash, noState)).toBe(
+      "found"
+    )
     expect(location.assign).toHaveBeenCalledWith("/tickets")
     expect(el.scrollIntoView).toHaveBeenCalledWith({ block: "center" })
     expect(flash).toHaveBeenCalledWith(el)
@@ -84,7 +94,7 @@ describe("goToPin in the frame", () => {
     const doc = document.implementation.createHTMLDocument("app")
     const { frame, location } = fakeFrame("/tickets", doc)
     const flash = vi.fn()
-    expect(await goToPin(frame, appRecord("#gone", "/tickets"), flash)).toBe("missing")
+    expect(await goToPin(frame, appRecord("#gone", "/tickets"), flash, noState)).toBe("missing")
     expect(location.assign).not.toHaveBeenCalled()
     expect(flash).not.toHaveBeenCalled()
   }, 6000)
@@ -98,7 +108,7 @@ describe("goToPin in the frame", () => {
       document.implementation.createHTMLDocument("app")
     )
     const flash = vi.fn()
-    expect(await goToPin(frame, r, flash)).toBe("found")
+    expect(await goToPin(frame, r, flash, noState)).toBe("found")
     expect(location.assign).toHaveBeenCalledWith("/concept-08-4?x=1")
     expect(flash).toHaveBeenCalledWith(document.querySelector("button"))
   })
@@ -120,8 +130,37 @@ describe("goToPin in the frame", () => {
     r.steps[0].openers = [{ selector: '[data-slot="fav"]', controls: "_r_2_" }]
     const { frame } = fakeFrame("/tickets", doc)
     const flash = vi.fn()
-    expect(await goToPin(frame, r, flash)).toBe("found")
+    expect(await goToPin(frame, r, flash, noState)).toBe("found")
     const grip = doc.querySelector("#_r_9_ button")!
     expect(flash).toHaveBeenCalledWith(grip)
   })
+
+  it("goes to the pin's hash too (the work panel lives there), loading the page again", async () => {
+    const doc = document.implementation.createHTMLDocument("app")
+    doc.body.innerHTML = `<div data-slot="panel">Panel</div>`
+    doc.querySelector("div")!.scrollIntoView = vi.fn()
+    const { frame, location } = fakeFrame("/tickets", doc)
+    const r = appRecord('[data-slot="panel"]', "/tickets", "#wp/TK-1009")
+    expect(await goToPin(frame, r, vi.fn(), noState)).toBe("found")
+    expect(location.assign).toHaveBeenCalledWith("/tickets#wp/TK-1009")
+    expect(location.reload).toHaveBeenCalled()
+  })
+
+  it("not found, puts the saved app state back and loads the page again", async () => {
+    const doc = document.implementation.createHTMLDocument("app")
+    const { frame, location } = fakeFrame("/tickets", doc)
+    const restore = vi.fn(async () => {
+      // The restored state renders the element on the next load.
+      doc.body.innerHTML = `<button data-slot="late">Late</button>`
+      doc.querySelector("button")!.scrollIntoView = vi.fn()
+      return true
+    })
+    const flash = vi.fn()
+    expect(await goToPin(frame, appRecord('[data-slot="late"]', "/tickets"), flash, restore)).toBe(
+      "restored"
+    )
+    expect(restore).toHaveBeenCalledOnce()
+    expect(location.reload).toHaveBeenCalledOnce()
+    expect(flash).toHaveBeenCalledWith(doc.querySelector("button"))
+  }, 6000)
 })

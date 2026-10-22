@@ -13,7 +13,6 @@ type FeedbackListProps = {
   onOp(rowId: string, op: Op): Promise<boolean>
   onEditFeedback(n: number): void
   onTogglePins(rowId: string, target: PinTarget): void
-  onRestoreState(rowId: string, target: PinTarget): void
   onOpenSource(rowId: string, target: PinTarget): void
   onPeekPins(ownerRowId: string, records: PinRecord[] | null): void
 }

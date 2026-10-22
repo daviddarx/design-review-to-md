@@ -32,7 +32,9 @@ function ownedMarkers(owner: string, records: PinRecord[], tag: string): OwnedMa
 }
 
 export const PIN_MISSING =
-  "Not on screen as it was — the faded pin marks where you clicked. Restore the corresponding app state to see it as it was."
+  "Not on screen as it was, even after reopening its page and popups and putting back its saved app state (when there is one) — the faded pin marks where you clicked."
+export const STATE_RESTORED =
+  "The app state saved with this pin was put back to show it (your current app data was replaced)."
 export const TOOL_PIN_MISSING = "That part of the review tool is not open now."
 
 // ⌃P — Control, never Command (⌘P stays the browser's print).
@@ -140,10 +142,13 @@ export function App() {
     const records = target.pins.flatMap((p) => (p.record ? [p.record] : []))
     if (!records.length) return `No pin record for ${target.ownerRowId} — it cannot be found again.`
     setShown(ownedMarkers(target.ownerRowId, records, "shown"))
-    const result = await goToPin(frame, records[0], picker.flash)
+    const result = await goToPin(frame, records[0], picker.flash, () =>
+      restoreState(target.pins[0]?.recordPath)
+    )
     const step = records[0].steps[0]
     if (step) shownHover.current = replayHover(frame, step)
     if (result === "found") return null
+    if (result === "restored") return STATE_RESTORED
     return step?.inTool ? TOOL_PIN_MISSING : PIN_MISSING
   }
   useEffect(() => {
@@ -166,22 +171,17 @@ export function App() {
     return () => document.removeEventListener("pointerdown", onDown, true)
   }, [pinsOn])
 
-  // After the panel's own confirm; the first pin's snapshot. It is
-  // gitignored, so a pin made on another machine has none.
-  const onRestoreState = async (_rowId: string, target: PinTarget) => {
-    const first = target.pins[0]
-    if (!review || !frame || !first) return
-    const res = await fetch(fileUrl(review, statePathOf(first.recordPath))).catch(() => null)
-    if (!res?.ok) {
-      return `No saved state for ${target.ownerRowId} on this machine — state files are not committed.`
-    }
+  // The app state saved with a pin (its first one), written back so the
+  // page can be loaded again in it. False when there is none: state files
+  // are gitignored, so a pin made on another machine has none.
+  const restoreState = async (recordPath: string | undefined) => {
+    if (!review || !recordPath) return false
+    const res = await fetch(fileUrl(review, statePathOf(recordPath))).catch(() => null)
+    if (!res?.ok) return false
     const snapshot: unknown = await res.json().catch(() => null)
-    if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) {
-      return `The saved state of ${target.ownerRowId} is unreadable.`
-    }
+    if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return false
     restoreLocalStorage(snapshot as Record<string, unknown>)
-    frame.contentWindow?.location.reload()
-    return null
+    return true
   }
 
   // Only an API error (a refused file or line) reaches the panel's notice;
@@ -207,7 +207,6 @@ export function App() {
             onNewFeedback={() => openDrawer()}
             onEditFeedback={(n) => openDrawer({ feedbackNumber: n })}
             onTogglePins={onTogglePins}
-            onRestoreState={onRestoreState}
             onOpenSource={onOpenSource}
             onPeekPins={onPeekPins}
             shownPinsOwner={shown?.owner ?? null}

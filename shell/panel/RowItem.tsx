@@ -18,7 +18,6 @@ export type RowItemProps = {
   onOp(op: Op): Promise<boolean>
   onEditFeedback(n: number): void
   onTogglePins(rowId: string, target: PinTarget): void
-  onRestoreState(rowId: string, target: PinTarget): void
   onOpenSource(rowId: string, target: PinTarget): void
   // Hovering Show pins shows the owner's pins for as long as it lasts; null
   // when it ends.
@@ -36,17 +35,14 @@ export function RowItem({
   onOp,
   onEditFeedback,
   onTogglePins,
-  onRestoreState,
   onOpenSource,
   onPeekPins,
 }: RowItemProps) {
   const [refining, setRefining] = useState<string | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [shotOpen, setShotOpen] = useState(false)
-  const [confirming, setConfirming] = useState(false)
   const [busy, setBusy] = useState(false)
   const [shotButton, setShotButton] = useState<HTMLButtonElement | null>(null)
-  const [restoreButton, setRestoreButton] = useState<HTMLButtonElement | null>(null)
 
   const feedbackNumber = Number(row.rowId.split(".")[0])
   const fetched = records.every((r) => r !== undefined)
@@ -232,13 +228,6 @@ export function RowItem({
                     onClick={() => setShotOpen((v) => !v)}
                   />
                 )}
-                <ActionButton
-                  ref={setRestoreButton}
-                  icon="restore"
-                  label="Restore corresponding app state"
-                  pressed={confirming}
-                  onClick={() => setConfirming((v) => !v)}
-                />
                 {source && (
                   <ActionButton
                     icon="source"
@@ -275,38 +264,6 @@ export function RowItem({
               <img src={fileUrl(review, shot)} alt="" title="Open in a new tab" />
             </a>
           ))}
-        </Flyout>
-      )}
-
-      {confirming && owner && (
-        <Flyout
-          anchor={restoreButton}
-          width={columnWidth()}
-          className="dr-confirm"
-          label="Restore corresponding app state"
-          onDismiss={() => setConfirming(false)}
-        >
-          <span>Replace the app's current localStorage with the state saved at {owner.rowId}?</span>
-          <span className="dr-confirm-actions">
-            <button
-              type="button"
-              className="dr-button dr-button-primary"
-              onClick={async () => {
-                setConfirming(false)
-                await withTarget(onRestoreState)()
-              }}
-            >
-              Restore
-            </button>
-            <button
-              type="button"
-              className="dr-button"
-              autoFocus
-              onClick={() => setConfirming(false)}
-            >
-              Cancel
-            </button>
-          </span>
         </Flyout>
       )}
     </li>
