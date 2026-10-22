@@ -127,11 +127,9 @@ function key(el: HTMLElement, k: string, extra: KeyboardEventInit = {}) {
 describe("Panel", () => {
   it("renders a row's attachment lines as links to the file", async () => {
     await render()
-    // Hovering the files icon lists them.
-    await act(async () => {
-      action("5.d", "Attached files")!.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }))
-    })
-    const link = document.querySelector<HTMLAnchorElement>(".dr-file-links a")!
+    // Grey chips under the text, as in the drawer; no button for them.
+    expect(action("5.d", "Attached files")).toBeNull()
+    const link = row("5.d").querySelector<HTMLAnchorElement>(".dr-row-body .dr-file a")!
     expect(link.textContent).toBe("5.d-my shot.png")
     expect(link.getAttribute("href")).toBe(
       "/__review/files/08.4/05-main-navigation/5.d-my%20shot.png"
@@ -209,12 +207,19 @@ describe("Panel", () => {
     expect(row("5.c").querySelector("textarea")).toBeNull()
   })
 
-  it("History shows the history above the text", async () => {
+  it("History shows the history under the text", async () => {
     await render()
     await act(async () => action("5.b", "History")!.click())
     const history = row("5.b").querySelector(".dr-history")!
     expect(history.textContent).toContain("Before: Active state is hard to see")
-    expect(history.nextElementSibling?.classList.contains("dr-row-text")).toBe(true)
+    expect(history.previousElementSibling?.classList.contains("dr-row-text")).toBe(true)
+  })
+
+  it("the status tag starts the text; a sub-row keeps an empty slot where Edit goes", async () => {
+    await render()
+    expect(row("5.c").querySelector(".dr-row-text")!.firstElementChild!.textContent).toBe("review")
+    expect(row("5").querySelector(".dr-row-side > .dr-action-slot")).toBeNull()
+    expect(row("5.c").querySelector(".dr-row-side > .dr-action-slot")).not.toBeNull()
   })
 
   it("an API error shows inline", async () => {
@@ -231,14 +236,20 @@ describe("Panel", () => {
     expect(action("5.c", "Show pins")!.getAttribute("aria-pressed")).toBe("false")
   })
 
-  it("the screenshot floats while toggled and goes when the pointer leaves its button", async () => {
+  it("the screenshot floats while toggled, opens in a new tab, and stays on mouse-out", async () => {
     await render()
     const button = action("5.c", "Screenshot")!
     await act(async () => button.click())
-    expect(document.querySelector('.dr-flyout[aria-label="Screenshot of 5.c"] img')).not.toBeNull()
+    const link = document.querySelector<HTMLAnchorElement>(
+      '.dr-flyout[aria-label="Screenshot of 5.c"] a'
+    )!
+    expect(link.target).toBe("_blank")
+    expect(link.querySelector("img")).not.toBeNull()
     await act(async () => {
       button.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }))
     })
+    expect(document.querySelector(".dr-flyout")).not.toBeNull()
+    await act(async () => button.click())
     expect(document.querySelector(".dr-flyout")).toBeNull()
   })
 

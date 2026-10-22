@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react"
 import type { ComponentProps, ReactNode } from "react"
 
-type Place = { left: number; top: number }
+// `shown` waits for the box's own pictures: one still loading would widen
+// the box as it arrives, and the box would slide in from the right.
+type Place = { left: number; top: number; shown: boolean }
 
 const GAP = 4
 
@@ -41,7 +43,10 @@ export function Flyout({
       const below = a.bottom + GAP
       const top = below + h > window.innerHeight && a.top - GAP - h >= 0 ? a.top - GAP - h : below
       const left = Math.max(GAP, a.right - w)
-      setPlace((p) => (p && p.left === left && p.top === top ? p : { left, top }))
+      const shown = [...(ref.current?.querySelectorAll("img") ?? [])].every((img) => img.complete)
+      setPlace((p) =>
+        p && p.left === left && p.top === top && p.shown === shown ? p : { left, top, shown }
+      )
       id = requestAnimationFrame(tick)
     }
     tick()
@@ -79,7 +84,13 @@ export function Flyout({
       className={["dr-flyout", className].filter(Boolean).join(" ")}
       role="dialog"
       aria-label={label}
-      style={{ width, maxWidth, left: place?.left ?? -9999, top: place?.top ?? 0 }}
+      style={{
+        width,
+        maxWidth,
+        left: place?.left ?? 0,
+        top: place?.top ?? 0,
+        visibility: place?.shown ? undefined : "hidden",
+      }}
       {...rest}
     >
       {children}

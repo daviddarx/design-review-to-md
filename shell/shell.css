@@ -383,8 +383,8 @@ select.dr-review-select {
 }
 
 /* Each list row's separator is drawn above it: a feedback's across the
-   panel, a sub-row's from where its parent's text starts (5ch is the number
-   column, the list's 16px the indent of a row's content). */
+   panel, any sub-row's from where the feedback's text starts (5ch is the
+   number column). */
 .dr-list {
   border-bottom: 1px solid var(--dr-line);
 }
@@ -407,30 +407,55 @@ select.dr-review-select {
 }
 
 .dr-list > .dr-depth-2::before {
-  left: calc(var(--dr-gutter) + 5ch + 6px + 16px);
+  left: calc(var(--dr-gutter) + 5ch + 6px);
 }
 
+/* Number | text (its status tag first, history and files below) | the
+   icon actions, all on the first line's top. */
 .dr-list > .dr-row {
   display: grid;
-  grid-template-columns: minmax(5ch, max-content) minmax(0, 1fr);
+  grid-template-columns: minmax(5ch, max-content) minmax(0, 1fr) auto;
+  align-items: start;
   column-gap: 6px;
 }
 
-.dr-list > .dr-row > :not(.dr-row-num) {
-  grid-column: 2;
+.dr-row-side {
+  display: flex;
+}
+
+/* The slot an Edit button takes on a feedback's own row. */
+.dr-action-slot {
+  flex: 0 0 auto;
+  width: 28px;
 }
 
 /* The column already indents them. */
-.dr-list > .dr-row > .dr-history {
+.dr-row-body .dr-history {
+  margin: 4px 0 0;
+}
+
+.dr-row-body .dr-files {
   margin-left: 0;
 }
 
+/* The tag starts the text, as tall as the actions; the text's first line
+   is centred on it, and the next ones run under it. */
+.dr-list .dr-row-text {
+  padding-top: 4px;
+  line-height: 20px;
+}
+
+.dr-list .dr-row-text > .dr-status {
+  float: left;
+  margin: -4px 6px 0 0;
+}
+
 /* A sub-row's number stays in the column; what follows it is indented. */
-.dr-list > .dr-depth-1 > :not(.dr-row-num) {
+.dr-list > .dr-depth-1 > .dr-row-body {
   margin-left: 16px;
 }
 
-.dr-list > .dr-depth-2 > :not(.dr-row-num) {
+.dr-list > .dr-depth-2 > .dr-row-body {
   margin-left: 32px;
 }
 
@@ -439,19 +464,10 @@ select.dr-review-select {
 }
 
 /* Line 1: number, tags, then the actions at the right end. */
-.dr-row-head {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
-  min-height: 28px;
-}
-
 .dr-row-num {
   flex: 0 0 auto;
   min-width: 18px;
-  align-self: center;
-  grid-row: 1;
+  line-height: 28px;
   color: var(--dr-text-muted);
   font-variant-numeric: tabular-nums;
 }
@@ -591,11 +607,6 @@ select.dr-review-select {
   display: block;
 }
 
-/* No tip where a flyout of its own opens on hover. */
-.dr-action[data-tip=""]::after {
-  display: none !important;
-}
-
 /* How many pins the row has, on the pin button's corner. */
 .dr-action-count {
   position: absolute;
@@ -640,6 +651,10 @@ select.dr-review-select {
   box-shadow: none;
 }
 
+.dr-shot a {
+  display: block;
+}
+
 .dr-shot img {
   display: block;
   max-width: 100%;
@@ -647,29 +662,6 @@ select.dr-review-select {
   border-radius: 6px;
   background: #fff;
   box-shadow: 0 8px 24px rgb(15 23 42 / 0.2);
-}
-
-/* A row's attached files, as links. */
-.dr-file-links ul {
-  margin: 0;
-  padding: 6px 0;
-  list-style: none;
-}
-
-.dr-file-links a {
-  display: block;
-  max-width: 320px;
-  overflow: hidden;
-  padding: 3px 12px;
-  color: var(--dr-text);
-  text-decoration: none;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.dr-file-links a:hover {
-  background: var(--dr-hover);
-  text-decoration: underline;
 }
 
 .dr-confirm {

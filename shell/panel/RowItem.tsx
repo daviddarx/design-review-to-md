@@ -47,23 +47,6 @@ export function RowItem({
   const [busy, setBusy] = useState(false)
   const [shotButton, setShotButton] = useState<HTMLButtonElement | null>(null)
   const [restoreButton, setRestoreButton] = useState<HTMLButtonElement | null>(null)
-  const [filesOpen, setFilesOpen] = useState(false)
-  const [filesButton, setFilesButton] = useState<HTMLButtonElement | null>(null)
-
-  // The files' links open on hover and stay while the pointer is on the
-  // button or on them: crossing the gap between the two closes nothing.
-  const filesTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  const filesHover = {
-    onMouseEnter: () => {
-      clearTimeout(filesTimer.current)
-      setFilesOpen(true)
-    },
-    onMouseLeave: () => {
-      clearTimeout(filesTimer.current)
-      filesTimer.current = setTimeout(() => setFilesOpen(false), 200)
-    },
-  }
-  useEffect(() => () => clearTimeout(filesTimer.current), [])
 
   const feedbackNumber = Number(row.rowId.split(".")[0])
   const fetched = records.every((r) => r !== undefined)
@@ -137,7 +120,7 @@ export function RowItem({
   useEffect(() => () => peekEnd.current(), [])
 
   // A flyout is at most as wide as the row's text column.
-  const columnWidth = () => liRef.current?.querySelector(".dr-row-head")?.clientWidth ?? 320
+  const columnWidth = () => liRef.current?.querySelector(".dr-row-body")?.clientWidth ?? 320
   const shots = owner?.pins.flatMap((p) => (p.screenshot ? [p.screenshot] : [])) ?? []
 
   return (
@@ -151,10 +134,68 @@ export function RowItem({
       onFocus={prefetch}
     >
       <span className="dr-row-num">{row.rowId}</span>
-      {/* Line 1: the status and the icon actions, at the right. */}
-      <div className="dr-row-head">
-        {row.status && <span className={`dr-status dr-status-${row.status}`}>{row.status}</span>}
-        {refining === null && (
+
+      <div className="dr-row-body">
+        {refining === null ? (
+          <div className="dr-row-text">
+            {row.status && (
+              <span className={`dr-status dr-status-${row.status}`}>{row.status}</span>
+            )}
+            {row.text}
+          </div>
+        ) : (
+          <textarea
+            className="dr-input dr-refine"
+            aria-label={`Refine ${row.rowId}`}
+            autoFocus
+            rows={2}
+            value={refining}
+            disabled={busy}
+            onFocus={(e) => e.currentTarget.select()}
+            onChange={(e) => setRefining(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault()
+                void submitRefine()
+              } else if (e.key === "Escape") {
+                e.preventDefault()
+                e.stopPropagation()
+                setRefining(null)
+              }
+            }}
+          />
+        )}
+
+        {historyOpen && (
+          <ol className="dr-history" aria-label={`History of ${row.rowId}`}>
+            {row.history.map((h, i) => (
+              <li key={i}>
+                <span className="dr-history-kind">
+                  {h.kind === "before" ? "Before:" : "Claude:"}
+                </span>{" "}
+                {h.text}
+              </li>
+            ))}
+          </ol>
+        )}
+
+        {row.attachments.length > 0 && (
+          <ul className="dr-files" aria-label="Attachments">
+            {row.attachments.map((a) => (
+              <li key={a.path} className="dr-file">
+                <a href={fileUrl(review, a.path)} target="_blank" rel="noreferrer">
+                  {a.name}
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {/* The actions keep their places from row to row: a row without Edit
+          (it is the last action) leaves its slot empty. */}
+      {refining === null && (
+        <div className="dr-row-side">
           <ActionGroup>
             {reviewing && <ActionButton icon="validate" label="Validate" onClick={validate} />}
             {reviewing && <ActionButton icon="refine" label="Refine" onClick={startRefine} />}
@@ -191,7 +232,6 @@ export function RowItem({
                     label="Screenshot"
                     pressed={shotOpen}
                     onClick={() => setShotOpen((v) => !v)}
-                    onMouseLeave={() => setShotOpen(false)}
                   />
                 )}
                 <ActionButton
@@ -211,17 +251,6 @@ export function RowItem({
                 )}
               </>
             )}
-            {row.attachments.length > 0 && (
-              <ActionButton
-                ref={setFilesButton}
-                icon="files"
-                label="Attached files"
-                tip=""
-                pressed={filesOpen}
-                onClick={() => setFilesOpen(true)}
-                {...filesHover}
-              />
-            )}
             {row.depth === 0 && (
               <ActionButton
                 icon="edit"
@@ -230,63 +259,8 @@ export function RowItem({
               />
             )}
           </ActionGroup>
-        )}
-      </div>
-
-      {historyOpen && (
-        <ol className="dr-history" aria-label={`History of ${row.rowId}`}>
-          {row.history.map((h, i) => (
-            <li key={i}>
-              <span className="dr-history-kind">{h.kind === "before" ? "Before:" : "Claude:"}</span>{" "}
-              {h.text}
-            </li>
-          ))}
-        </ol>
-      )}
-
-      {refining === null ? (
-        <div className="dr-row-text">{row.text}</div>
-      ) : (
-        <textarea
-          className="dr-input dr-refine"
-          aria-label={`Refine ${row.rowId}`}
-          autoFocus
-          rows={2}
-          value={refining}
-          disabled={busy}
-          onFocus={(e) => e.currentTarget.select()}
-          onChange={(e) => setRefining(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault()
-              void submitRefine()
-            } else if (e.key === "Escape") {
-              e.preventDefault()
-              e.stopPropagation()
-              setRefining(null)
-            }
-          }}
-        />
-      )}
-
-      {filesOpen && (
-        <Flyout
-          anchor={filesButton}
-          className="dr-file-links"
-          label={`Files of ${row.rowId}`}
-          onDismiss={() => setFilesOpen(false)}
-          {...filesHover}
-        >
-          <ul>
-            {row.attachments.map((a) => (
-              <li key={a.path}>
-                <a href={fileUrl(review, a.path)} target="_blank" rel="noreferrer">
-                  {a.name}
-                </a>
-              </li>
-            ))}
-          </ul>
-        </Flyout>
+          {row.depth > 0 && <span className="dr-action-slot" aria-hidden="true" />}
+        </div>
       )}
 
       {shotOpen && owner && shots.length > 0 && (
@@ -295,9 +269,12 @@ export function RowItem({
           maxWidth={columnWidth()}
           className="dr-shot"
           label={`Screenshot of ${owner.rowId}`}
+          onDismiss={() => setShotOpen(false)}
         >
           {shots.map((shot) => (
-            <img key={shot} src={fileUrl(review, shot)} alt="" />
+            <a key={shot} href={fileUrl(review, shot)} target="_blank" rel="noreferrer">
+              <img src={fileUrl(review, shot)} alt="" title="Open in a new tab" />
+            </a>
           ))}
         </Flyout>
       )}
