@@ -9,6 +9,7 @@ import { Panel } from "./panel/Panel.tsx"
 import { restoreLocalStorage } from "./pick/capture.ts"
 import { goToPin } from "./pick/goToPin.ts"
 import { useKeepCanvasPixels } from "./pick/keepCanvasPixels.ts"
+import { replayHover } from "./pick/replayHover.ts"
 import { PinMarkers } from "./pick/PinMarkers.tsx"
 import type { Marker } from "./pick/PinMarkers.tsx"
 import { usePicker } from "./pick/Picker.tsx"
@@ -111,10 +112,17 @@ export function App() {
     return out
   }, [drawerMarkers, shown, peeked])
 
-  // Show pins on: the frame goes to the first pin's page and outlines its
-  // element, and the row's pins stay drawn until it is switched off (or
-  // another row's are switched on).
+  // Show pins on: the frame goes to the first pin's page, outlines its
+  // element and hovers it (what opens on hover opens, as it was pinned), and
+  // the row's pins stay drawn until it is switched off (or another row's are
+  // switched on).
+  const shownHover = useRef<(() => void) | null>(null)
+  const endShownHover = () => {
+    shownHover.current?.()
+    shownHover.current = null
+  }
   const onTogglePins = async (_rowId: string, target: PinTarget) => {
+    endShownHover()
     if (shown?.owner === target.ownerRowId) {
       setShown(null)
       return null
@@ -124,10 +132,16 @@ export function App() {
     if (!records.length) return `No pin record for ${target.ownerRowId} — it cannot be found again.`
     setShown(ownedMarkers(target.ownerRowId, records, "shown"))
     const result = await goToPin(frame, records[0], picker.flash)
+    const step = records[0].steps[0]
+    if (step) shownHover.current = replayHover(frame, step)
     if (result === "found") return null
-    return records[0].steps[0]?.inTool ? TOOL_PIN_MISSING : PIN_MISSING
+    return step?.inTool ? TOOL_PIN_MISSING : PIN_MISSING
   }
-  useEffect(() => setShown(null), [review])
+  useEffect(() => {
+    setShown(null)
+    shownHover.current?.()
+    shownHover.current = null
+  }, [review])
 
   // After the panel's own confirm; the first pin's snapshot. It is
   // gitignored, so a pin made on another machine has none.

@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { PinStep } from "../../model/types.ts"
+import { replayHover } from "./replayHover.ts"
 
 // A pin to draw: where the click of `step` landed, labelled with its row.
 // With `onRemove` (the open drawer's pins) a hover shows × and a click
@@ -63,9 +64,14 @@ const same = (a: Placed[], b: Placed[]) =>
       p.exact === b[i].exact
   )
 
-// The pins of the open drawer and of the hovered list row, drawn where the
+// The pins of the open drawer and of the list's Show pins, drawn where the
 // clicks landed. One animation-frame loop follows scrolling, layout and
 // navigation; it only runs while there is something to draw.
+//
+// Hovering a pin hovers its element in the app too (replayHover), so what
+// only shows on hover — the main navigation extended — shows as it was
+// pinned. Meanwhile the pin holds still: the app moving under it must not
+// pull it from under the pointer (that would end the hover, and restart it).
 export function PinMarkers({
   frame,
   markers,
@@ -76,15 +82,33 @@ export function PinMarkers({
   hidden: boolean
 }) {
   const [placed, setPlaced] = useState<Placed[]>([])
+  const held = useRef<Placed | null>(null)
+  const endHover = useRef<(() => void) | null>(null)
+
+  const hoverIn = (p: Placed, step: PinStep) => {
+    endHover.current?.()
+    held.current = p
+    endHover.current = replayHover(frame, step)
+  }
+  const hoverOut = () => {
+    held.current = null
+    endHover.current?.()
+    endHover.current = null
+  }
+  useEffect(() => () => endHover.current?.(), [])
 
   useEffect(() => {
     if (hidden || markers.length === 0) {
+      held.current = null
+      endHover.current?.()
+      endHover.current = null
       setPlaced([])
       return
     }
     let id = 0
     const tick = () => {
       const next = markers.flatMap((m) => {
+        if (held.current?.key === m.key) return [held.current]
         const p = markerPoint(m.step, frame)
         return p ? [{ key: m.key, label: m.label, ...p }] : []
       })
@@ -100,23 +124,31 @@ export function PinMarkers({
   return (
     <div className="dr-markers">
       {placed.map((p) => {
-        const onRemove = byKey.get(p.key)?.onRemove
+        const marker = byKey.get(p.key)
+        const onRemove = marker?.onRemove
         const className = ["dr-marker", !p.exact && "dr-marker-approx"].filter(Boolean).join(" ")
-        const style = { left: p.x, top: p.y }
+        const common = {
+          style: { left: p.x, top: p.y },
+          onMouseEnter: () => marker && hoverIn(p, marker.step),
+          onMouseLeave: hoverOut,
+        }
         return onRemove ? (
           <button
             key={p.key}
             type="button"
             className={`${className} dr-marker-removable`}
-            style={style}
             aria-label={`Remove this pin of ${p.label}`}
             title="Remove this pin"
-            onClick={onRemove}
+            onClick={() => {
+              hoverOut()
+              onRemove()
+            }}
+            {...common}
           >
             <span>{p.label}</span>
           </button>
         ) : (
-          <div key={p.key} className={className} style={style} aria-hidden="true">
+          <div key={p.key} className={className} aria-hidden="true" {...common}>
             <span>{p.label}</span>
           </div>
         )

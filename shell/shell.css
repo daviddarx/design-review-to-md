@@ -914,6 +914,8 @@ select.dr-review-select {
   box-shadow: 0 2px 6px rgb(0 0 0 / 0.35);
   transform: translateY(-100%) rotate(-45deg);
   transform-origin: 0 100%;
+  /* Hovering a pin hovers its element in the app. */
+  pointer-events: auto;
 }
 
 .dr-marker span {
