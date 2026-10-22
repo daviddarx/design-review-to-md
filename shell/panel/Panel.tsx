@@ -6,7 +6,7 @@ import { applyOp, createReview, fileUrl, listReviews, readReview, useReviewFeed 
 import { readKey, writeKey } from "../prefs.ts"
 import { Icon } from "./icons.tsx"
 import { counts, flattenRows, pinRecordPath } from "./listModel.ts"
-import type { Filter, PinTarget } from "./listModel.ts"
+import type { FlatRow, Filter, PinTarget } from "./listModel.ts"
 import { FeedbackList } from "./FeedbackList.tsx"
 import { ShortcutHelp } from "./ShortcutHelp.tsx"
 import { ReviewSelect } from "./ReviewSelect.tsx"
@@ -22,7 +22,7 @@ export type PanelProps = {
   onOpenSource(rowId: string, target: PinTarget): PinAction
   onPeekPins(ownerRowId: string, records: PinRecord[] | null): void // Show pins hovered, null when it ends
   shownPinsOwner: string | null // the row whose pins Show pins keeps on screen
-  onAllPins(groups: { owner: string; records: PinRecord[] }[]): void // every pinned row's pins, after each load
+  onAllPins(groups: { owner: string; records: PinRecord[] }[]): void // the filter's pins, after each load and filter change
   drawer?: ReactNode // the feedback drawer, laid over everything but the resize edge
   reloadSignal?: number // a change refetches the review (after a drawer save)
 }
@@ -184,11 +184,17 @@ export function Panel({
     [review]
   )
 
-  // Every pin of the review, for the page to show while nothing is picked
-  // out (all rows, whatever the filter).
+  // The pins of the filter, for the page to show while nothing is picked
+  // out: on All every pin but the done ones, on a status tab that status's.
+  // A pin shows when its own row or one of the rows it covers matches.
   useEffect(() => {
     let live = true
-    const pinned = flattenRows(feedbacks, "all").filter((r) => r.pins.length)
+    const rows = flattenRows(feedbacks, "all")
+    const matches = (r: FlatRow) => (filter === "all" ? r.status !== "done" : r.status === filter)
+    const owners = new Set(
+      rows.filter(matches).map((r) => (r.pins.length ? r.rowId : r.inheritedPinFrom))
+    )
+    const pinned = rows.filter((r) => r.pins.length && owners.has(r.rowId))
     void Promise.all(
       pinned.map(async (r) => {
         const paths = r.pins.map((pin, i) => pinRecordPath(pin, r.rowId, i, r.folder))
@@ -199,7 +205,7 @@ export function Panel({
     return () => {
       live = false
     }
-  }, [feedbacks, loadRecord, onAllPins])
+  }, [feedbacks, filter, loadRecord, onAllPins])
 
   // Ops refetch at once rather than waiting on the watcher; errors (409
   // locked, …) land in the inline message, never as a throw.

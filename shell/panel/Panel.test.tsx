@@ -119,6 +119,11 @@ const action = (id: string, label: string) =>
   row(id).querySelector<HTMLButtonElement>(`.dr-action[aria-label="${label}"]`)
 const opCalls = () => calls.filter((c) => c.url.endsWith("/ops"))
 
+function type(field: HTMLInputElement, value: string) {
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(field, value)
+  field.dispatchEvent(new Event("input", { bubbles: true }))
+}
+
 function key(el: HTMLElement, k: string, extra: KeyboardEventInit = {}) {
   el.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true, ...extra }))
 }
@@ -169,18 +174,55 @@ describe("Panel", () => {
   it("Refine opens the field; Enter sends one line", async () => {
     await render()
     await act(async () => action("5.c", "Refine")!.click())
-    const field = row("5.c").querySelector("textarea")!
+    const field = row("5.c").querySelector<HTMLInputElement>("input.dr-refine")!
+    expect(field.type).toBe("text")
     expect(field.value).toContain("Search field")
-    await act(async () => {
-      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!
-      setter.call(field, "Align the\nsearch field")
-      field.dispatchEvent(new Event("input", { bubbles: true }))
-    })
+    await act(async () => type(field, "Align the search field"))
     await act(async () => key(field, "Enter"))
     expect(opCalls()[0].body).toEqual({
       op: { kind: "refine", rowId: "5.c", text: "Align the search field" },
       assets: [],
     })
+  })
+
+  it("Refine's save button, joined to the field, sends it too", async () => {
+    await render()
+    await act(async () => action("5.c", "Refine")!.click())
+    const field = row("5.c").querySelector<HTMLInputElement>("input.dr-refine")!
+    await act(async () => type(field, "Align it"))
+    const save = row("5.c").querySelector<HTMLButtonElement>(".dr-refine-group > .dr-action")!
+    expect(save.getAttribute("data-tip")).toBe("Save")
+    await act(async () => save.click())
+    expect(opCalls()[0].body).toEqual({
+      op: { kind: "refine", rowId: "5.c", text: "Align it" },
+      assets: [],
+    })
+  })
+
+  it("shows the pins of the filter: on All none of a done row's", async () => {
+    const spec = `# 7. Header \`open\`
+
+📍 /concept-08-4
+
+- a. Logo \`done\`
+  📍 /concept-08-4
+- b. Menu \`open\`
+`
+    held.set(
+      "/__review/api/reviews/08.4",
+      Promise.resolve(json({ meta: { nextFeedback: 8 }, feedbacks: [parseFeedback(spec)] }))
+    )
+    const owners: string[][] = []
+    await render({ onAllPins: (groups) => owners.push(groups.map((g) => g.owner)) })
+    expect(owners.at(-1)).toEqual(["7"])
+    const chip = (label: string) =>
+      Array.from(host.querySelectorAll<HTMLButtonElement>(".dr-chip")).find((b) =>
+        b.textContent!.startsWith(label)
+      )!
+    await act(async () => chip("Done").click())
+    expect(owners.at(-1)).toEqual(["7.a"])
+    await act(async () => chip("Open").click())
+    expect(owners.at(-1)).toEqual(["7"])
   })
 
   it("only a row to review offers Validate and Refine; only a row with history offers History", async () => {

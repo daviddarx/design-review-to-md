@@ -61,7 +61,7 @@ export function App() {
   const [drawerMarkers, setDrawerMarkers] = useState<Marker[]>([])
   const [peeked, setPeeked] = useState<OwnedMarkers | null>(null) // Show pins hovered
   const [shown, setShown] = useState<OwnedMarkers | null>(null) // Show pins toggled on
-  const [allPins, setAllPins] = useState<OwnedMarkers[]>([]) // every pin of the review
+  const [allPins, setAllPins] = useState<OwnedMarkers[]>([]) // the list filter's pins
   const drawerSeq = useRef(0)
   const appendSeq = useRef(0)
   const drawerRef = useRef(drawer)

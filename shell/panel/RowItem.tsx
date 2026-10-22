@@ -135,26 +135,36 @@ export function RowItem({
         {refining === null ? (
           <div className="dr-row-text">{row.text}</div>
         ) : (
-          <textarea
-            className="dr-input dr-refine"
-            aria-label={`Refine ${row.rowId}`}
-            autoFocus
-            rows={2}
-            value={refining}
-            disabled={busy}
-            onFocus={(e) => e.currentTarget.select()}
-            onChange={(e) => setRefining(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault()
-                void submitRefine()
-              } else if (e.key === "Escape") {
-                e.preventDefault()
-                e.stopPropagation()
-                setRefining(null)
-              }
-            }}
-          />
+          // One line, with its save button joined to it as a group.
+          <div className="dr-refine-group" role="group">
+            <input
+              type="text"
+              className="dr-input dr-refine"
+              aria-label={`Refine ${row.rowId}`}
+              autoFocus
+              value={refining}
+              disabled={busy}
+              onFocus={(e) => e.currentTarget.select()}
+              onChange={(e) => setRefining(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault()
+                  void submitRefine()
+                } else if (e.key === "Escape") {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  setRefining(null)
+                }
+              }}
+            />
+            <ActionButton
+              icon="save"
+              label={`Save refinement of ${row.rowId}`}
+              tip="Save"
+              disabled={busy}
+              onClick={() => void submitRefine()}
+            />
+          </div>
         )}
 
         {/* Under the text: the files as links on a line of their own, then

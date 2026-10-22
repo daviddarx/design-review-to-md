@@ -529,14 +529,25 @@ select.dr-review-select {
   overflow-wrap: anywhere;
 }
 
-.dr-refine {
+/* Refine: a one-line field and its save button, joined like the row's
+   action group. */
+.dr-refine-group {
+  display: flex;
   width: 100%;
-  box-sizing: border-box;
-  height: auto;
-  min-height: 44px;
-  padding: 4px 6px;
+}
+
+.dr-refine {
+  flex: 1 1 auto;
+  min-width: 0;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
   font-weight: 400;
-  resize: vertical;
+}
+
+.dr-refine-group > .dr-action {
+  border-left: 0;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
 }
 
 .dr-status {
