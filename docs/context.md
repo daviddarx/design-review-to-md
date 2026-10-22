@@ -229,3 +229,13 @@ plan beside it.
 - **Saved files can be removed in the drawer**: × on the pill, `removeFile`
   on save (drops the 📎 line, deletes the file — only a file named for that
   row).
+- **List rows, fifth take** (briefing-feedback-5): the files sit on a line of
+  their own (`dr-row-files`), the status tag on the line below
+  (`dr-row-meta`). Show pins appears only on the row that owns the pins — no
+  longer on the rows inheriting them (Screenshot / Restore / source still
+  follow the inherited pin). Spacing: no top padding on `dr-panel-body`, 8px
+  top and bottom on list rows, 8px above the actions.
+- **Drawer saved-file pills, again reported missing**: rendered the drawer in
+  happy-dom against the live server's own JSON for his review — 1.a.2's pill
+  and its × are there. The brief's line is carried over from rounds 3–4;
+  nothing changed.
