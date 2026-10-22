@@ -300,4 +300,19 @@ describe("FeedbackDrawer", () => {
     expect(markers).toEqual([])
     expect(host.querySelector(".dr-action-count")).toBeNull()
   })
+
+  it("shows the files a saved row already has", async () => {
+    const md = SPEC.replace(
+      "- b. Search field is misaligned `open`\n",
+      "- b. Search field is misaligned `open`\n  📎 [5.b-ref.png](05-main-navigation/5.b-ref.png)\n"
+    )
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => json({ meta: { nextFeedback: 6 }, feedbacks: [parseFeedback(md)] }))
+    )
+    await render(5)
+    const link = host.querySelector<HTMLAnchorElement>(".dr-file a")!
+    expect(link.textContent).toBe("5.b-ref.png")
+    expect(link.getAttribute("href")).toBe("/__review/files/08.4/05-main-navigation/5.b-ref.png")
+  })
 })

@@ -11,11 +11,15 @@ export type Op =
   | { kind: "removePin"; rowId: string; index: number }
   | { kind: "attach"; rowId: string } // changes nothing: the files sent with it are linked
   | { kind: "deleteRow"; rowId: string }
+  // Re-parents a row (indent / outdent): it goes last under `parentId` (the
+  // feedback's number for the top level) with a new label, its rows with it.
+  | { kind: "moveRow"; rowId: string; parentId: string }
 export type OpResult = {
   feedback: Feedback
   retired: string[]
   addedRowIds: string[]
   deletedRowIds: string[]
+  movedRowIds: [string, string][] // [old, new], the moved row and each row under it
 }
 
 export class OpError extends Error {
@@ -98,6 +102,56 @@ function append(
   }
 }
 
+function height(row: Row): number {
+  return row.children.length ? 1 + Math.max(...row.children.map(height)) : 0
+}
+
+// A moved row's lines change depth: its unrecognised lines (📎 links among
+// them) shift with it, or they would read as its parent's.
+function reindent(row: Row, delta: number) {
+  row.extra = row.extra.map((line) =>
+    delta > 0 ? " ".repeat(delta) + line : line.replace(new RegExp(`^ {0,${-delta}}`), "")
+  )
+  row.children.forEach((c) => reindent(c, delta))
+}
+
+// The files of `from` are renamed to `to` on disk; the lines naming them follow.
+function renameRefs(row: Row, from: string, to: string) {
+  const swap = (text: string) =>
+    text.split(`/${from}-`).join(`/${to}-`).split(`[${from}-`).join(`[${to}-`)
+  row.pins = row.pins.map((p) => (p.screenshot ? { ...p, screenshot: swap(p.screenshot) } : p))
+  row.extra = row.extra.map(swap)
+}
+
+function moveRow(feedback: Feedback, rowId: string, parentId: string, result: OpResult) {
+  const chain = resolve(feedback, rowId)
+  const row = chain.at(-1)
+  if (!row) throw new OpError("not-found", `${rowId} is a feedback title, not a row`)
+  if (parentId === rowId || parentId.startsWith(rowId + ".")) {
+    throw new OpError("locked", `${rowId} cannot go under itself`)
+  }
+  const parentChain = resolve(feedback, parentId)
+  if (parentChain.length > 1) throw new OpError("locked", "Rows nest two levels deep at most")
+  const depth = (parentChain.length + 1) as 1 | 2
+  if (depth + height(row) > 2) throw new OpError("locked", "Rows nest two levels deep at most")
+  const from = chain.length === 1 ? feedback.rows : chain[0].children
+  const to = parentChain.length ? parentChain[0].children : feedback.rows
+  if (from === to) return
+  from.splice(from.indexOf(row), 1)
+  reindent(row, (depth - chain.length) * 2)
+  row.label = nextLabel(
+    depth,
+    to.map((r) => r.label)
+  )
+  to.push(row)
+  const walk = (r: Row, oldId: string, newId: string) => {
+    result.movedRowIds.push([oldId, newId])
+    renameRefs(r, oldId, newId)
+    r.children.forEach((c) => walk(c, `${oldId}.${c.label}`, `${newId}.${c.label}`))
+  }
+  walk(row, rowId, `${parentId}.${row.label}`)
+}
+
 export function applyOp(feedback: Feedback, op: Op, retired: string[]): OpResult {
   const next = structuredClone(feedback)
   const result: OpResult = {
@@ -105,6 +159,7 @@ export function applyOp(feedback: Feedback, op: Op, retired: string[]): OpResult
     retired: [...retired],
     addedRowIds: [],
     deletedRowIds: [],
+    movedRowIds: [],
   }
   switch (op.kind) {
     case "setStatus": {
@@ -162,6 +217,9 @@ export function applyOp(feedback: Feedback, op: Op, retired: string[]): OpResult
     }
     case "attach":
       resolve(next, op.rowId)
+      break
+    case "moveRow":
+      moveRow(next, op.rowId, op.parentId, result)
       break
     case "deleteRow": {
       const chain = resolve(next, op.rowId)

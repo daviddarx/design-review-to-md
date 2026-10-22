@@ -192,6 +192,26 @@ export class Storage {
     }
   }
 
+  // A moved row's files follow its new id: `<old>-x` becomes `<new>-x`.
+  private async renameAssets(dir: string, folder: string, pairs: [string, string][]) {
+    const assetDir = path.join(dir, folder)
+    let names: string[]
+    try {
+      names = await fs.readdir(assetDir)
+    } catch {
+      return
+    }
+    for (const [from, to] of pairs) {
+      for (const name of names) {
+        if (!name.startsWith(`${from}-`)) continue
+        await fs.rename(
+          path.join(assetDir, name),
+          path.join(assetDir, `${to}-${name.slice(from.length + 1)}`)
+        )
+      }
+    }
+  }
+
   private async removeAssets(dir: string, folder: string, prefixes: string[]) {
     const assetDir = path.join(dir, folder)
     let names: string[]
@@ -383,6 +403,9 @@ export class Storage {
       this.linkPins(result.feedback, folder, touched, mapped)
       linkAttachments(result.feedback, folder, mapped)
       await this.writeAssets(dir, folder, mapped)
+      if (result.movedRowIds.length) {
+        await this.renameAssets(dir, folder, result.movedRowIds)
+      }
       if (result.deletedRowIds.length) {
         await this.removeAssets(
           dir,

@@ -1,11 +1,14 @@
 // Pure editor state of the feedback drawer: one tree per feedback, the title row
 // at the root. Every edit returns a new tree (or the same one when refused).
+import { applyOp } from "../../model/ops.ts"
 import type { DraftRow, Op } from "../../model/ops.ts"
 import { nextLabel } from "../../model/labels.ts"
 import { pinAssetName } from "../../model/pins.ts"
 import type { PinRef, Feedback, Row } from "../../model/types.ts"
 import type { Asset } from "../api.ts"
 import type { CapturedPin } from "../pick/capture.ts"
+import { attachmentsOf } from "../panel/listModel.ts"
+import type { Attachment } from "../panel/listModel.ts"
 
 export type { CapturedPin }
 
@@ -21,7 +24,8 @@ export type DraftNode = {
   savedPins: PinRef[] // the pins on disk, in their order there
   keptPins: number[] // which of them stay (indexes into savedPins)
   captures: CapturedPin[] // pins made in this drawer, added after the kept ones
-  files: DraftFile[]
+  files: DraftFile[] // added in this drawer
+  savedFiles: Attachment[] // attached before, shown as they are
   children: DraftNode[]
 }
 
@@ -46,6 +50,7 @@ const blank = (): DraftNode => ({
   keptPins: [],
   captures: [],
   files: [],
+  savedFiles: [],
   children: [],
 })
 
@@ -124,6 +129,7 @@ function fromRow(row: Row, id: string): DraftNode {
     savedRowId: id,
     savedText: row.text,
     label: row.label,
+    savedFiles: attachmentsOf(row.extra),
     locked: row.status !== "open" || row.history.some((h) => h.kind === "claude"),
     files: [],
     children: row.children.map((c) => fromRow(c, `${id}.${c.label}`)),
@@ -141,6 +147,7 @@ export function fromFeedback(feedback: Feedback): DraftNode {
     savedRowId: id,
     savedText: feedback.title,
     label: id,
+    savedFiles: attachmentsOf(feedback.preamble),
     locked:
       (feedback.status ?? "open") !== "open" || feedback.history.some((h) => h.kind === "claude"),
     files: [],
@@ -192,12 +199,14 @@ export function appendChild(tree: DraftNode, id: string): DraftNode {
   return replace(tree, id, (n) => ({ ...n, children: [...n.children, blank()] }))
 }
 
-// Tab: the row becomes the last child of the row above it.
+// Tab: the row becomes the last child of the row above it. A saved row
+// moves on save (moveRow), so it only goes under a saved row.
 export function indent(tree: DraftNode, id: string): DraftNode {
   const loc = locate(tree, id)
-  if (!loc || !loc.parent || loc.node.savedRowId || loc.index === 0) return tree
+  if (!loc || !loc.parent || loc.index === 0) return tree
   if (loc.depth + 1 + height(loc.node) > MAX_DEPTH) return tree
   const prev = loc.parent.children[loc.index - 1]
+  if (loc.node.savedRowId && !prev.savedRowId) return tree
   return replace(tree, loc.parent.id, (p) => ({
     ...p,
     children: p.children
@@ -209,7 +218,7 @@ export function indent(tree: DraftNode, id: string): DraftNode {
 // Shift+Tab: a third-level row moves up beside its parent, just after it.
 export function outdent(tree: DraftNode, id: string): DraftNode {
   const loc = locate(tree, id)
-  if (!loc || !loc.parent || loc.node.savedRowId || loc.depth !== MAX_DEPTH) return tree
+  if (!loc || !loc.parent || loc.depth !== MAX_DEPTH) return tree
   const parentLoc = locate(tree, loc.parent.id)
   if (!parentLoc?.parent) return tree
   const parentId = loc.parent.id
@@ -233,22 +242,33 @@ export function remove(tree: DraftNode, id: string): DraftNode {
   }))
 }
 
-// The id each row shows: a saved row its own, a new one what the server
-// will give it — the label after its siblings (saved, then new ones above
-// it), since labels on disk go past the highest sibling. `number` is the
-// feedback's number while it is not saved yet (null: not known yet).
-export function displayIds(tree: DraftNode, number: number | null): Map<string, string> {
-  const root = tree.savedRowId ?? (number === null ? "" : String(number))
+const parentIn = (tree: DraftNode, node: DraftNode) => locate(tree, node.id)?.parent ?? null
+
+// The saved parent a saved row had on disk: "5.c.1" → "5.c".
+const savedParentOf = (rowId: string) => rowId.slice(0, rowId.lastIndexOf("."))
+
+// Whether a saved row still sits under the parent it has on disk.
+const stays = (child: DraftNode, parent: DraftNode) =>
+  Boolean(child.savedRowId && savedParentOf(child.savedRowId) === parent.savedRowId)
+
+// The id each row shows: the one it will have once saved. For a saved
+// feedback that is what the save's own ops produce (see `simulate`); a new
+// feedback numbers its rows in order. `number` is a new feedback's number
+// (null: not known yet).
+export function displayIds(
+  tree: DraftNode,
+  feedback: Feedback | null,
+  number: number | null
+): Map<string, string> {
+  if (feedback) return simulate(feedback, tree, true).ids
+  const root = number === null ? "" : String(number)
   const out = new Map([[tree.id, root]])
   const walk = (parent: DraftNode, parentId: string, depth: 1 | 2) => {
-    const taken = parent.children.flatMap((c) => (c.label ? [c.label] : []))
+    const taken: string[] = []
     for (const child of parent.children) {
-      let label = child.label
-      if (!label) {
-        label = nextLabel(depth, taken)
-        taken.push(label)
-      }
-      const id = child.savedRowId ?? `${parentId}.${label}`
+      const label = nextLabel(depth, taken)
+      taken.push(label)
+      const id = `${parentId}.${label}`
       out.set(child.id, id)
       if (depth === 1) walk(child, id, 2)
     }
@@ -355,63 +375,103 @@ export function problem(tree: DraftNode): string | null {
   return null
 }
 
-// Saved feedback + edited tree → the ops that take one to the other: deletes,
-// then text edits, removed pins (last first, so the indexes stay true) and
-// added ones, then new rows (appended under their saved parent). Files added
-// to saved rows ride along with the first op.
+// Saved feedback + edited tree → the ops that take one to the other, in
+// order: deletes; text edits, removed pins (last first, so the indexes stay
+// true) and added ones; the files added to saved rows (one attach op); moved
+// rows (indent / outdent); then new rows, appended under their parent. The
+// ops after the first deletes are addressed by the ids the rows have by
+// then, worked out by applying each op to a copy as the server will.
 export function buildOps(feedback: Feedback, tree: DraftNode): PlannedOp[] {
+  return simulate(feedback, tree, false).ops
+}
+
+// The ops of a save, applied one by one to a copy of the feedback as the
+// server will apply them, and the id every row ends up with. `keepEmpty`
+// numbers the empty new rows a save would drop (for display).
+function simulate(
+  feedback: Feedback,
+  tree: DraftNode,
+  keepEmpty: boolean
+): { ops: PlannedOp[]; ids: Map<string, string> } {
   const present = new Set(flatten(tree).map((f) => f.node.savedRowId))
-  const deletes: PlannedOp[] = []
+  const ops: PlannedOp[] = []
+  let sim = feedback
+  // Where each saved row is now: its id on disk → its id at this point.
+  const now = new Map<string, string>()
+  const idOf = (n: DraftNode) => now.get(n.savedRowId as string) ?? (n.savedRowId as string)
+  const plan = (op: Op, assets: Asset[] = []) => {
+    ops.push({ op, assets })
+    let result
+    try {
+      result = applyOp(sim, op, [])
+    } catch {
+      return null // the server will refuse it too, and say why
+    }
+    sim = result.feedback
+    for (const [from, to] of result.movedRowIds) {
+      const original = [...now].find(([, current]) => current === from)?.[0] ?? from
+      now.set(original, to)
+    }
+    return result
+  }
+
   const walkSaved = (rows: Row[], parent: string) => {
     for (const r of rows) {
       const id = `${parent}.${r.label}`
-      if (!present.has(id)) deletes.push({ op: { kind: "deleteRow", rowId: id }, assets: [] })
+      if (!present.has(id)) plan({ kind: "deleteRow", rowId: id })
       else walkSaved(r.children, id)
     }
   }
   walkSaved(feedback.rows, String(feedback.number))
 
-  const edits: PlannedOp[] = []
-  const adds: PlannedOp[] = []
+  const saved = flatten(tree).filter((f) => f.node.savedRowId)
   const files: Asset[] = []
-  let carrier: DraftNode | null = null
-  const walk = (n: DraftNode) => {
+  let carrier: string | null = null
+  for (const { node: n } of saved) {
     const rowId = n.savedRowId as string
     const text = n.text.trim()
-    if (!n.locked && text && text !== n.savedText) {
-      edits.push({ op: { kind: "editText", rowId, text }, assets: [] })
-    }
+    if (!n.locked && text && text !== n.savedText) plan({ kind: "editText", rowId, text })
     for (let i = n.savedPins.length - 1; i >= 0; i--) {
-      if (!n.keptPins.includes(i)) {
-        edits.push({ op: { kind: "removePin", rowId, index: i }, assets: [] })
-      }
+      if (!n.keptPins.includes(i)) plan({ kind: "removePin", rowId, index: i })
     }
     // The server files an added pin under its next number.
-    for (const c of n.captures) {
-      edits.push({ op: { kind: "addPin", rowId, pin: c.pin }, assets: pinAssets(c, rowId, 0) })
-    }
-    if (n.files.length && !carrier) carrier = n
+    for (const c of n.captures) plan({ kind: "addPin", rowId, pin: c.pin }, pinAssets(c, rowId, 0))
+    if (n.files.length) carrier ??= rowId
     files.push(...n.files.map((f) => ({ rowId, name: f.name, dataBase64: f.dataBase64 })))
-    for (const c of prune(n.children)) {
-      if (c.savedRowId) walk(c)
-      else
-        adds.push({
-          op: { kind: "addChild", rowId, row: toDraftRow(c) },
-          assets: subtreeAssets(c, "$0"),
-        })
-    }
   }
-  walk(tree)
+  if (carrier) plan({ kind: "attach", rowId: carrier }, files)
 
-  const ops = [...deletes, ...edits, ...adds]
-  if (files.length) {
-    if (ops.length) ops[0] = { ...ops[0], assets: [...files, ...ops[0].assets] }
-    else {
-      const holder = carrier as DraftNode | null
-      ops.push({ op: { kind: "attach", rowId: holder!.savedRowId as string }, assets: files })
+  // Rows coming up to the top level move first, so that a row going down
+  // under another never takes a sub-row along that is leaving it.
+  for (const target of [1, 2]) {
+    for (const { node, depth } of flatten(tree)) {
+      const parent = depth === target ? parentIn(tree, node) : null
+      if (parent && node.savedRowId && !stays(node, parent)) {
+        plan({ kind: "moveRow", rowId: idOf(node), parentId: idOf(parent) })
+      }
     }
   }
-  return ops
+
+  const ids = new Map<string, string>()
+  const walkAdds = (parent: DraftNode) => {
+    for (const child of keepEmpty ? parent.children : prune(parent.children)) {
+      if (child.savedRowId) {
+        ids.set(child.id, idOf(child))
+        walkAdds(child)
+        continue
+      }
+      const added = plan(
+        { kind: "addChild", rowId: idOf(parent), row: toDraftRow(child) },
+        subtreeAssets(child, "$0")
+      )
+      // addChild reports the new ids in the subtree's own order.
+      const nodes = [child, ...child.children]
+      added?.addedRowIds.forEach((id, i) => nodes[i] && ids.set(nodes[i].id, id))
+    }
+  }
+  ids.set(tree.id, idOf(tree))
+  walkAdds(tree)
+  return { ops, ids }
 }
 
 // Esc asks before throwing this away.

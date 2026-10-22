@@ -131,4 +131,45 @@ describe("ops", () => {
     expect(serializeFeedback(parseFeedback(md))).toBe(md)
     expect(parseFeedback(md).status).toBe("open")
   })
+  it("moveRow re-parents a row last under its new parent, with a new label and its lines", () => {
+    const md = [
+      "# 5. Nav `open`",
+      "",
+      "- a. one `open`",
+      "- b. two `open`",
+      "  - 1. sub `open`",
+      "- c. three `review`",
+      "  📍 /x — ![](05-nav/5.c-pin.png)",
+      "  📎 [5.c-shot.png](05-nav/5.c-shot.png)",
+      "",
+    ].join("\n")
+    const indented = applyOp(
+      parseFeedback(md),
+      { kind: "moveRow", rowId: "5.c", parentId: "5.b" },
+      []
+    )
+    expect(indented.movedRowIds).toEqual([["5.c", "5.b.2"]])
+    expect(serializeFeedback(indented.feedback)).toBe(
+      [
+        "# 5. Nav `open`",
+        "",
+        "- a. one `open`",
+        "- b. two `open`",
+        "  - 1. sub `open`",
+        "  - 2. three `review`",
+        "    📍 /x — ![](05-nav/5.b.2-pin.png)",
+        "    📎 [5.b.2-shot.png](05-nav/5.b.2-shot.png)",
+        "",
+      ].join("\n")
+    )
+    const back = applyOp(indented.feedback, { kind: "moveRow", rowId: "5.b.2", parentId: "5" }, [])
+    expect(back.movedRowIds).toEqual([["5.b.2", "5.c"]])
+    expect(serializeFeedback(back.feedback)).toBe(md)
+  })
+  it("moveRow refuses a third level", () => {
+    const md = "# 5. Nav `open`\n\n- a. one `open`\n- b. two `open`\n  - 1. sub `open`\n"
+    expect(() =>
+      applyOp(parseFeedback(md), { kind: "moveRow", rowId: "5.b", parentId: "5.a" }, [])
+    ).toThrow(expect.objectContaining({ code: "locked" }))
+  })
 })

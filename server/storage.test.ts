@@ -236,6 +236,32 @@ describe("applyOp", () => {
     ).rejects.toMatchObject({ status: 404 })
   })
 
+  it("moveRow renames the moved rows' files with them", async () => {
+    await storage.createReview("t")
+    await storage.createFeedback(
+      "t",
+      "Nav",
+      [row("one"), row("two", [row("kid")])],
+      [],
+      [
+        { rowId: "$1", name: "note.txt", dataBase64: PNG },
+        { rowId: "$1.0", name: "pin.png", dataBase64: PNG },
+      ]
+    )
+    const dir = path.join(root, "t", "01-nav")
+    await storage
+      .applyOp("t", 1, { kind: "moveRow", rowId: "1.b", parentId: "1.a" }, [])
+      .catch((e) => e)
+    // 1.b has a row under it: two levels at most, so it stays.
+    expect(existsSync(path.join(dir, "1.b-note.txt"))).toBe(true)
+    await storage.applyOp("t", 1, { kind: "moveRow", rowId: "1.b.1", parentId: "1" }, [])
+    expect(existsSync(path.join(dir, "1.c-pin.png"))).toBe(true)
+    expect(existsSync(path.join(dir, "1.b.1-pin.png"))).toBe(false)
+    expect(await fs.readFile(path.join(root, "t", "01-nav.md"), "utf8")).toContain(
+      "- c. kid `open`"
+    )
+  })
+
   it("attach links files and changes nothing else", async () => {
     await storage.createReview("t")
     await storage.createFeedback("t", "Nav", [row("one")], [], [])

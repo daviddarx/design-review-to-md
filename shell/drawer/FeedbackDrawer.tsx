@@ -185,7 +185,7 @@ export function FeedbackDrawer({
     setFocusId(BACK)
   }, [focusSignal])
 
-  const ids = useMemo(() => displayIds(tree, nextNumber), [tree, nextNumber])
+  const ids = useMemo(() => displayIds(tree, feedback, nextNumber), [tree, feedback, nextNumber])
 
   const takeOffPin = (id: string, key: PinKey) => {
     setTree((t) => removePin(t, id, key))
@@ -500,6 +500,7 @@ export function FeedbackDrawer({
             <DrawerRow
               key={node.id}
               node={node}
+              review={review}
               number={ids.get(node.id) ?? ""}
               depth={depth}
               dropping={dropTarget === node.id}
@@ -553,6 +554,7 @@ export function FeedbackDrawer({
 
 type DrawerRowProps = {
   node: DraftNode
+  review: string
   number: string // what the row will be numbered: 5, 5.c, 5.c.1
   depth: number
   busy: boolean
@@ -575,6 +577,7 @@ type DrawerRowProps = {
 // edge), then the icon actions at the right.
 function DrawerRow({
   node,
+  review,
   number,
   depth,
   busy,
@@ -631,8 +634,15 @@ function DrawerRow({
         {node.locked && (
           <p className="dr-drawer-hint">Claude has worked on this — use Refine in the list.</p>
         )}
-        {node.files.length > 0 && (
+        {node.savedFiles.length + node.files.length > 0 && (
           <ul className="dr-files" aria-label="Attachments">
+            {node.savedFiles.map((f) => (
+              <li key={f.path} className="dr-file">
+                <a href={fileUrl(review, f.path)} target="_blank" rel="noreferrer">
+                  {f.name}
+                </a>
+              </li>
+            ))}
             {node.files.map((f) => (
               <li key={f.name} className="dr-file">
                 {f.name}

@@ -28,6 +28,7 @@ function node(text: string, children: DraftNode[] = [], extra: Partial<DraftNode
     keptPins: [],
     captures: [],
     files: [],
+    savedFiles: [],
     children,
     ...extra,
   }
@@ -55,13 +56,16 @@ describe("outline edits", () => {
     expect(texts(tree)).toEqual({ title: [{ a: [] }, { b: [{ b1: [] }] }, { c: [] }] })
   })
 
-  it("indent is a no-op on a saved node", () => {
+  it("a saved row indents only under a saved row, and outdents", () => {
     const b = node("b", [], { savedRowId: "5.b", savedText: "b" })
     const tree = node("title", [node("a"), b])
-    expect(indent(tree, b.id)).toBe(tree)
+    expect(indent(tree, b.id)).toBe(tree) // under a row not saved yet: no
+    const a = node("a", [], { savedRowId: "5.a", savedText: "a" })
+    const tree2 = node("title", [a, b])
+    expect(texts(indent(tree2, b.id))).toEqual({ title: [{ a: [{ b: [] }] }] })
     const saved = node("s", [], { savedRowId: "5.a.1", savedText: "s" })
     const tree3 = node("title", [node("a", [saved])])
-    expect(outdent(tree3, saved.id)).toBe(tree3)
+    expect(texts(outdent(tree3, saved.id))).toEqual({ title: [{ a: [] }, { s: [] }] })
   })
 
   it("a fourth level is refused", () => {
@@ -221,11 +225,12 @@ describe("saving", () => {
       files: [{ name: "note.txt", dataBase64: "DDD" }],
     })
     expect(buildOps(feedback, tree)).toEqual([
+      { op: { kind: "deleteRow", rowId: "5.a" }, assets: [] },
+      { op: { kind: "editText", rowId: "5.c", text: "Search field is off" }, assets: [] },
       {
-        op: { kind: "deleteRow", rowId: "5.a" },
+        op: { kind: "attach", rowId: "5.c.1" },
         assets: [{ rowId: "5.c.1", name: "note.txt", dataBase64: "DDD" }],
       },
-      { op: { kind: "editText", rowId: "5.c", text: "Search field is off" }, assets: [] },
       {
         op: { kind: "addChild", rowId: "5.c", row: { text: "also on hover", children: [] } },
         assets: [{ rowId: "$0", name: "shot.png", dataBase64: "CCC" }],
@@ -296,7 +301,7 @@ describe("saving", () => {
     const [a, , c] = tree.children
     tree = remove(tree, a.id)
     tree = appendChild(appendChild(tree, c.id), tree.id)
-    const ids = displayIds(tree, null)
+    const ids = displayIds(tree, feedback, null)
     expect(flatten(tree).map(({ node }) => ids.get(node.id))).toEqual([
       "5",
       "5.b",
@@ -306,6 +311,31 @@ describe("saving", () => {
       "5.d",
     ])
     const fresh = newDraft()
-    expect(displayIds(fresh, 3).get(fresh.id)).toBe("3")
+    expect(displayIds(fresh, null, 3).get(fresh.id)).toBe("3")
+  })
+
+  it("a saved row indented or outdented is moved, then rows added under its new id", () => {
+    const feedback = parseFeedback(POINT) // 5.a, 5.b, 5.c with 5.c.1
+    let tree = fromFeedback(feedback)
+    const c = tree.children[2]
+    expect(indent(tree, c.id)).toBe(tree) // 5.c has a row under it: too deep
+    tree = outdent(tree, c.children[0].id) // 5.c.1 → the top level
+    tree = indent(tree, c.id) // 5.c under 5.b
+    tree = appendChild(tree, tree.id)
+    tree = updateNode(tree, tree.children.at(-1)!.id, { text: "new" })
+    expect(buildOps(feedback, tree).map((o) => o.op)).toEqual([
+      { kind: "moveRow", rowId: "5.c.1", parentId: "5" },
+      { kind: "moveRow", rowId: "5.c", parentId: "5.b" },
+      { kind: "addChild", rowId: "5", row: { text: "new", children: [] } },
+    ])
+    const ids = displayIds(tree, feedback, null)
+    expect(flatten(tree).map(({ node }) => [node.text, ids.get(node.id)])).toEqual([
+      ["Main navigation", "5"],
+      ["Icons are too small", "5.a"],
+      ["Still too faint", "5.b"],
+      ["Search field is misaligned", "5.b.1"],
+      ["by two pixels", "5.d"],
+      ["new", "5.e"],
+    ])
   })
 })
