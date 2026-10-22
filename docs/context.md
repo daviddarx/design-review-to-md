@@ -291,3 +291,15 @@ plan beside it.
      `aria-expanded`/`aria-controls` trigger. State files are gitignored, so on
      another machine step 3 is skipped. Old tool pins keep their path-only
      behaviour.
+- **Pins no longer anchor on React's generated ids** (his item 4: the pin
+  marker kept its x when the work panel was open). On client-mounted
+  components `useId` follows mount order, so `base-ui-_r_5_` names another
+  trigger once the work panel mounted first; the marker found nothing and fell
+  back to the recorded click, which does not move. `uniqueSelector` now skips
+  `_r_…_` / `:r…:` / `«r…»` ids (with any `base-ui-` prefix) unless they are a
+  popup id in `popupIds`, which `openersOf` and `stepOf` pass so the element's
+  path still anchors on its popup. The markers resolve those popup ids through
+  the open triggers (`followOpeners`, shared with `goToPin`'s renaming), and a
+  pin whose popup is closed sits by its trigger, at the offset recorded in the
+  new optional `PinOpener.rect`. Pins made before this keep the old ids and
+  must be re-pinned.
