@@ -247,3 +247,21 @@ plan beside it.
   backdrop fade 150 → 112ms). Copy prompt now also asks to commit
   `docs/review/<review>/` as it is before making the changes. From this round
   on, a round's briefing files are committed first, in their own commit.
+- **Briefing-feedback-7**:
+  - **Pins inside a click-opened popup** (his favourites popover): the
+    element only exists while the popup is open, and its selector was
+    anchored on the popup's React id (`#_r_2_ > …`). The pick now records
+    `openers` on the step — each open popup's trigger (`aria-expanded="true"`
+    whose `aria-controls` names an ancestor), outermost first, with the
+    popup's id at the time. Go to pin, when the element is absent but the
+    first trigger is there, `.click()`s each closed trigger (Base UI's
+    `useClick` opens on a click with no pointer type), reads its
+    `aria-controls` and rewrites `#old` to `#new` in the selectors still to
+    use. Pins made before this carry no `openers` and must be re-pinned.
+    Hover-opened menus (the main navigation) keep using `replayHover`.
+  - Drawer slide and backdrop fade use the tested app's Sheet curve,
+    `cubic-bezier(0.4, 0, 0.2, 1)` (`--dr-ease`), keeping round 6's 225 /
+    112ms.
+  - The status tag line has 8px below it too.
+  - Copy prompt: "Commit review folder (docs/review/<review>) and work
+    through its open feedbacks — follow packages/design-review/AGENTS.md."
