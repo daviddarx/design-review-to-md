@@ -265,3 +265,11 @@ plan beside it.
   - The status tag line has 8px below it too.
   - Copy prompt: "Commit review folder (docs/review/<review>) and work
     through its open feedbacks — follow packages/design-review/AGENTS.md."
+- **No more pins on the tool itself** (his call: "we'll finish the review of
+  it the older way"). The picker only takes elements of the frame's document;
+  a hover over the tool clears the outline and a click on it is swallowed and
+  pins nothing (the pick goes on; Esc ends it). New steps always carry
+  `inTool: false`. Reading old `(review tool)` pins (Go to pin, markers,
+  hover replay) is left in place, so existing ones still work. Tests stand the
+  frame in for the test document and mock `modern-screenshot` — a real render
+  walks back into the document through that frame and runs out of memory.
