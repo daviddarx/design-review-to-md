@@ -83,12 +83,28 @@ body {
 }
 
 /* Left edge; pointer capture keeps the drag alive over the frame. */
+/* A soft slate shade along the left edge: the panel reads as sitting below
+   the app. Drawn over the panel's content (headers and the drawer have
+   backgrounds an inset box-shadow would hide under), under the resize edge,
+   and never in the pointer's way. */
+.dr-panel::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 2;
+  width: 12px;
+  background: linear-gradient(to right, rgb(30 41 59 / 0.12), rgb(30 41 59 / 0));
+  pointer-events: none;
+}
+
 .dr-resize {
   position: absolute;
   top: 0;
   bottom: 0;
   left: -3px;
-  z-index: 2;
+  z-index: 3;
   width: 6px;
   cursor: col-resize;
   touch-action: none;
@@ -150,9 +166,13 @@ select.dr-review-select {
 
 /* A label that changes without changing the button's width: the widest
    label is laid out, invisibly, in the same cell. */
+/* Top-aligned, not on the baseline: "Copied" leads with its icon, whose
+   bottom edge would become the baseline and lift the label. */
 .dr-swap {
   display: inline-grid;
+  align-items: center;
   justify-items: center;
+  vertical-align: top;
 }
 
 .dr-swap > *,
@@ -169,6 +189,11 @@ select.dr-review-select {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+}
+
+/* Taller than the text line: overhangs it evenly instead of growing it. */
+.dr-copied svg {
+  margin: -4px 0;
 }
 
 .dr-button:hover:not(:disabled) {
@@ -697,7 +722,7 @@ select.dr-review-select {
 
 /* Feedback drawer, as the app's own sheets do it: it slides in from the right
    over a slate backdrop that fades in, and both run backwards on close. The
-   layer sits below the resize edge (z-index 2) so the panel stays
+   layer sits below the resize edge (z-index 3) so the panel stays
    resizable. */
 .dr-drawer-layer {
   position: absolute;
