@@ -4,7 +4,7 @@ import { flushSync } from "react-dom"
 import type { PinRecord, PinStep } from "../../model/types.ts"
 import { grabPng, snapshotLocalStorage } from "./capture.ts"
 import type { CapturedPin } from "./capture.ts"
-import { componentName, describe, uniqueSelector } from "./inspect.ts"
+import { componentName, describe, openersOf, uniqueSelector } from "./inspect.ts"
 import { clearSourceCache, sourceOf } from "../source/sourceLookup.ts"
 
 type Box = { x: number; y: number; width: number; height: number }
@@ -70,6 +70,7 @@ function stepOf({ el, inTool, mouse }: Picked): PinStep {
   const win = el.ownerDocument.defaultView ?? window
   const r = el.getBoundingClientRect()
   const component = componentName(el)
+  const openers = openersOf(el)
   return {
     url: win.location.href,
     path: inTool ? "(review tool)" : win.location.pathname + win.location.search,
@@ -83,6 +84,7 @@ function stepOf({ el, inTool, mouse }: Picked): PinStep {
       rect: { x: r.x, y: r.y, width: r.width, height: r.height },
     },
     inTool,
+    ...(openers.length ? { openers } : {}),
   }
 }
 

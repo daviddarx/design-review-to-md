@@ -1,7 +1,7 @@
 // @vitest-environment dr-happy-dom
 import { afterEach, describe, expect, it } from "vitest"
 import { snapshotLocalStorage } from "./capture.ts"
-import { componentName, describe as describeEl, uniqueSelector } from "./inspect.ts"
+import { componentName, describe as describeEl, openersOf, uniqueSelector } from "./inspect.ts"
 
 afterEach(() => {
   document.body.innerHTML = ""
@@ -86,5 +86,21 @@ describe("snapshotLocalStorage", () => {
     localStorage.setItem("design-review:mode", "on")
     localStorage.setItem("other", "x")
     expect(JSON.parse(snapshotLocalStorage())).toEqual({ "app-data": '{"a":1}', other: "x" })
+  })
+})
+
+describe("openersOf", () => {
+  it("names the triggers of the open popups an element sits in, outermost first", () => {
+    document.body.innerHTML = `
+      <button data-slot="outer" aria-expanded="true" aria-controls="p1">Open</button>
+      <div id="p1"><button data-slot="inner" aria-expanded="true" aria-controls="p2">More</button></div>
+      <div id="p2"><span><b>Item</b></span></div>
+      <button data-slot="shut" aria-expanded="false" aria-controls="p3">Shut</button>
+      <div id="p3"><i>Kept</i></div>`
+    expect(openersOf(document.querySelector("b")!)).toEqual([
+      { selector: '[data-slot="outer"]', controls: "p1" },
+      { selector: '[data-slot="inner"]', controls: "p2" },
+    ])
+    expect(openersOf(document.querySelector("i")!)).toEqual([])
   })
 })

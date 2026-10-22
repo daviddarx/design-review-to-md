@@ -1,3 +1,5 @@
+import type { PinOpener } from "../../model/types.ts"
+
 // What the picker knows about an element: a selector that finds it again,
 // the React component that rendered it, and a short label.
 
@@ -7,7 +9,7 @@ const MARKERS = ["data-slot", "data-product-tour-id", "data-testid"]
 const VOLATILE =
   /^data-(state|open|closed|highlighted|hover|hovered|focus|focused|focus-visible|active|selected|disabled|pressed|checked|unchecked|orientation|side|align|starting-style|ending-style|popup-open|placeholder|dragging|index)$/
 
-function escapeIdent(s: string): string {
+export function escapeIdent(s: string): string {
   if (typeof CSS !== "undefined" && typeof CSS.escape === "function") return CSS.escape(s)
   return s.replace(/[^a-zA-Z0-9_-]/g, (c) => `\\${c}`).replace(/^(\d)/, "\\3$1 ")
 }
@@ -112,4 +114,28 @@ export function describe(el: Element): string {
   const { width, height } = el.getBoundingClientRect()
   const name = componentName(el) ?? el.tagName.toLowerCase()
   return `${name} ${Math.round(width)}×${Math.round(height)}`
+}
+
+// The open popups `el` sits in, found by their trigger: an element marked
+// `aria-expanded="true"` whose `aria-controls` names an ancestor of `el`
+// (what Base UI's popover, menu and select triggers carry while open). A
+// trigger inside another popup leads on to that one. Outermost first.
+export function openersOf(el: Element): PinOpener[] {
+  const doc = el.ownerDocument
+  const out: PinOpener[] = []
+  const seen = new Set<Element>()
+  for (let node: Element | null = el; node; node = node.parentElement) {
+    if (!node.id) continue
+    let trigger: Element | null = null
+    try {
+      trigger = doc.querySelector(`[aria-expanded="true"][aria-controls~=${quoted(node.id)}]`)
+    } catch {
+      trigger = null
+    }
+    if (!trigger || seen.has(trigger)) continue
+    seen.add(trigger)
+    out.unshift({ selector: uniqueSelector(trigger), controls: node.id })
+    node = trigger // the loop's parentElement step continues above it
+  }
+  return out
 }

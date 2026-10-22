@@ -1,4 +1,5 @@
-import type { PinRecord, PinStep } from "../../model/types.ts"
+import type { PinOpener, PinRecord, PinStep } from "../../model/types.ts"
+import { escapeIdent } from "./inspect.ts"
 
 // How long the app may take to render the pinned element after a load: the
 // 07.x/08.x shells mount client-side, after hydration, so the element is
@@ -23,6 +24,36 @@ async function waitFor(find: () => Element | null): Promise<Element | null> {
     if (el || performance.now() > deadline) return el
     await nextFrame()
   }
+}
+
+// `#old` → `#new` in a selector, where a popup's id changed since the pick.
+function renameId(selector: string, from: string, to: string): string {
+  const id = escapeIdent(from).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  return selector.replace(new RegExp(`#${id}(?![\\w-])`, "g"), `#${escapeIdent(to)}`)
+}
+
+// Opens the popups the element was picked in, outermost first: clicks each
+// trigger that is not open yet, then follows its `aria-controls` to the
+// popup's id now (React's ids are not stable across loads). Returns the
+// element's selector with those ids put right.
+async function openPopups(doc: Document, openers: PinOpener[], selector: string): Promise<string> {
+  let rest = openers.map((o) => ({ ...o }))
+  let target = selector
+  while (rest.length) {
+    const [opener, ...next] = rest
+    const trigger = await waitFor(() => query(doc, opener.selector))
+    if (!trigger) break
+    if (trigger.getAttribute("aria-expanded") !== "true") (trigger as HTMLElement).click()
+    const now = await waitFor(() =>
+      trigger.getAttribute("aria-expanded") === "true" ? trigger : null
+    )
+    const id = now?.getAttribute("aria-controls")?.split(/\s+/)[0]
+    if (id && id !== opener.controls) {
+      target = renameId(target, opener.controls, id)
+      rest = next.map((o) => ({ ...o, selector: renameId(o.selector, opener.controls, id) }))
+    } else rest = next
+  }
+  return target
 }
 
 // The frame's next `load`, or RENDER_WAIT_MS — a navigation that never
@@ -88,7 +119,18 @@ export async function goToPin(
   }
   if (!win) return "missing"
 
-  const el = await waitFor(() => query(frame.contentDocument, selector))
+  const doc = () => frame.contentDocument
+  const openers = step.openers ?? []
+  // The element, or — when it lives in a popup that is closed — its first
+  // trigger, which says the page has rendered.
+  let el = await waitFor(
+    () => query(doc(), selector) ?? (openers[0] ? query(doc(), openers[0].selector) : null)
+  )
+  const d = doc()
+  if (el && d && query(d, selector) !== el) {
+    const target = await openPopups(d, openers, selector)
+    el = await waitFor(() => query(d, target))
+  }
   if (!el) return "missing"
   el.scrollIntoView({ block: "center" })
   flash(el)

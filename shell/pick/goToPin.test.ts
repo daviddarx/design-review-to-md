@@ -102,4 +102,26 @@ describe("goToPin in the frame", () => {
     expect(location.assign).toHaveBeenCalledWith("/concept-08-4?x=1")
     expect(flash).toHaveBeenCalledWith(document.querySelector("button"))
   })
+
+  it("clicks a closed popup's trigger open and finds the element under its new id", async () => {
+    const doc = document.implementation.createHTMLDocument("app")
+    doc.body.innerHTML = `<button aria-expanded="false" data-slot="fav">Favourites</button>`
+    const trigger = doc.querySelector("button")!
+    // Opening mounts the popup under an id other than the pick's.
+    trigger.addEventListener("click", () => {
+      trigger.setAttribute("aria-expanded", "true")
+      trigger.setAttribute("aria-controls", "_r_9_")
+      doc.body.insertAdjacentHTML(
+        "beforeend",
+        `<div id="_r_9_"><div><button>Grip</button></div></div>`
+      )
+    })
+    const r = appRecord("#_r_2_ > div > button", "/tickets")
+    r.steps[0].openers = [{ selector: '[data-slot="fav"]', controls: "_r_2_" }]
+    const { frame } = fakeFrame("/tickets", doc)
+    const flash = vi.fn()
+    expect(await goToPin(frame, r, flash)).toBe("found")
+    const grip = doc.querySelector("#_r_9_ button")!
+    expect(flash).toHaveBeenCalledWith(grip)
+  })
 })

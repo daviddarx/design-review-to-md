@@ -37,5 +37,9 @@ export type PinStep = {
     source?: { file: string; line: number }
   }
   inTool: boolean // picked inside the review tool's own UI
+  // The triggers of the popups the element was in, outermost first: Go to
+  // pin clicks them open again. `controls` is the popup's id when picked.
+  openers?: PinOpener[]
 }
+export type PinOpener = { selector: string; controls: string }
 export type PinRecord = { version: 1; at: string; steps: PinStep[] } // list-shaped for future sequences
