@@ -56,8 +56,7 @@ const FILTERS: { value: Filter; label: string }[] = [
 ]
 
 export const copyPromptText = (review: string) =>
-  `Work through the open feedback in docs/review/${review}/ — follow packages/design-review/AGENTS.md. ` +
-  `First commit the review folder (docs/review/${review}/) as it is, then make the changes.`
+  `Commit review folder (docs/review/${review}) and work through its open feedbacks — follow packages/design-review/AGENTS.md.`
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err))
 

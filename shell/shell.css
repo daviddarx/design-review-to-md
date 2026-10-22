@@ -64,6 +64,8 @@ body {
   --dr-hover: #f1f5f9;
   --dr-focus: #2563eb;
   --dr-gutter: 20px; /* the panel's left and right inset */
+  /* The tested app's drawer curve (Tailwind's ease-in-out, on its Sheet). */
+  --dr-ease: cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   flex: 0 0 auto;
   display: flex;
@@ -458,9 +460,10 @@ select.dr-review-select {
   margin-top: 4px;
 }
 
-/* The status tag sits a little further from what is above it. */
+/* The status tag sits a little apart from what is above and below it. */
 .dr-row-meta {
   margin-top: 8px;
+  margin-bottom: 8px;
 }
 
 .dr-row-files a {
@@ -722,11 +725,11 @@ select.dr-review-select {
   inset: 0;
   background: rgb(100 116 139 / 0.45);
   backdrop-filter: blur(2px);
-  animation: dr-fade-in 112ms ease-out both;
+  animation: dr-fade-in 112ms var(--dr-ease) both;
 }
 
 .dr-leaving .dr-drawer-backdrop {
-  animation: dr-fade-out 112ms ease-in both;
+  animation: dr-fade-out 112ms var(--dr-ease) both;
 }
 
 .dr-drawer {
@@ -736,11 +739,11 @@ select.dr-review-select {
   flex-direction: column;
   background: var(--dr-surface);
   box-shadow: -8px 0 24px rgb(15 23 42 / 0.12);
-  animation: dr-slide-in 225ms ease-in-out;
+  animation: dr-slide-in 225ms var(--dr-ease);
 }
 
 .dr-leaving .dr-drawer {
-  animation: dr-slide-out 225ms ease-in-out forwards;
+  animation: dr-slide-out 225ms var(--dr-ease) forwards;
 }
 
 @keyframes dr-slide-in {
