@@ -129,7 +129,7 @@ describe("Panel", () => {
     await render()
     // Grey chips under the text, as in the drawer; no button for them.
     expect(action("5.d", "Attached files")).toBeNull()
-    const link = row("5.d").querySelector<HTMLAnchorElement>(".dr-row-body .dr-file a")!
+    const link = row("5.d").querySelector<HTMLAnchorElement>(".dr-row-meta a")!
     expect(link.textContent).toBe("5.d-my shot.png")
     expect(link.getAttribute("href")).toBe(
       "/__review/files/08.4/05-main-navigation/5.d-my%20shot.png"
@@ -212,12 +212,13 @@ describe("Panel", () => {
     await act(async () => action("5.b", "History")!.click())
     const history = row("5.b").querySelector(".dr-history")!
     expect(history.textContent).toContain("Before: Active state is hard to see")
-    expect(history.previousElementSibling?.classList.contains("dr-row-text")).toBe(true)
+    expect(history.previousElementSibling?.classList.contains("dr-row-meta")).toBe(true)
   })
 
-  it("the status tag starts the text; a sub-row keeps an empty slot where Edit goes", async () => {
+  it("the status tag ends the line under the text; a sub-row keeps Edit's slot empty", async () => {
     await render()
-    expect(row("5.c").querySelector(".dr-row-text")!.firstElementChild!.textContent).toBe("review")
+    expect(row("5.c").querySelector(".dr-row-meta")!.lastElementChild!.textContent).toBe("review")
+    expect(action("5", "Edit feedback")!.classList.contains("dr-action-primary")).toBe(true)
     expect(row("5").querySelector(".dr-row-side > .dr-action-slot")).toBeNull()
     expect(row("5.c").querySelector(".dr-row-side > .dr-action-slot")).not.toBeNull()
   })

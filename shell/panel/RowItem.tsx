@@ -137,12 +137,7 @@ export function RowItem({
 
       <div className="dr-row-body">
         {refining === null ? (
-          <div className="dr-row-text">
-            {row.status && (
-              <span className={`dr-status dr-status-${row.status}`}>{row.status}</span>
-            )}
-            {row.text}
-          </div>
+          <div className="dr-row-text">{row.text}</div>
         ) : (
           <textarea
             className="dr-input dr-refine"
@@ -166,6 +161,20 @@ export function RowItem({
           />
         )}
 
+        {/* Under the text: the files as links, then the status. */}
+        {(row.attachments.length > 0 || row.status) && (
+          <div className="dr-row-meta">
+            {row.attachments.map((a) => (
+              <a key={a.path} href={fileUrl(review, a.path)} target="_blank" rel="noreferrer">
+                {a.name}
+              </a>
+            ))}
+            {row.status && (
+              <span className={`dr-status dr-status-${row.status}`}>{row.status}</span>
+            )}
+          </div>
+        )}
+
         {historyOpen && (
           <ol className="dr-history" aria-label={`History of ${row.rowId}`}>
             {row.history.map((h, i) => (
@@ -177,18 +186,6 @@ export function RowItem({
               </li>
             ))}
           </ol>
-        )}
-
-        {row.attachments.length > 0 && (
-          <ul className="dr-files" aria-label="Attachments">
-            {row.attachments.map((a) => (
-              <li key={a.path} className="dr-file">
-                <a href={fileUrl(review, a.path)} target="_blank" rel="noreferrer">
-                  {a.name}
-                </a>
-              </li>
-            ))}
-          </ul>
         )}
       </div>
 
@@ -255,6 +252,7 @@ export function RowItem({
               <ActionButton
                 icon="edit"
                 label="Edit feedback"
+                className="dr-action-primary"
                 onClick={() => onEditFeedback(feedbackNumber)}
               />
             )}

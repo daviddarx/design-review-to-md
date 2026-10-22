@@ -3,7 +3,7 @@ import type { ComponentProps, ReactNode } from "react"
 
 // `shown` waits for the box's own pictures: one still loading would widen
 // the box as it arrives, and the box would slide in from the right.
-type Place = { left: number; top: number; shown: boolean }
+type Place = { right: number; top: number; shown: boolean }
 
 const GAP = 4
 
@@ -39,13 +39,15 @@ export function Flyout({
     const tick = () => {
       const a = anchor.getBoundingClientRect()
       const h = ref.current?.offsetHeight ?? 0
-      const w = ref.current?.offsetWidth ?? width ?? 0
       const below = a.bottom + GAP
       const top = below + h > window.innerHeight && a.top - GAP - h >= 0 ? a.top - GAP - h : below
-      const left = Math.max(GAP, a.right - w)
+      // Anchored by its right edge: placed by its left one, a box that sizes
+      // to its content got narrower the further right it went, and crept
+      // into place over several frames.
+      const right = Math.max(0, window.innerWidth - a.right)
       const shown = [...(ref.current?.querySelectorAll("img") ?? [])].every((img) => img.complete)
       setPlace((p) =>
-        p && p.left === left && p.top === top && p.shown === shown ? p : { left, top, shown }
+        p && p.right === right && p.top === top && p.shown === shown ? p : { right, top, shown }
       )
       id = requestAnimationFrame(tick)
     }
@@ -87,7 +89,7 @@ export function Flyout({
       style={{
         width,
         maxWidth,
-        left: place?.left ?? 0,
+        right: place?.right ?? 0,
         top: place?.top ?? 0,
         visibility: place?.shown ? undefined : "hidden",
       }}

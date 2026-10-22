@@ -383,8 +383,8 @@ select.dr-review-select {
 }
 
 /* Each list row's separator is drawn above it: a feedback's across the
-   panel, any sub-row's from where the feedback's text starts (5ch is the
-   number column). */
+   panel, a sub-row's from where its own text starts (5ch is the number
+   column, 16px a level's indent). */
 .dr-list {
   border-bottom: 1px solid var(--dr-line);
 }
@@ -403,11 +403,11 @@ select.dr-review-select {
 }
 
 .dr-list > .dr-depth-1::before {
-  left: calc(var(--dr-gutter) + 5ch + 6px);
+  left: calc(var(--dr-gutter) + 5ch + 6px + 16px);
 }
 
 .dr-list > .dr-depth-2::before {
-  left: calc(var(--dr-gutter) + 5ch + 6px);
+  left: calc(var(--dr-gutter) + 5ch + 6px + 32px);
 }
 
 /* Number | text (its status tag first, history and files below) | the
@@ -438,16 +438,26 @@ select.dr-review-select {
   margin-left: 0;
 }
 
-/* The tag starts the text, as tall as the actions; the text's first line
-   is centred on it, and the next ones run under it. */
+/* The text's first line is centred on the number and the buttons. */
 .dr-list .dr-row-text {
   padding-top: 4px;
   line-height: 20px;
 }
 
-.dr-list .dr-row-text > .dr-status {
-  float: left;
-  margin: -4px 6px 0 0;
+/* Under the text: the files as underlined links, then the status tag. */
+.dr-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin-top: 4px;
+}
+
+.dr-row-meta a {
+  overflow-wrap: anywhere;
+  color: #334155;
+  font-size: 12px;
+  text-decoration: underline;
 }
 
 /* A sub-row's number stays in the column; what follows it is indented. */
@@ -491,14 +501,9 @@ select.dr-review-select {
   resize: vertical;
 }
 
-/* As tall as the icon actions beside it; the type stays small. */
 .dr-status {
-  box-sizing: border-box;
-  display: inline-flex;
-  align-items: center;
-  height: 28px;
-  padding: 0 8px;
-  border-radius: 6px;
+  padding: 0 6px;
+  border-radius: 4px;
   font:
     500 11px/18px ui-monospace,
     SFMono-Regular,
@@ -576,6 +581,19 @@ select.dr-review-select {
   background: #fff;
   color: var(--dr-text-muted) !important;
   cursor: pointer;
+}
+
+/* Edit, the row's main action. */
+.dr-row-actions > .dr-action-primary {
+  border-color: var(--dr-text);
+  background: var(--dr-text);
+  color: #fff !important;
+}
+
+.dr-row-actions > .dr-action-primary:hover {
+  border-color: #334155;
+  background: #334155;
+  color: #fff !important;
 }
 
 .dr-action:hover,
