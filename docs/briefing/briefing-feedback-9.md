@@ -1,0 +1,25 @@
+## Design Review Tool - Feedback.
+
+- Feedback list:
+  - Tabs:
+    - Currently, the switch of font-weight by active state shift the position of items on tab change. Fix this, while keeping the font-wieght swtich. What is you solution, give me a feedback at the end.
+    - Do not mak active with a pill, but with a border bottom. This way, we can remove the padding-left of the first item to have its text left alligned with the other elements, when it's not actiive.
+    - Manager spacing between the other tabs with padding, so that user can't make an empty click between tabs.
+    - The active bottom line should be 3px height, aligned bottom in the tab bar, at horiztontally aligned with the text of the tab button, not it's full padding box.
+  - Edit button: remove it from the buttons group, make it separated, with a 8px gap.
+  - Remove 4px vertical padding at the top and bottom of each feedback item/subitem
+  - Refining:
+    - The text-area+save button which appear should be vertically aligned with the right actions (buttons group. and save button) it's "covering" on the right, vertically and horizonztaly. The save button should appear exactly at the same position as the last button in the buttons group (or edit button, if there is one) of the item
+  - State pills:
+    - Add a border with the same color as the text of the pill (braun, green, etc), with opacity 25%
+    - Make them border radius 100%
+    - Make the "Open" having blue color
+  - Responsive: when the module is narrower than 540 px, place the button-group from the right to the bottom of the items, below text, left aligned with the text before the state pill.
+  - When I am one the "All" tab, do not display the pin of the done items. Only display them when I am in "done"
+  - I gave you wrong indication for the separation line, it should be actually like on docs/briefing/design-review-tool/screenshots/separation-line-should-2.png, not docs/briefing/design-review-tool/screenshots/separation-line-should.png
+- Setup.
+  - We are currently on a separate worktree, that I created with worktrunk.dev, it made its own dev server automatically, so that I can test on separate URL than the main worktree, where I am working on something else.
+  - To test this npm run review we're implementing, i had to stop the automatically created dev server of worktrunk, to manually run "npm run review" in the terminal.
+  - That is all good, but the problem is that it's using the default 3000 and an additionally 3001 port.
+  - In main main worktree, when I run then npm run dev normally, I get then serverd on the 3000 or 3001 port.
+  - Is it possible to make that npm run review takes 2 completely other ports, and always uniques ones, differents for each worktree on which I run it?
