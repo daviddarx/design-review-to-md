@@ -66,7 +66,7 @@ plan beside it.
   pick can add up to 1.5 s while source maps load. Maps are refetched every
   pick, keyed by full URL.
 - **Refine joins its text to one line** (a multi-line row would break the md).
-  Markdown file names are fixed at creation: refining a title does not rename.
+  Feedback folder names are fixed at creation: refining a title does not rename.
 - **An open drawer is never remounted** by New point / Pin & add, and leaving
   review mode keeps panel and drawer mounted (hidden) so a draft survives.
 - **`npm run review` cannot run beside another `next dev` in the same
@@ -423,3 +423,19 @@ plan beside it.
   row goes back to `open`, and he wanted to be able to close one without
   another round. Refine stays on `review` rows only. This supersedes the
   "Validate and Refine show only on a `review` row" line above.
+
+### One folder per feedback
+
+- **`<NN>-<slug>/briefing.md`** replaces `<NN>-<slug>.md` beside its asset
+  folder (his request: one entry per feedback in VS Code's tree, no name
+  twice). A feedback is a numbered folder holding a `briefing.md`; a
+  numbered folder without one, or a loose `.md`, is ignored. Delete removes
+  the folder.
+- **Links in the file are relative to the folder** (`![](5-pin.png)`), so
+  they open from the briefing itself. In memory and for the shell they stay
+  review-relative (`05-nav/5-pin.png`): `fromBriefing`/`toBriefing` in
+  `server/storage.ts` move pin screenshots and `📎` links across on read and
+  write (`path.posix` normalize/relative; URLs and absolute paths left as
+  they are). The model, ops, API and shell are unchanged.
+- No migration code: no review was ever committed. His working copy was
+  moved by hand (links rewritten by text, every other byte kept).

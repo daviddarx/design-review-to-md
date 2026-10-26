@@ -48,7 +48,7 @@ describe("reviews", () => {
   it("a missing review folder reads as an empty review, and its first feedback creates it", async () => {
     expect(await storage.readReview("gone")).toEqual({ meta: { nextFeedback: 1 }, feedbacks: [] })
     expect((await storage.createFeedback("gone", "First", [], [], [])).number).toBe(1)
-    expect(existsSync(path.join(root, "gone", "01-first.md"))).toBe(true)
+    expect(existsSync(path.join(root, "gone", "01-first", "briefing.md"))).toBe(true)
   })
 })
 
@@ -64,10 +64,10 @@ describe("feedbacks", () => {
     expect(existsSync(path.join(root, "t", "review.json"))).toBe(false)
   })
 
-  it("a broken first line takes its number from the file name", async () => {
+  it("a broken first line takes its number from the folder name", async () => {
     await storage.createReview("t")
     await storage.createFeedback("t", "Nav", [row("one")], [], [])
-    const file = path.join(root, "t", "01-nav.md")
+    const file = path.join(root, "t", "01-nav", "briefing.md")
     const md = await fs.readFile(file, "utf8")
     await fs.writeFile(file, md.replace("# 1. Nav", "#1 Nav"))
     const [{ feedback }] = (await storage.readReview("t")).feedbacks
@@ -100,7 +100,8 @@ describe("feedbacks", () => {
 
   it("createFeedback writes the file and assets", async () => {
     await storage.createReview("t")
-    await fs.writeFile(path.join(root, "t", "04-earlier.md"), "# 4. Earlier\n")
+    await fs.mkdir(path.join(root, "t", "04-earlier"))
+    await fs.writeFile(path.join(root, "t", "04-earlier", "briefing.md"), "# 4. Earlier\n")
     const res = await storage.createFeedback(
       "t",
       "Main navigation",
@@ -117,18 +118,43 @@ describe("feedbacks", () => {
     expect(existsSync(path.join(dir, "05-main-navigation/5-pin.png"))).toBe(true)
     expect(existsSync(path.join(dir, "05-main-navigation/5.a.1-pin.png"))).toBe(true)
     expect(existsSync(path.join(dir, "05-main-navigation/5.b-shot.png"))).toBe(true)
-    const md = await fs.readFile(path.join(dir, "05-main-navigation.md"), "utf8")
+    const md = await fs.readFile(path.join(dir, "05-main-navigation", "briefing.md"), "utf8")
     expect(md).toContain("# 5. Main navigation")
-    expect(md).toContain("📍 Home > Nav — ![](05-main-navigation/5-pin.png)")
+    // Linked from the briefing, which sits beside them.
+    expect(md).toContain("📍 Home > Nav — ![](5-pin.png)")
     const review = await storage.readReview("t")
     expect(review.feedbacks[1].feedback.rows[0].children[0].text).toBe("sub")
     expect(review.meta.nextFeedback).toBe(6)
   })
 
-  it("creates no asset folder without assets", async () => {
+  it("a feedback is its folder: the briefing beside its files", async () => {
     await storage.createReview("t")
     await storage.createFeedback("t", "Plain", [], [], [])
-    expect(existsSync(path.join(root, "t", "01-plain"))).toBe(false)
+    expect(await fs.readdir(path.join(root, "t"))).toEqual(["01-plain"])
+    expect(await fs.readdir(path.join(root, "t", "01-plain"))).toEqual(["briefing.md"])
+    // A numbered folder without a briefing, or a loose file, is no feedback.
+    await fs.mkdir(path.join(root, "t", "02-stray"))
+    await fs.writeFile(path.join(root, "t", "03-old.md"), "# 3. Old\n")
+    expect((await storage.readReview("t")).feedbacks.map((f) => f.folder)).toEqual(["01-plain"])
+  })
+
+  it("reads the briefing's links relative to its folder, and writes them back so", async () => {
+    await storage.createReview("t")
+    await storage.createFeedback("t", "Nav", [row("one")], [], [])
+    const file = path.join(root, "t", "01-nav", "briefing.md")
+    const md = (await fs.readFile(file, "utf8")).replace(
+      "one `open`\n",
+      "one `open`\n  📍 /a — ![](1.a-pin.png)\n  📎 [x](../02-other/x.png)\n  📎 [y](https://e.x/y.png)\n"
+    )
+    await fs.writeFile(file, md)
+    const [{ feedback }] = (await storage.readReview("t")).feedbacks
+    expect(feedback.rows[0].pins).toEqual([{ path: "/a", screenshot: "01-nav/1.a-pin.png" }])
+    expect(feedback.rows[0].extra).toEqual([
+      "  📎 [x](02-other/x.png)",
+      "  📎 [y](https://e.x/y.png)",
+    ])
+    await storage.applyOp("t", 1, { kind: "setStatus", rowId: "1.a", status: "review" }, [])
+    expect(await fs.readFile(file, "utf8")).toBe(md.replace("one `open`", "one `review`"))
   })
 
   it("rejects bad asset names and unknown ids", async () => {
@@ -150,7 +176,7 @@ describe("applyOp", () => {
   it("reads the file fresh", async () => {
     await storage.createReview("t")
     await storage.createFeedback("t", "Nav", [row("one")], [], [])
-    const file = path.join(root, "t", "01-nav.md")
+    const file = path.join(root, "t", "01-nav", "briefing.md")
     const md = await fs.readFile(file, "utf8")
     await fs.writeFile(file, md.replace("`open`\n", "`open`\n  - Claude: tried it\n"))
     await storage.applyOp("t", 1, { kind: "setStatus", rowId: "1.a", status: "review" }, [])
@@ -203,7 +229,7 @@ describe("applyOp", () => {
         { rowId: "$feedback", name: "pin.json", dataBase64: PNG },
       ]
     )
-    const file = path.join(root, "t", "01-nav.md")
+    const file = path.join(root, "t", "01-nav", "briefing.md")
     const dir = path.join(root, "t", "01-nav")
     // The client names an added pin's files as a first pin's.
     for (const p of ["/b", "/c"]) {
@@ -214,17 +240,13 @@ describe("applyOp", () => {
       ])
     }
     expect(await fs.readFile(file, "utf8")).toContain(
-      [
-        "📍 /a — ![](01-nav/1-pin.png)",
-        "📍 /b — ![](01-nav/1-pin-2.png)",
-        "📍 /c — ![](01-nav/1-pin-3.png)",
-      ].join("\n")
+      ["📍 /a — ![](1-pin.png)", "📍 /b — ![](1-pin-2.png)", "📍 /c — ![](1-pin-3.png)"].join("\n")
     )
     expect(existsSync(path.join(dir, "1-state-3.json"))).toBe(true)
 
     await storage.applyOp("t", 1, { kind: "removePin", rowId: "1", index: 0 }, [])
     expect(await fs.readFile(file, "utf8")).toContain(
-      ["📍 /b — ![](01-nav/1-pin.png)", "📍 /c — ![](01-nav/1-pin-2.png)", ""].join("\n")
+      ["📍 /b — ![](1-pin.png)", "📍 /c — ![](1-pin-2.png)", ""].join("\n")
     )
     expect(await fs.readFile(path.join(dir, "1-pin.png"), "utf8")).toBe("/b")
     expect(await fs.readFile(path.join(dir, "1-pin-2.png"), "utf8")).toBe("/c")
@@ -257,7 +279,7 @@ describe("applyOp", () => {
     await storage.applyOp("t", 1, { kind: "moveRow", rowId: "1.b.1", parentId: "1" }, [])
     expect(existsSync(path.join(dir, "1.c-pin.png"))).toBe(true)
     expect(existsSync(path.join(dir, "1.b.1-pin.png"))).toBe(false)
-    expect(await fs.readFile(path.join(root, "t", "01-nav.md"), "utf8")).toContain(
+    expect(await fs.readFile(path.join(root, "t", "01-nav", "briefing.md"), "utf8")).toContain(
       "- c. kid `open`"
     )
   })
@@ -273,7 +295,9 @@ describe("applyOp", () => {
     )
     await storage.applyOp("t", 1, { kind: "removeFile", rowId: "1.a", file: "1.a-note.txt" }, [])
     expect(existsSync(path.join(root, "t", "01-nav", "1.a-note.txt"))).toBe(false)
-    expect(await fs.readFile(path.join(root, "t", "01-nav.md"), "utf8")).not.toContain("📎")
+    expect(await fs.readFile(path.join(root, "t", "01-nav", "briefing.md"), "utf8")).not.toContain(
+      "📎"
+    )
   })
 
   it("attach links files and changes nothing else", async () => {
@@ -282,8 +306,8 @@ describe("applyOp", () => {
     await storage.applyOp("t", 1, { kind: "attach", rowId: "1.a" }, [
       { rowId: "1.a", name: "note.txt", dataBase64: PNG },
     ])
-    expect(await fs.readFile(path.join(root, "t", "01-nav.md"), "utf8")).toBe(
-      "# 1. Nav `open`\n\n- a. one `open`\n  📎 [1.a-note.txt](01-nav/1.a-note.txt)\n"
+    expect(await fs.readFile(path.join(root, "t", "01-nav", "briefing.md"), "utf8")).toBe(
+      "# 1. Nav `open`\n\n- a. one `open`\n  📎 [1.a-note.txt](1.a-note.txt)\n"
     )
   })
 
@@ -316,19 +340,19 @@ describe("applyOp", () => {
         { rowId: "$1", name: "ref.png", dataBase64: PNG },
       ]
     )
-    const file = path.join(root, "t", "01-nav.md")
+    const file = path.join(root, "t", "01-nav", "briefing.md")
     const md = await fs.readFile(file, "utf8")
     expect(md).toBe(
       [
         "# 1. Nav `open`",
         "",
-        "📎 [1-overview.pdf](01-nav/1-overview.pdf)",
+        "📎 [1-overview.pdf](1-overview.pdf)",
         "",
         "- a. one `open`",
         "  - 1. kid `open`",
-        "    📎 [1.a.1-my shot.png](01-nav/1.a.1-my%20shot.png)",
+        "    📎 [1.a.1-my shot.png](1.a.1-my%20shot.png)",
         "- b. two `open`",
-        "  📎 [1.b-ref.png](01-nav/1.b-ref.png)",
+        "  📎 [1.b-ref.png](1.b-ref.png)",
         "",
       ].join("\n")
     )
@@ -353,8 +377,8 @@ describe("applyOp", () => {
     await storage.applyOp("t", 1, { kind: "addChild", rowId: "1.a", row: row("kid") }, [
       { rowId: "$0", name: "a.png", dataBase64: PNG },
     ])
-    const md = await fs.readFile(path.join(root, "t", "01-nav.md"), "utf8")
-    expect(md).toContain("  - 1. kid `open`\n    📎 [1.a.1-a.png](01-nav/1.a.1-a.png)\n")
+    const md = await fs.readFile(path.join(root, "t", "01-nav", "briefing.md"), "utf8")
+    expect(md).toContain("  - 1. kid `open`\n    📎 [1.a.1-a.png](1.a.1-a.png)\n")
   })
 
   it("deleteRow removes the row's assets", async () => {
@@ -375,15 +399,15 @@ describe("applyOp", () => {
     expect(existsSync(path.join(dir, "1.b-pin.png"))).toBe(true)
   })
 
-  it("keeps the file name when the title is refined", async () => {
+  it("keeps the folder name when the title is refined", async () => {
     await storage.createReview("t")
     await storage.createFeedback("t", "Nav", [], [], [])
     await storage.applyOp("t", 1, { kind: "refine", rowId: "1", text: "Menu" }, [])
-    expect(existsSync(path.join(root, "t", "01-nav.md"))).toBe(true)
+    expect(existsSync(path.join(root, "t", "01-nav", "briefing.md"))).toBe(true)
     expect((await storage.readReview("t")).feedbacks[0].feedback.title).toBe("Menu")
   })
 
-  it("deleteFeedback removes the file and the asset folder", async () => {
+  it("deleteFeedback removes the feedback's folder", async () => {
     await storage.createReview("t")
     await storage.createFeedback(
       "t",
@@ -393,7 +417,6 @@ describe("applyOp", () => {
       [{ rowId: "$feedback", name: "pin.png", dataBase64: PNG }]
     )
     await storage.deleteFeedback("t", 1)
-    expect(existsSync(path.join(root, "t", "01-nav.md"))).toBe(false)
     expect(existsSync(path.join(root, "t", "01-nav"))).toBe(false)
   })
 })

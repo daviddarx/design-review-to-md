@@ -15,7 +15,7 @@ Be strict and terse. No chattiness in the files.
 
 ## Where things are
 
-`docs/review/<review>/<NN>-<slug>.md` is one feedback; its files are in the folder `<NN>-<slug>/` beside it.
+`docs/review/<review>/<NN>-<slug>/` is one feedback: its `briefing.md` and, beside it, every file below. Links in `briefing.md` are relative to that folder.
 
 - `<rowId>` is `5`, `5.c` or `5.b.1` (feedback, row, sub-row).
 - `<rowId>-pin.png` — screenshot of what he pinned. May be missing.
@@ -31,7 +31,7 @@ A row with no pin of its own belongs to the pin of its nearest parent.
 ```md
 # 5. Main navigation `open`
 
-📍 /concept-08-4/tickets — ![](05-main-navigation/5-pin.png)
+📍 /concept-08-4/tickets — ![](5-pin.png)
 
 - a. Icons are too small `done`
 - b. Still too faint on hover, make it the brand blue at 100% `review`
@@ -41,13 +41,13 @@ A row with no pin of its own belongs to the pin of its nearest parent.
   📍 /concept-08-4/tickets
   - 1. Left edge `open`
 - d. Compare with the reference `open`
-  📎 [5.d-reference.png](05-main-navigation/5.d-reference.png)
+  📎 [5.d-reference.png](5.d-reference.png)
 ```
 
 - Row line: ``- <label>. <text> `open|review|done` ``. Sub-rows nest two spaces deeper.
 - The title line carries a tag too (``# 6. Font weights `open` ``): it is the feedback as a whole. With no rows, treat it as a row. With rows, set it to `review` once none of them is left `open`. An older title without a tag has nothing to set.
-- Pin line: `📍 <path> — ![](<folder>/<rowId>-pin.png)`, or just `📍 <path>` when there is no screenshot. A pin on the review tool itself has the path `(review tool)`.
-- `📎 [<file>](<folder>/<file>)` lines are attachments.
+- Pin line: `📍 <path> — ![](<rowId>-pin.png)`, or just `📍 <path>` when there is no screenshot. A pin on the review tool itself has the path `(review tool)`.
+- `📎 [<file>](<file>)` lines are attachments.
 - `Before:` is his earlier wording, `Claude:` is yours. Oldest first, under the row.
 - A `- Claude:` (or `- Before:`) line goes **exactly two spaces deeper than the row it belongs to** — its indent is what assigns it to that row. Under a sub-row that is four spaces:
 

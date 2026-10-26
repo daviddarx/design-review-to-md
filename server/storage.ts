@@ -1,4 +1,4 @@
-import { promises as fs } from "node:fs"
+import { existsSync, promises as fs, type Dirent } from "node:fs"
 import path from "node:path"
 import { randomBytes } from "node:crypto"
 import { parseFeedback, serializeFeedback } from "../model/markdown.ts"
@@ -110,6 +110,47 @@ function linkAttachments(feedback: Feedback, folder: string, assets: Asset[]) {
   }
 }
 
+// One folder per feedback, `<NN>-<slug>/`, holding its `briefing.md` and
+// every file of its pins and attachments. The markdown's links are relative
+// to that folder (`![](5-pin.png)`), so they open from the file; in memory,
+// and for the shell, they stay relative to the review (`05-nav/5-pin.png`).
+export const BRIEFING = "briefing.md"
+
+const ATTACHMENT_LINK = /(📎 \[[^\]]*\]\()([^)]*)(\))/
+
+// A link the markdown cannot mean relative to anything: a URL or an absolute path.
+const isRelative = (link: string) => !/^[a-z][a-z0-9+.-]*:/i.test(link) && !link.startsWith("/")
+
+function relink(feedback: Feedback, move: (link: string) => string): Feedback {
+  const line = (l: string) => l.replace(ATTACHMENT_LINK, (_, a, link, b) => a + move(link) + b)
+  const pins = (list: PinRef[]) =>
+    list.map((pin) => (pin.screenshot ? { ...pin, screenshot: move(pin.screenshot) } : pin))
+  const row = (r: Row): Row => ({
+    ...r,
+    pins: pins(r.pins),
+    extra: r.extra.map(line),
+    children: r.children.map(row),
+  })
+  return {
+    ...feedback,
+    pins: pins(feedback.pins),
+    preamble: feedback.preamble.map(line),
+    rows: feedback.rows.map(row),
+  }
+}
+
+// `5-pin.png` in `05-nav/briefing.md` → `05-nav/5-pin.png`.
+export function fromBriefing(feedback: Feedback, folder: string): Feedback {
+  return relink(feedback, (link) =>
+    isRelative(link) ? path.posix.normalize(`${folder}/${link}`) : link
+  )
+}
+
+// And back, for writing: `05-nav/5-pin.png` → `5-pin.png`.
+export function toBriefing(feedback: Feedback, folder: string): Feedback {
+  return relink(feedback, (link) => (isRelative(link) ? path.posix.relative(folder, link) : link))
+}
+
 export class Storage {
   readonly root: string
   private queue: Promise<unknown> = Promise.resolve()
@@ -144,32 +185,44 @@ export class Storage {
 
   // A missing review folder is an empty review: git keeps no empty folder, so
   // a review whose last feedback was deleted (or never committed) has none.
-  private async feedbackFiles(dir: string): Promise<{ file: string; number: number }[]> {
-    let names: string[]
+  // A numbered folder without a briefing is not a feedback.
+  private async feedbackFiles(dir: string): Promise<{ folder: string; number: number }[]> {
+    let entries: Dirent[]
     try {
-      names = await fs.readdir(dir)
+      entries = await fs.readdir(dir, { withFileTypes: true })
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === "ENOENT") return []
       throw err
     }
-    return names
-      .map((file) => ({ file, m: /^(\d+)-.*\.md$/.exec(file) }))
-      .filter((x): x is { file: string; m: RegExpExecArray } => x.m !== null)
-      .map((x) => ({ file: x.file, number: Number(x.m[1]) }))
-      .sort((a, b) => a.number - b.number)
+    const found = []
+    for (const e of entries) {
+      const m = /^(\d+)-/.exec(e.name)
+      if (!m || !e.isDirectory() || !existsSync(path.join(dir, e.name, BRIEFING))) continue
+      found.push({ folder: e.name, number: Number(m[1]) })
+    }
+    return found.sort((a, b) => a.number - b.number)
   }
 
-  // A first line too broken to name its number falls back to the file's.
-  private async readFeedback(dir: string, file: string): Promise<Feedback> {
-    const feedback = parseFeedback(await fs.readFile(path.join(dir, file), "utf8"))
-    if (!feedback.number) feedback.number = Number(/^(\d+)-/.exec(file)?.[1] ?? 0)
+  // A first line too broken to name its number falls back to the folder's.
+  private async readFeedback(dir: string, folder: string): Promise<Feedback> {
+    const md = await fs.readFile(path.join(dir, folder, BRIEFING), "utf8")
+    const feedback = fromBriefing(parseFeedback(md), folder)
+    if (!feedback.number) feedback.number = Number(/^(\d+)-/.exec(folder)?.[1] ?? 0)
     return feedback
+  }
+
+  private async writeFeedback(dir: string, folder: string, feedback: Feedback) {
+    await fs.mkdir(path.join(dir, folder), { recursive: true })
+    await this.atomicWrite(
+      path.join(dir, folder, BRIEFING),
+      serializeFeedback(toBriefing(feedback, folder))
+    )
   }
 
   private async findFeedback(dir: string, n: number) {
     try {
       const found = (await this.feedbackFiles(dir)).find((f) => f.number === n)
-      if (found) return found.file
+      if (found) return found.folder
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err
     }
@@ -320,12 +373,12 @@ export class Storage {
 
   async readReview(
     review: string
-  ): Promise<{ meta: ReviewMeta; feedbacks: { file: string; feedback: Feedback }[] }> {
+  ): Promise<{ meta: ReviewMeta; feedbacks: { folder: string; feedback: Feedback }[] }> {
     const dir = this.reviewDir(review)
     const meta = await this.readMeta(dir)
     const feedbacks = []
-    for (const { file } of await this.feedbackFiles(dir)) {
-      feedbacks.push({ file, feedback: await this.readFeedback(dir, file) })
+    for (const { folder } of await this.feedbackFiles(dir)) {
+      feedbacks.push({ folder, feedback: await this.readFeedback(dir, folder) })
     }
     return { meta, feedbacks }
   }
@@ -356,7 +409,7 @@ export class Storage {
       this.linkPins(feedback, base, [String(number), ...rowIds], mapped)
       linkAttachments(feedback, base, mapped)
       await this.writeAssets(dir, base, mapped)
-      await this.atomicWrite(path.join(dir, `${base}.md`), serializeFeedback(feedback))
+      await this.writeFeedback(dir, base, feedback)
       return { number, rowIds }
     })
   }
@@ -369,10 +422,9 @@ export class Storage {
   ): Promise<OpResult> {
     const dir = this.reviewDir(review)
     return this.serial(async () => {
-      const file = await this.findFeedback(dir, feedbackNumber)
-      const folder = file.replace(/\.md$/, "")
+      const folder = await this.findFeedback(dir, feedbackNumber)
       // Fresh read every time: anything Claude wrote by hand survives.
-      const feedback = await this.readFeedback(dir, file)
+      const feedback = await this.readFeedback(dir, folder)
       let result: OpResult
       try {
         // Labels follow the rows on disk: past the highest sibling.
@@ -420,7 +472,7 @@ export class Storage {
           result.deletedRowIds.map((id) => `${id}-`)
         )
       }
-      await this.atomicWrite(path.join(dir, file), serializeFeedback(result.feedback))
+      await this.writeFeedback(dir, folder, result.feedback)
       return result
     })
   }
@@ -428,9 +480,8 @@ export class Storage {
   async deleteFeedback(review: string, feedbackNumber: number): Promise<void> {
     const dir = this.reviewDir(review)
     return this.serial(async () => {
-      const file = await this.findFeedback(dir, feedbackNumber)
-      await fs.rm(path.join(dir, file), { force: true })
-      await fs.rm(path.join(dir, file.replace(/\.md$/, "")), { recursive: true, force: true })
+      const folder = await this.findFeedback(dir, feedbackNumber)
+      await fs.rm(path.join(dir, folder), { recursive: true, force: true })
     })
   }
 

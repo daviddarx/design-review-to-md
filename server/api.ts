@@ -128,7 +128,7 @@ export async function handleApi(
     // line has no screenshot to derive it from.
     return sendJson(res, 200, {
       meta,
-      feedbacks: feedbacks.map((p) => ({ ...p.feedback, folder: p.file.replace(/\.md$/, "") })),
+      feedbacks: feedbacks.map((p) => ({ ...p.feedback, folder: p.folder })),
     })
   }
   if (sub === "feedbacks") {
