@@ -14,7 +14,8 @@ plan beside it.
 - **Not a concept.** It sits outside the fork chain, touches nothing in `src/`,
   and gets no version-history section (that file lists concept variants).
 - **Shell + proxy, no injection.** `npm run review` puts the companion server
-  on `:3000` and `next dev` on `:3001`. A top-level document request gets the
+  on `:3000` and `next dev` on `:3001` (since briefing-feedback-9: on the
+  checkout's own pair, see there). A top-level document request gets the
   review shell; the shell shows the app in a same-origin iframe; everything
   else is proxied, HMR websockets included. Same origin means the same
   localStorage as plain `npm run dev` on `:3000`. The shell reaches into
@@ -339,3 +340,48 @@ plan beside it.
   its own row or any row inheriting it (`inheritedPinFrom`) does, so a done
   row's pin still shows on All while a row under it is open. `Panel`
   recomputes on filter change (`filter` in the effect's deps).
+
+### briefing-feedback-9
+
+- **Tabs are underlined, not pills** (`.dr-tab`, was `.dr-chip`). The bar
+  lost its vertical padding so the tabs run its full height; the active
+  line is a 3px `::after` from the text's left to its right (the padding
+  excluded) at `bottom: -1px`, over the bar's own border. No gap between
+  tabs, 8px side padding instead, the first tab's left padding 0.
+- **The bold switch no longer moves the tabs.** Each label carries
+  `data-reserve` with its own text; `.dr-tab-label::after` lays that text
+  out in bold, invisible and 0px tall, under the real label, so the label
+  is always as wide as its bold self. `content: attr() / ""` keeps the copy
+  out of the accessible name (the plain `content` before it is the
+  fallback). The count stays regular weight and outside the reserve.
+- **Edit stands apart**, after the group in `.dr-row-side` with an 8px
+  gap; a sub-row's empty slot follows the same gap. The primary style is
+  now keyed on `.dr-row-side > .dr-action-primary`.
+- **Rows: 4px top and bottom** instead of 8px.
+- **Refine sits on the actions' line.** While refining, `.dr-row-body`
+  (`.dr-row-refining`) spans columns 2 to the end, and the field group
+  takes the actions' 8px top margin; a sub-row's group ends with an empty
+  Edit slot, so Save lands where the last group button was.
+- **Status pills**: fully round (999px; "100%" would make elliptical
+  corners on a wide box), 1px border `color-mix(currentColor 25%)`, line
+  16px so they stay 18px tall. Open is blue (`#dbeafe` / `#1e40af`).
+- **Separators follow should-2.png**: a sub-row's line starts at the text
+  of the SHALLOWER of it and the row above (adjacent-sibling rules on the
+  depth classes); a feedback's line crosses the panel.
+- **Narrow layout (< 540px)**: a container query on `.dr-panel-body`
+  (`dr-list`). The row grid drops its actions column, `.dr-row-body`
+  becomes `display: contents`, and `order` stacks text, files, actions,
+  status tag, history in column 2; the depth indent moves onto each child.
+  The flyout width now measures `.dr-row-text`, since a `contents` box has
+  no width.
+- **On All, a done row's pins never show**, even when an open row under it
+  uses them (feedback-8 still showed them then). Status tabs keep the
+  covering rule: on Open, a done row's pin shows for its open sub-row.
+- **`npm run review` ports per checkout.** Without `--port`/`--target`,
+  `cli.ts` hashes the checkout path (FNV-1a) to an even port in 4100–4898
+  for the review server, the next one for `next dev` (the script passes
+  `-p {target}`); a taken pair steps to the next. Clear of 3000/3001 and
+  worktrunk's `hash_port` range. Consequence: the review origin is no longer
+  `:3000`, so its localStorage is its own, not plain `npm run dev`'s.
+  `next dev`'s per-checkout lock still applies: worktrunk's server for the
+  same worktree must be stopped first.
