@@ -36,6 +36,11 @@ Requires Node ≥ 24.2. The app must run on a dev server (React 19 for the
 Each checkout gets its own pair of ports, derived from its path, so several
 worktrees can run side by side. `--port` and `--target` override them.
 
+`--markers data-testid,data-tour-id` names the attributes your app puts on
+elements to identify them, best first. A pin's selector uses them before
+anything else, so it still finds the element after the layout changes.
+Without it, the first other stable `data-*` attribute is used.
+
 ## Core concepts
 
 - **Shell and frame.** The tool serves a page that shows your app in a

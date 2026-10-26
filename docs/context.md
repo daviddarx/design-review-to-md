@@ -526,3 +526,17 @@ plan beside it.
   that answer arrives.
 - **Ready line** is matched case-insensitively, so a Vite app's
   `ready in` also triggers the printed review URL.
+
+## App-specific settings (2026-10-26)
+
+- **`--markers <a,b>`** replaces the hard-coded `data-slot`,
+  `data-product-tour-id`, `data-testid` priority list in `inspect.ts`, which
+  named icfm-hooping's own attributes. Default: none, so any non-volatile
+  `data-*` attribute is taken in DOM order, as before for the unlisted ones.
+  icfm-hooping passes its three in its `review` script.
+- **Settings reach the shell inside its document**: the server writes a
+  `<script id="dr-config" type="application/json">` into the shell HTML and
+  `shell/main.tsx` applies it before the first render. No fetch, so there is
+  no window where a pick could run on the defaults. `<` is escaped.
+- `createReviewServer`'s `markers` is required, not defaulted, so a future
+  caller cannot silently drop it.

@@ -5,7 +5,7 @@ import type { AddressInfo, Socket } from "node:net"
 import os from "node:os"
 import path from "node:path"
 import { Storage } from "./storage.ts"
-import { createReviewServer, isLocalHost } from "./server.ts"
+import { createReviewServer, isLocalHost, shellHtml } from "./server.ts"
 import { resolveEditorTarget } from "./openEditor.ts"
 import { createShellBuild } from "./shellBuild.ts"
 import { reviewOf } from "./events.ts"
@@ -72,6 +72,7 @@ beforeEach(async () => {
     targetPort,
     storage: new Storage(root),
     shellAssets: async () => ({ js: "console.log('shell')", css: "body{}" }),
+    markers: ["data-tour-id"],
   })
   base = `http://localhost:${await listen(reviewServer)}`
 })
@@ -93,6 +94,13 @@ describe("dispatch", () => {
     expect(res.body).toContain('<link rel="stylesheet" href="/__review/shell.css">')
     expect(res.body).toContain('<div id="root"></div>')
     expect(res.body).toContain('<script type="module" src="/__review/shell.js"></script>')
+    expect(res.body).toContain(
+      '<script id="dr-config" type="application/json">{"markers":["data-tour-id"]}</script>'
+    )
+  })
+
+  it("escapes a marker that would close the config script", () => {
+    expect(shellHtml(["</script>"])).toContain('{"markers":["\\u003c/script>"]}')
   })
 
   it("serves the shell assets", async () => {
@@ -368,12 +376,14 @@ describe("cli", () => {
       port: 3000,
       target: 3001,
       root: "docs/review",
+      markers: [],
       command: ["npx", "next", "dev", "-p", "3001"],
     })
     expect(parseArgs(["--root", "r", "--", "npx", "next", "dev", "-p", "{target}"])).toEqual({
       port: undefined,
       target: undefined,
       root: "r",
+      markers: [],
       command: ["npx", "next", "dev", "-p", "{target}"],
     })
     expect(() => parseArgs(["--port", "3000", "--target", "3001", "--root", "r"])).toThrow()

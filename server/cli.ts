@@ -1,4 +1,4 @@
-// Usage: node <this package>/server/cli.ts [--port <n>] [--target <n>]
+// Usage: node <this package>/server/cli.ts [--port <n>] [--target <n>] [--markers <a,b>]
 //          --root docs/review -- <app command…, {target} for the app's port>
 import { spawn } from "node:child_process"
 import { mkdirSync } from "node:fs"
@@ -9,7 +9,9 @@ import { createShellBuild } from "./shellBuild.ts"
 import { Storage } from "./storage.ts"
 
 // Without --port/--target the ports are the checkout's own (see portsFor).
-type Args = { port?: number; target?: number; root: string; command: string[] }
+// --markers: comma-separated attributes the picker anchors on first, e.g.
+// `data-testid,data-tour-id`.
+type Args = { port?: number; target?: number; root: string; markers: string[]; command: string[] }
 
 export function parseArgs(argv: string[]): Args {
   const sep = argv.indexOf("--")
@@ -19,7 +21,7 @@ export function parseArgs(argv: string[]): Args {
   for (let i = 0; i < flags.length; i += 2) {
     const name = flags[i]
     const value = flags[i + 1]
-    if (!["--port", "--target", "--root"].includes(name) || value === undefined) {
+    if (!["--port", "--target", "--root", "--markers"].includes(name) || value === undefined) {
       throw new Error(`Unexpected argument ${name}`)
     }
     values[name.slice(2)] = value
@@ -28,9 +30,15 @@ export function parseArgs(argv: string[]): Args {
   const target = values.target === undefined ? undefined : Number(values.target)
   const valid = (n: number | undefined) => n === undefined || Number.isInteger(n)
   if (!valid(port) || !valid(target) || !values.root || !command.length) {
-    throw new Error("Usage: cli.ts [--port <n>] [--target <n>] --root <dir> -- <app command…>")
+    throw new Error(
+      "Usage: cli.ts [--port <n>] [--target <n>] [--markers <a,b>] --root <dir> -- <app command…>"
+    )
   }
-  return { port, target, root: values.root, command }
+  const markers = (values.markers ?? "")
+    .split(",")
+    .map((m) => m.trim())
+    .filter(Boolean)
+  return { port, target, root: values.root, markers, command }
 }
 
 // Each checkout (every worktree) gets its own pair of ports, derived from
@@ -125,6 +133,7 @@ async function main() {
     targetPort: args.target,
     storage: new Storage(root),
     shellAssets: () => shell.assets(),
+    markers: args.markers,
   })
   server.on("error", (err) => {
     console.error(`[design-review] ${err.message}`)

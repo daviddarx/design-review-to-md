@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { isReadyOutput, PORT_BASE, PORT_PAIRS, portsFor, withTarget } from "./cli.ts"
+import { isReadyOutput, parseArgs, PORT_BASE, PORT_PAIRS, portsFor, withTarget } from "./cli.ts"
 
 describe("isReadyOutput", () => {
   it("matches Next's ready line, with or without colour codes", () => {
@@ -49,5 +49,15 @@ describe("withTarget", () => {
       "-p",
       "4321",
     ])
+  })
+})
+
+describe("parseArgs", () => {
+  it("reads --markers as a comma-separated list, none by default", () => {
+    const cmd = ["--", "npx", "next", "dev"]
+    expect(parseArgs(["--root", "docs/review", ...cmd]).markers).toEqual([])
+    expect(
+      parseArgs(["--markers", "data-slot, data-tour-id", "--root", "docs/review", ...cmd]).markers
+    ).toEqual(["data-slot", "data-tour-id"])
   })
 })

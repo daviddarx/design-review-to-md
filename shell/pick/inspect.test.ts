@@ -1,9 +1,16 @@
 // @vitest-environment dr-happy-dom
 import { afterEach, describe, expect, it } from "vitest"
 import { snapshotLocalStorage } from "./capture.ts"
-import { componentName, describe as describeEl, openersOf, uniqueSelector } from "./inspect.ts"
+import {
+  componentName,
+  describe as describeEl,
+  openersOf,
+  setMarkers,
+  uniqueSelector,
+} from "./inspect.ts"
 
 afterEach(() => {
+  setMarkers([])
   document.body.innerHTML = ""
   localStorage.clear()
 })
@@ -18,6 +25,14 @@ describe("uniqueSelector", () => {
   it("uses the id", () => {
     document.body.innerHTML = `<div><span id="target">x</span><span>y</span></div>`
     expect(roundTrips(document.getElementById("target")!)).toBe("#target")
+  })
+
+  it("anchors on the app's --markers first, in their order", () => {
+    document.body.innerHTML = `<div><button data-slot="nav" data-tour="fav" data-id="7">a</button><button>b</button></div>`
+    const el = document.querySelector("button")!
+    expect(roundTrips(el)).toContain('[data-slot="nav"]')
+    setMarkers(["data-id", "data-tour"])
+    expect(roundTrips(el)).toContain('[data-id="7"]')
   })
 
   it("uses a data-slot marker", () => {

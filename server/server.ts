@@ -11,6 +11,7 @@ export type ReviewServerOptions = {
   storage: Storage
   shellAssets: () => Promise<{ js: string; css: string }>
   repoRoot?: string // open-editor confinement; defaults to process.cwd()
+  markers: string[] // attributes the picker anchors on first (--markers)
 }
 
 const TOOL_PREFIX = "/__review/"
@@ -26,6 +27,17 @@ export function isLocalHost(host: string | undefined): boolean {
   } catch {
     return false
   }
+}
+
+// The shell's settings ride in the document itself (shell/config.ts reads
+// them), so they are there before the first pick. `<` is escaped so a value
+// cannot close the script element.
+export function shellHtml(markers: string[]): string {
+  const config = JSON.stringify({ markers }).replace(/</g, "\\u003c")
+  return SHELL_HTML.replace(
+    "<body>\n",
+    `<body>\n<script id="dr-config" type="application/json">${config}</script>\n`
+  )
 }
 
 const SHELL_HTML = `<!doctype html>
@@ -46,6 +58,7 @@ const SHELL_HTML = `<!doctype html>
 export function createReviewServer(opts: ReviewServerOptions): http.Server {
   const { targetPort, storage, shellAssets } = opts
   const ctx = { storage, repoRoot: opts.repoRoot ?? process.cwd() }
+  const html = shellHtml(opts.markers)
   mkdirSync(storage.root, { recursive: true })
   const feed = createChangeFeed(storage.root)
   const tunnels = new Set<Duplex>()
@@ -85,7 +98,7 @@ export function createReviewServer(opts: ReviewServerOptions): http.Server {
         "content-type": "text/html; charset=utf-8",
         "cache-control": "no-cache",
       })
-      res.end(SHELL_HTML)
+      res.end(html)
       return
     }
     proxyRequest(targetPort, req, res)

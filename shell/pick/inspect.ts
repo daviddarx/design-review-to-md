@@ -3,9 +3,13 @@ import type { PinOpener } from "../../model/types.ts"
 // What the picker knows about an element: a selector that finds it again,
 // the React component that rendered it, and a short label.
 
-// Marker attributes worth anchoring on, best first. Any other `data-*`
-// attribute follows, except the ones that flip with state.
-const MARKERS = ["data-slot", "data-product-tour-id", "data-testid"]
+// Marker attributes worth anchoring on, best first: the app's own, from
+// `--markers` (see setMarkers). Any other `data-*` attribute follows, except
+// the ones that flip with state.
+let markers: string[] = []
+export function setMarkers(names: string[]) {
+  markers = names
+}
 const VOLATILE =
   /^data-(state|open|closed|highlighted|hover|hovered|focus|focused|focus-visible|active|selected|disabled|pressed|checked|unchecked|orientation|side|align|starting-style|ending-style|popup-open|placeholder|dragging|index)$/
 
@@ -24,7 +28,7 @@ const quoted = (v: string) => `"${v.replace(/["\\]/g, "\\$&")}"`
 const GENERATED_ID = /[:«»]|(^|-)_[rR]_[0-9a-zA-Z]*_$/
 
 function markerOf(el: Element): string | null {
-  for (const name of MARKERS) {
+  for (const name of markers) {
     const v = el.getAttribute(name)
     if (v) return `[${name}=${quoted(v)}]`
   }
