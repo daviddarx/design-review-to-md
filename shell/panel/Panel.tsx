@@ -2,7 +2,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { PointerEvent as ReactPointerEvent, ReactNode } from "react"
 import type { Op } from "../../model/ops.ts"
 import type { PinRecord, Feedback, Status } from "../../model/types.ts"
-import { applyOp, createReview, fileUrl, listReviews, readReview, useReviewFeed } from "../api.ts"
+import {
+  applyOp,
+  createReview,
+  deleteFeedback,
+  fileUrl,
+  listReviews,
+  readReview,
+  useReviewFeed,
+} from "../api.ts"
+import type { Asset } from "../api.ts"
+import type { CapturedPin } from "../pick/capture.ts"
 import { readKey, writeKey } from "../prefs.ts"
 import { Icon } from "./icons.tsx"
 import { counts, flattenRows, pinRecordPath } from "./listModel.ts"
@@ -15,7 +25,7 @@ export type PanelProps = {
   review: string | null
   onReviewChange(t: string): void
   onNewFeedback(): void
-  onEditFeedback(n: number): void
+  startPick?: () => Promise<CapturedPin | null> // Refine's Pin; no 📍 without it
   // Show pins / Restore state may answer with a notice for the panel to show
   // (the element is gone, the state file is missing).
   onTogglePins(rowId: string, target: PinTarget): PinAction
@@ -65,7 +75,7 @@ export function Panel({
   review,
   onReviewChange,
   onNewFeedback,
-  onEditFeedback,
+  startPick,
   onTogglePins,
   onOpenSource,
   onPeekPins,
@@ -224,20 +234,20 @@ export function Panel({
     }
   }, [feedbacks, filter, loadRecord, onAllPins])
 
-  // Ops refetch at once rather than waiting on the watcher; errors (409
-  // locked, …) land in the inline message, never as a throw.
   // What each row was before this session validated it, so Devalidate can
   // put it back; a row validated earlier goes back to review.
   const validatedFrom = useRef(new Map<string, Status>())
   const reopenStatus = (rowId: string) =>
     validatedFrom.current.get(`${review}:${rowId}`) ?? "review"
 
+  // Ops refetch at once rather than waiting on the watcher; errors (409
+  // locked, …) land in the inline message, never as a throw.
   const onOp = useCallback(
-    async (rowId: string, op: Op): Promise<boolean> => {
+    async (rowId: string, op: Op, assets: Asset[] = []): Promise<boolean> => {
       if (!review) return false
       const was = flattenRows(feedbacks, "all").find((r) => r.rowId === rowId)?.status
       try {
-        await applyOp(review, Number(rowId.split(".")[0]), op)
+        await applyOp(review, Number(rowId.split(".")[0]), op, assets)
         if (op.kind === "setStatus" && op.status === "done" && was && was !== "done") {
           validatedFrom.current.set(`${review}:${rowId}`, was)
         }
@@ -250,6 +260,23 @@ export function Panel({
       }
     },
     [review, load, feedbacks]
+  )
+
+  // A feedback's file and folder go (its Delete, confirmed in the row).
+  const onDeleteFeedback = useCallback(
+    async (n: number): Promise<boolean> => {
+      if (!review) return false
+      try {
+        await deleteFeedback(review, n)
+        setError(null)
+        load()
+        return true
+      } catch (err) {
+        setError(message(err))
+        return false
+      }
+    },
+    [review, load]
   )
 
   const withNotice =
@@ -411,7 +438,8 @@ export function Panel({
             onLoadRecord={loadRecord}
             onOp={onOp}
             reopenStatus={reopenStatus}
-            onEditFeedback={onEditFeedback}
+            onDeleteFeedback={onDeleteFeedback}
+            startPick={startPick}
             onTogglePins={withNotice(onTogglePins)}
             onOpenSource={withNotice(onOpenSource)}
             onPeekPins={onPeekPins}

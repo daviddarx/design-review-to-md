@@ -455,3 +455,29 @@ plan beside it.
   prefetch left it to appear under the pointer — on every row whose pins
   the page was not already showing (done rows on All, for one). `Panel`
   loads the owner pins of the rows in the current filter on each load.
+
+### briefing-feedback-12
+
+- **No Edit in the list.** A feedback is changed by Refine from now on; the
+  drawer is reached only through New feedback (and Pin & add). Its edit mode
+  (`feedbackNumber`) stays in `FeedbackDrawer`, unreached, with its tests.
+  Adding a sub-row to a saved feedback is gone with it, as he accepted.
+- **Delete on every row**, after the group with the 8px gap Edit had, so
+  every row now ends on the same button (the empty Edit slot is gone). It
+  asks for a second click on the same button: the first arms it (red,
+  tooltip "Click again to delete"), leaving or blurring the button disarms
+  it. A feedback row deletes the feedback and its folder
+  (`deleteFeedback`), a sub-row goes by `deleteRow` (its files with it).
+- **Refine adds pins and files.** The field's group is now field · Pin ·
+  Attach · Save (primary, `.dr-action.dr-action-primary`), so Save sits
+  where Delete is. Pins come from the same picker (`startPick`, threaded
+  App → Panel → FeedbackList → RowItem), counted on the Pin button; files
+  list under the field with ×, pin file names refused as in the drawer.
+  Save sends the new text (`refine`, only if it changed), then one
+  `addPin` per pin (assets named as a first pin's — the server renumbers),
+  then one `attach`; each pin that went through leaves the draft, so a
+  retry after a failure sends nothing twice. Esc drops all of it.
+- **Show pins' markers come off on hover/click**, like the drawer's:
+  `App` builds them with `onRemove` → `removePin` at the pin's index, then
+  redraws the remaining ones (the later pins moved down one place) and
+  reloads the list. No automated test: it needs a real frame layout.

@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from "react"
 import type { Op } from "../../model/ops.ts"
+import { parsePinAssetName } from "../../model/pins.ts"
 import type { PinRecord, PinRef, Status } from "../../model/types.ts"
 import { fileUrl } from "../api.ts"
+import type { Asset } from "../api.ts"
+import { bytesToBase64, pinAssets } from "../drawer/draft.ts"
+import type { DraftFile } from "../drawer/draft.ts"
+import type { CapturedPin } from "../pick/capture.ts"
 import { Flyout } from "./Flyout.tsx"
 import { ActionButton, ActionGroup } from "./icons.tsx"
 import { singleLine } from "./listModel.ts"
@@ -15,9 +20,10 @@ export type RowItemProps = {
   records: (PinRecord | null | undefined)[] // undefined: not fetched yet
   pinsShown: boolean // Show pins is on for `owner`
   onLoadRecords(): Promise<(PinRecord | null)[]>
-  onOp(op: Op): Promise<boolean>
+  onOp(op: Op, assets?: Asset[]): Promise<boolean>
   reopenTo: Status // the status Devalidate gives a done row back
-  onEditFeedback(n: number): void
+  onDeleteFeedback(n: number): Promise<boolean>
+  startPick?: () => Promise<CapturedPin | null> // Refine's Pin; none without it
   onTogglePins(rowId: string, target: PinTarget): void
   onOpenSource(rowId: string, target: PinTarget): void
   // Hovering Show pins shows the owner's pins for as long as it lasts; null
@@ -35,7 +41,8 @@ export function RowItem({
   onLoadRecords,
   onOp,
   reopenTo,
-  onEditFeedback,
+  onDeleteFeedback,
+  startPick,
   onTogglePins,
   onOpenSource,
   onPeekPins,
@@ -45,6 +52,13 @@ export function RowItem({
   const [shotOpen, setShotOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [shotButton, setShotButton] = useState<HTMLButtonElement | null>(null)
+  // Refining can also add pins and files, sent with the new text on Save.
+  const [refinePins, setRefinePins] = useState<CapturedPin[]>([])
+  const [refineFiles, setRefineFiles] = useState<DraftFile[]>([])
+  const [refineError, setRefineError] = useState<string | null>(null)
+  const fileInput = useRef<HTMLInputElement>(null)
+  // Delete asks for a second click on the same button.
+  const [armed, setArmed] = useState(false)
 
   const feedbackNumber = Number(row.rowId.split(".")[0])
   const fetched = records.every((r) => r !== undefined)
@@ -75,12 +89,81 @@ export function RowItem({
   const startRefine = () => setRefining(row.text)
   const toggleHistory = () => setHistoryOpen((v) => !v)
 
-  const submitRefine = async () => {
-    const text = singleLine(refining ?? "")
-    if (text && text !== row.text) {
-      if (!(await run({ kind: "refine", rowId: row.rowId, text }))) return
-    }
+  const endRefine = () => {
     setRefining(null)
+    setRefinePins([])
+    setRefineFiles([])
+    setRefineError(null)
+  }
+
+  // The new text, then each added pin, then the added files, one op each.
+  // What went through leaves the draft, so a retry after a failure does not
+  // send it twice.
+  const submitRefine = async () => {
+    if (busy) return
+    const text = singleLine(refining ?? "")
+    const rowId = row.rowId
+    setBusy(true)
+    try {
+      // A pin made a moment ago may still be taking its picture.
+      await Promise.all(refinePins.map((c) => c.finishing))
+      if (text && text !== row.text) {
+        if (!(await onOp({ kind: "refine", rowId, text }))) return
+      }
+      for (const c of refinePins) {
+        if (!(await onOp({ kind: "addPin", rowId, pin: c.pin }, pinAssets(c, rowId, 0)))) return
+        setRefinePins((pins) => pins.filter((p) => p !== c))
+      }
+      if (refineFiles.length) {
+        const assets = refineFiles.map((f) => ({ rowId, ...f }))
+        if (!(await onOp({ kind: "attach", rowId }, assets))) return
+      }
+      endRefine()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const pinMore = async () => {
+    if (!startPick) return
+    try {
+      const captured = await startPick()
+      if (captured) setRefinePins((pins) => [...pins, captured])
+    } catch (err) {
+      setRefineError(err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  // The picker writes pin.png, pin-2.json, state.json, …; an attachment may
+  // not take those names in any case.
+  const addFiles = async (all: File[]) => {
+    const refused = all.filter((f) => parsePinAssetName(f.name.toLowerCase()) !== null)
+    const picked = all.filter((f) => !refused.includes(f))
+    setRefineError(
+      refused.length
+        ? `${refused.map((f) => f.name).join(", ")}: this name is kept for pins — rename the file and attach it again.`
+        : null
+    )
+    const read = await Promise.all(
+      picked.map(async (f) => ({
+        name: f.name,
+        dataBase64: bytesToBase64(new Uint8Array(await f.arrayBuffer())),
+      }))
+    )
+    const names = new Set(read.map((f) => f.name))
+    setRefineFiles((files) => [...files.filter((f) => !names.has(f.name)), ...read])
+  }
+
+  const remove = async () => {
+    if (!armed) return setArmed(true)
+    setArmed(false)
+    setBusy(true)
+    try {
+      if (row.depth === 0) await onDeleteFeedback(feedbackNumber)
+      else await onOp({ kind: "deleteRow", rowId: row.rowId })
+    } finally {
+      setBusy(false)
+    }
   }
 
   const loaded = async () => (fetched ? records.map((r) => r ?? null) : await onLoadRecords())
@@ -142,12 +225,12 @@ export function RowItem({
       <span className="dr-row-num">{row.rowId}</span>
 
       {/* Refining, the column also takes the actions' place, and the save
-          button lands where the row's last button was. */}
+          button lands where Delete was. */}
       <div className={refining === null ? "dr-row-body" : "dr-row-body dr-row-refining"}>
         {refining === null ? (
           <div className="dr-row-text">{row.text}</div>
         ) : (
-          // One line, with its save button joined to it as a group.
+          // One line, with Pin, Attach and Save joined to it as a group.
           <div className="dr-refine-group" role="group">
             <input
               type="text"
@@ -165,19 +248,68 @@ export function RowItem({
                 } else if (e.key === "Escape") {
                   e.preventDefault()
                   e.stopPropagation()
-                  setRefining(null)
+                  endRefine()
                 }
               }}
+            />
+            {startPick && (
+              <ActionButton
+                icon="pin"
+                label={`Pin ${row.rowId} to an element`}
+                tip={refinePins.length ? `Pin once more (${refinePins.length} added)` : "Add a pin"}
+                count={refinePins.length}
+                disabled={busy}
+                onClick={() => void pinMore()}
+              />
+            )}
+            <ActionButton
+              icon="attach"
+              label={`Attach a file to ${row.rowId}`}
+              tip="Attach a file"
+              disabled={busy}
+              onClick={() => fileInput.current?.click()}
             />
             <ActionButton
               icon="save"
               label={`Save refinement of ${row.rowId}`}
               tip="Save"
+              className="dr-action-primary"
               disabled={busy}
               onClick={() => void submitRefine()}
             />
-            {row.depth > 0 && <span className="dr-action-slot" aria-hidden="true" />}
+            <input
+              ref={fileInput}
+              type="file"
+              multiple
+              hidden
+              onChange={(e) => {
+                const files = Array.from(e.target.files ?? [])
+                e.target.value = ""
+                void addFiles(files)
+              }}
+            />
           </div>
+        )}
+        {refining !== null && refineFiles.length > 0 && (
+          <ul className="dr-files" aria-label={`Files to attach to ${row.rowId}`}>
+            {refineFiles.map((f) => (
+              <li key={f.name} className="dr-file">
+                {f.name}
+                <button
+                  type="button"
+                  aria-label={`Remove ${f.name}`}
+                  onClick={() => setRefineFiles((files) => files.filter((x) => x !== f))}
+                >
+                  ×
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {refining !== null && refineError && (
+          <p className="dr-refine-error" role="alert">
+            {refineError}
+          </p>
         )}
 
         {note && (
@@ -217,8 +349,7 @@ export function RowItem({
         )}
       </div>
 
-      {/* The actions keep their places from row to row: a row without Edit
-          (last, apart from the group) leaves its slot empty. */}
+      {/* The group, then Delete on its own, the last action of every row. */}
       {refining === null && (
         <div className="dr-row-side">
           <ActionGroup>
@@ -276,16 +407,22 @@ export function RowItem({
               </>
             )}
           </ActionGroup>
-          {row.depth === 0 ? (
-            <ActionButton
-              icon="edit"
-              label="Edit feedback"
-              className="dr-action-primary"
-              onClick={() => onEditFeedback(feedbackNumber)}
-            />
-          ) : (
-            <span className="dr-action-slot" aria-hidden="true" />
-          )}
+          <ActionButton
+            icon="remove"
+            label={row.depth === 0 ? "Delete feedback" : "Delete row"}
+            tip={
+              armed
+                ? "Click again to delete"
+                : row.depth === 0
+                  ? `Delete feedback ${feedbackNumber} and its files`
+                  : `Delete ${row.rowId} and its files`
+            }
+            className={armed ? "dr-action-danger" : undefined}
+            disabled={busy}
+            onClick={() => void remove()}
+            onMouseLeave={() => setArmed(false)}
+            onBlur={() => setArmed(false)}
+          />
         </div>
       )}
 

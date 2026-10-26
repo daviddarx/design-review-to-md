@@ -507,17 +507,11 @@ select.dr-review-select {
   column-gap: 6px;
 }
 
-/* The group, then Edit (or its slot) on its own. */
+/* The group, then Delete on its own. */
 .dr-row-side {
   display: flex;
   gap: 8px;
   margin-top: 8px;
-}
-
-/* The slot an Edit button takes on a feedback's own row. */
-.dr-action-slot {
-  flex: 0 0 auto;
-  width: 28px;
 }
 
 /* The column already indents them. */
@@ -586,10 +580,6 @@ select.dr-review-select {
   .dr-refine-group {
     margin-top: 0;
   }
-
-  .dr-refine-group > .dr-action-slot {
-    display: none;
-  }
 }
 
 .dr-busy {
@@ -626,10 +616,6 @@ select.dr-review-select {
   margin-top: 8px;
 }
 
-.dr-refine-group > .dr-action-slot {
-  margin-left: 8px;
-}
-
 .dr-refine {
   flex: 1 1 auto;
   min-width: 0;
@@ -642,6 +628,16 @@ select.dr-review-select {
   border-left: 0;
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
+}
+
+.dr-refine-group > .dr-action:not(:last-of-type) {
+  border-radius: 0;
+}
+
+.dr-refine-error {
+  margin: 4px 0 0;
+  color: #991b1b;
+  font-size: 12px;
 }
 
 /* 18px tall: a 16px line inside a border of the text's colour. */
@@ -735,16 +731,24 @@ select.dr-review-select {
   cursor: pointer;
 }
 
-/* Edit, the row's main action. */
-.dr-row-side > .dr-action-primary {
+/* Refine's Save. */
+.dr-action.dr-action-primary {
   border-color: var(--dr-text);
   background: var(--dr-text);
   color: #fff !important;
 }
 
-.dr-row-side > .dr-action-primary:hover {
+.dr-action.dr-action-primary:hover {
   border-color: #334155;
   background: #334155;
+  color: #fff !important;
+}
+
+/* Delete, armed: the next click deletes. */
+.dr-action.dr-action-danger,
+.dr-action.dr-action-danger:hover {
+  border-color: #dc2626;
+  background: #dc2626;
   color: #fff !important;
 }
 

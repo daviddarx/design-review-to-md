@@ -323,7 +323,7 @@ function nodeAssets(n: DraftNode, rowId: string): Asset[] {
 }
 
 // The files of one captured pin, named for pin `index` of its row.
-function pinAssets(c: CapturedPin, rowId: string, index: number): Asset[] {
+export function pinAssets(c: CapturedPin, rowId: string, index: number): Asset[] {
   const out: Asset[] = []
   const name = (file: "png" | "json" | "state") => pinAssetName(index, file)
   if (c.png) out.push({ rowId, name: name("png"), dataBase64: c.png })

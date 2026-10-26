@@ -3,7 +3,6 @@ import type { ComponentProps, ReactNode } from "react"
 // 16px stroke icons for the list's and the drawer's row actions (Lucide's
 // shapes, inlined: the shell bundles no icon library).
 const PATHS = {
-  edit: "M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z",
   validate: "M20 6 9 17l-5-5",
   devalidate: "M9 14 4 9l5-5 M4 9h10.5a5.5 5.5 0 0 1 0 11H11",
   refine: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z M13 8H7 M17 12H7",

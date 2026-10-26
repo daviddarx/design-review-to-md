@@ -76,6 +76,7 @@ beforeEach(() => {
         if (reviewStatus !== 200) return json({ error: "cannot read review" }, reviewStatus)
         return json({ meta: { nextFeedback: 6 }, feedbacks: [parseFeedback(SPEC)] })
       }
+      if (method === "DELETE") return json({ ok: true })
       if (url.endsWith("/ops")) {
         return opStatus === 200 ? json({}) : json({ error: "5.b is locked" }, opStatus)
       }
@@ -102,7 +103,6 @@ async function render(extra: Partial<PanelProps> = {}) {
         review="08.4"
         onReviewChange={() => {}}
         onNewFeedback={() => {}}
-        onEditFeedback={() => {}}
         onTogglePins={() => {}}
         onOpenSource={() => {}}
         onPeekPins={() => {}}
@@ -190,7 +190,9 @@ describe("Panel", () => {
     await act(async () => action("5.c", "Refine")!.click())
     const field = row("5.c").querySelector<HTMLInputElement>("input.dr-refine")!
     await act(async () => type(field, "Align it"))
-    const save = row("5.c").querySelector<HTMLButtonElement>(".dr-refine-group > .dr-action")!
+    const save = row("5.c").querySelector<HTMLButtonElement>(
+      '[aria-label="Save refinement of 5.c"]'
+    )!
     expect(save.getAttribute("data-tip")).toBe("Save")
     await act(async () => save.click())
     expect(opCalls()[0].body).toEqual({
@@ -233,9 +235,9 @@ describe("Panel", () => {
     await render()
     const labels = (id: string) =>
       [...row(id).querySelectorAll(".dr-action")].map((b) => b.getAttribute("aria-label"))
-    expect(labels("5.a")).toEqual(["Devalidate", "Screenshot"])
-    expect(labels("5.b")).toEqual(["Validate", "History", "Screenshot"])
-    expect(labels("5.c")).toEqual(["Validate", "Refine", "Show pins", "Screenshot"])
+    expect(labels("5.a")).toEqual(["Devalidate", "Screenshot", "Delete row"])
+    expect(labels("5.b")).toEqual(["Validate", "History", "Screenshot", "Delete row"])
+    expect(labels("5.c")).toEqual(["Validate", "Refine", "Show pins", "Screenshot", "Delete row"])
   })
 
   it("Devalidate puts a done row back where Validate took it from, else to review", async () => {
@@ -329,23 +331,69 @@ describe("Panel", () => {
     expect(action("7.c", "History")).not.toBeNull()
   })
 
-  it("the status tag ends the line under the text; a sub-row keeps Edit's slot empty", async () => {
+  it("the status tag ends the line under the text; no Edit, Delete apart on every row", async () => {
     await render()
     expect(row("5.c").querySelector(".dr-row-meta")!.lastElementChild!.textContent).toBe("review")
-    expect(action("5", "Edit feedback")!.classList.contains("dr-action-primary")).toBe(true)
-    expect(row("5").querySelector(".dr-row-side > .dr-action-slot")).toBeNull()
-    expect(row("5.c").querySelector(".dr-row-side > .dr-action-slot")).not.toBeNull()
-    // Edit stands apart from the group.
-    expect(action("5", "Edit feedback")!.parentElement!.classList.contains("dr-row-side")).toBe(
+    expect(host.querySelector('[aria-label="Edit feedback"]')).toBeNull()
+    expect(action("5", "Delete feedback")!.parentElement!.classList.contains("dr-row-side")).toBe(
       true
     )
+    expect(action("5.c", "Delete row")!.parentElement!.classList.contains("dr-row-side")).toBe(true)
   })
 
-  it("Refine keeps the row's last slot, so Save lands where that button was", async () => {
+  it("Delete asks for a second click: a row goes by deleteRow, a feedback with its folder", async () => {
     await render()
+    const del = action("5.c", "Delete row")!
+    await act(async () => del.click())
+    expect(opCalls()).toEqual([])
+    expect(del.classList.contains("dr-action-danger")).toBe(true)
+    expect(del.getAttribute("data-tip")).toBe("Click again to delete")
+    await act(async () => del.click())
+    expect(opCalls()[0].body).toEqual({ op: { kind: "deleteRow", rowId: "5.c" }, assets: [] })
+
+    // Leaving the button disarms it.
+    const feedback = action("5", "Delete feedback")!
+    await act(async () => feedback.click())
+    await act(async () => feedback.dispatchEvent(new MouseEvent("mouseout", { bubbles: true })))
+    expect(feedback.classList.contains("dr-action-danger")).toBe(false)
+    await act(async () => feedback.click())
+    await act(async () => feedback.click())
+    expect(calls.filter((c) => c.method === "DELETE").map((c) => c.url)).toEqual([
+      "/__review/api/reviews/08.4/feedbacks/5",
+    ])
+  })
+
+  it("Refine adds pins and files, sent after the text; Save is primary, where Delete was", async () => {
+    const capture = {
+      pin: { path: "/concept-08-4" },
+      record: { version: 1, at: "t", steps: [] },
+      state: "{}",
+      png: "cG5n",
+      finishing: Promise.resolve(),
+    }
+    await render({ startPick: async () => capture as never })
     await act(async () => action("5.c", "Refine")!.click())
     const group = row("5.c").querySelector(".dr-row-refining > .dr-refine-group")!
-    expect(group.lastElementChild!.classList.contains("dr-action-slot")).toBe(true)
+    const save = group.querySelector<HTMLButtonElement>('[aria-label="Save refinement of 5.c"]')!
+    expect(save.classList.contains("dr-action-primary")).toBe(true)
+    expect([...group.querySelectorAll(".dr-action")].at(-1)).toBe(save)
+
+    await act(async () =>
+      group.querySelector<HTMLButtonElement>('[aria-label="Pin 5.c to an element"]')!.click()
+    )
+    const input = group.querySelector<HTMLInputElement>('input[type="file"]')!
+    const file = new File(["hi"], "note.txt")
+    Object.defineProperty(input, "files", { value: [file] })
+    await act(async () => input.dispatchEvent(new Event("change", { bubbles: true })))
+    expect(row("5.c").querySelector(".dr-files")!.textContent).toContain("note.txt")
+
+    await act(async () => type(group.querySelector<HTMLInputElement>("input.dr-refine")!, "Align"))
+    await act(async () => save.click())
+    const ops = opCalls().map((c) => c.body as { op: { kind: string }; assets: { name: string }[] })
+    expect(ops.map((o) => o.op.kind)).toEqual(["refine", "addPin", "attach"])
+    expect(ops[1].assets.map((a) => a.name)).toEqual(["pin.png", "pin.json", "state.json"])
+    expect(ops[2].assets.map((a) => a.name)).toEqual(["note.txt"])
+    expect(row("5.c").querySelector(".dr-refine-group")).toBeNull()
   })
 
   it("a tab reserves its bold label's width", async () => {

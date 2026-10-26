@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { PinRecord } from "../model/types.ts"
-import { fileUrl, openEditor } from "./api.ts"
+import { applyOp, fileUrl, openEditor } from "./api.ts"
 import { FeedbackDrawer } from "./drawer/FeedbackDrawer.tsx"
 import type { CapturedPin } from "./drawer/draft.ts"
 import { statePathOf } from "./panel/listModel.ts"
@@ -141,7 +141,7 @@ export function App() {
     if (!frame) return
     const records = target.pins.flatMap((p) => (p.record ? [p.record] : []))
     if (!records.length) return `No pin record for ${target.ownerRowId} — it cannot be found again.`
-    setShown(ownedMarkers(target.ownerRowId, records, "shown"))
+    setShown(shownMarkers(target))
     const result = await goToPin(frame, records[0], picker.flash, () =>
       restoreState(target.pins[0]?.recordPath)
     )
@@ -151,6 +151,40 @@ export function App() {
     if (result === "restored") return STATE_RESTORED
     return step?.inTool ? TOOL_PIN_MISSING : PIN_MISSING
   }
+  // Shown pins come off like the drawer's: hover one for ×, click it. The
+  // pins after it move down one place, so the markers are drawn again from
+  // what is left.
+  const shownMarkers = (target: PinTarget): OwnedMarkers => ({
+    owner: target.ownerRowId,
+    markers: target.pins.flatMap((p, i) => {
+      const step = p.record?.steps[0]
+      if (!step) return []
+      const onRemove = () => void removeShownPin(target, i)
+      return [
+        {
+          key: `shown:${target.ownerRowId}:${p.recordPath}`,
+          label: target.ownerRowId,
+          step,
+          onRemove,
+        },
+      ]
+    }),
+  })
+  const removeShownPin = async (target: PinTarget, index: number) => {
+    if (!review) return
+    const rowId = target.ownerRowId
+    try {
+      await applyOp(review, Number(rowId.split(".")[0]), { kind: "removePin", rowId, index })
+    } catch (err) {
+      console.error(`[design-review] cannot remove the pin: ${(err as Error).message}`)
+      return
+    } finally {
+      setReloadSignal((n) => n + 1)
+    }
+    const rest = { ...target, pins: target.pins.filter((_, i) => i !== index) }
+    setShown(rest.pins.length ? shownMarkers(rest) : null)
+  }
+
   useEffect(() => {
     setShown(null)
     shownHover.current?.()
@@ -205,7 +239,7 @@ export function App() {
             review={review}
             onReviewChange={setReview}
             onNewFeedback={() => openDrawer()}
-            onEditFeedback={(n) => openDrawer({ feedbackNumber: n })}
+            startPick={() => picker.startPick()}
             onTogglePins={onTogglePins}
             onOpenSource={onOpenSource}
             onPeekPins={onPeekPins}
