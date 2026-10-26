@@ -7,6 +7,10 @@ describe("isReadyOutput", () => {
     expect(isReadyOutput("\x1b[32m✓\x1b[39m \x1b[1mReady\x1b[22m in 1.2s\n")).toBe(true)
   })
 
+  it("matches Vite's ready line", () => {
+    expect(isReadyOutput("  VITE v7.1.0  ready in 312 ms\n")).toBe(true)
+  })
+
   it("ignores the other startup lines", () => {
     expect(isReadyOutput("- Local:         http://localhost:3001\n")).toBe(false)
     expect(isReadyOutput("▲ Next.js 16.2.3 (Turbopack)\n")).toBe(false)

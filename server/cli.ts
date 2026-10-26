@@ -1,4 +1,4 @@
-// Usage: node packages/design-review/server/cli.ts [--port <n>] [--target <n>]
+// Usage: node <this package>/server/cli.ts [--port <n>] [--target <n>]
 //          --root docs/review -- <app command…, {target} for the app's port>
 import { spawn } from "node:child_process"
 import { mkdirSync } from "node:fs"
@@ -75,7 +75,7 @@ async function pickPorts(args: Args): Promise<{ port: number; target: number }> 
 
 // Next prints "✓ Ready in 1.2s" once it serves; colour codes are stripped first.
 export function isReadyOutput(text: string): boolean {
-  return /\bReady in\b/.test(text.replace(/\x1b\[[0-9;]*m/g, ""))
+  return /\bready in\b/i.test(text.replace(/\x1b\[[0-9;]*m/g, ""))
 }
 
 async function main() {
