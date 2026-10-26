@@ -1,5 +1,5 @@
 import type { Op } from "../../model/ops.ts"
-import type { PinRecord } from "../../model/types.ts"
+import type { PinRecord, Status } from "../../model/types.ts"
 import type { FlatRow, PinTarget } from "./listModel.ts"
 import { pinRecordPath } from "./listModel.ts"
 import { RowItem } from "./RowItem.tsx"
@@ -11,6 +11,7 @@ type FeedbackListProps = {
   shownPinsOwner: string | null // the row whose pins Show pins keeps on screen
   onLoadRecord(path: string): Promise<PinRecord | null>
   onOp(rowId: string, op: Op): Promise<boolean>
+  reopenStatus(rowId: string): Status // where Devalidate puts a done row
   onEditFeedback(n: number): void
   onTogglePins(rowId: string, target: PinTarget): void
   onOpenSource(rowId: string, target: PinTarget): void
@@ -24,6 +25,7 @@ export function FeedbackList({
   shownPinsOwner,
   onLoadRecord,
   onOp,
+  reopenStatus,
   ...rest
 }: FeedbackListProps) {
   const byId = new Map(rows.map((r) => [r.rowId, r]))
@@ -46,6 +48,7 @@ export function FeedbackList({
             pinsShown={Boolean(owner && owner.rowId === shownPinsOwner)}
             onLoadRecords={() => Promise.all(paths.map(onLoadRecord))}
             onOp={(op) => onOp(row.rowId, op)}
+            reopenTo={reopenStatus(row.rowId)}
             {...rest}
           />
         )

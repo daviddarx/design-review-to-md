@@ -439,3 +439,19 @@ plan beside it.
   they are). The model, ops, API and shell are unchanged.
 - No migration code: no review was ever committed. His working copy was
   moved by hand (links rewritten by text, every other byte kept).
+
+### Devalidate
+
+- **A done row offers Devalidate** (Lucide's undo arrow, in the group where
+  Validate sits on other rows). It sets the status the row had before this
+  session validated it — `Panel` remembers it per `review:rowId` in a ref
+  when a `setStatus done` succeeds — and `review` for a row validated
+  before the session (or before a reload). The tooltip names the target
+  ("Devalidate: back to open").
+- **Refine's icon is now Lucide's message-square-text**: its old reply arrow
+  read too close to Devalidate's undo arrow.
+- **Every listed row's pin records load with the list**, not on hover. Open
+  in VS Code is drawn only once a record names a source, and the hover
+  prefetch left it to appear under the pointer — on every row whose pins
+  the page was not already showing (done rows on All, for one). `Panel`
+  loads the owner pins of the rows in the current filter on each load.

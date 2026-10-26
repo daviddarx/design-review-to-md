@@ -5,7 +5,8 @@ import type { ComponentProps, ReactNode } from "react"
 const PATHS = {
   edit: "M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z",
   validate: "M20 6 9 17l-5-5",
-  refine: "M9 17 4 12l5-5 M20 18v-2a4 4 0 0 0-4-4H4",
+  devalidate: "M9 14 4 9l5-5 M4 9h10.5a5.5 5.5 0 0 1 0 11H11",
+  refine: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z M13 8H7 M17 12H7",
   history: "M12 7v5l3 2 M3 12a9 9 0 1 0 3-6.7L3 8 M3 3v5h5",
   pin: "M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 0 1 16 0Z M12 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z",
   screenshot:

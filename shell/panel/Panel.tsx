@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { PointerEvent as ReactPointerEvent, ReactNode } from "react"
 import type { Op } from "../../model/ops.ts"
-import type { PinRecord, Feedback } from "../../model/types.ts"
+import type { PinRecord, Feedback, Status } from "../../model/types.ts"
 import { applyOp, createReview, fileUrl, listReviews, readReview, useReviewFeed } from "../api.ts"
 import { readKey, writeKey } from "../prefs.ts"
 import { Icon } from "./icons.tsx"
@@ -184,6 +184,20 @@ export function Panel({
     [review]
   )
 
+  // The pin records of every listed row, its inherited pins included, so
+  // its actions (Open in VS Code reads the record's source) are there before
+  // the row is hovered, not added under the pointer.
+  useEffect(() => {
+    const byId = new Map(flattenRows(feedbacks, "all").map((r) => [r.rowId, r]))
+    const owners = new Set(rows.map((r) => (r.pins.length ? r.rowId : r.inheritedPinFrom)))
+    for (const id of owners) {
+      const owner = id ? byId.get(id) : undefined
+      owner?.pins.forEach((pin, i) => {
+        void loadRecord(pinRecordPath(pin, owner.rowId, i, owner.folder))
+      })
+    }
+  }, [feedbacks, rows, loadRecord])
+
   // The pins of the filter, for the page to show while nothing is picked
   // out: on All the pins of every row not done, whatever the rows under it;
   // on a status tab a pin shows when its own row or one it covers matches.
@@ -212,11 +226,21 @@ export function Panel({
 
   // Ops refetch at once rather than waiting on the watcher; errors (409
   // locked, …) land in the inline message, never as a throw.
+  // What each row was before this session validated it, so Devalidate can
+  // put it back; a row validated earlier goes back to review.
+  const validatedFrom = useRef(new Map<string, Status>())
+  const reopenStatus = (rowId: string) =>
+    validatedFrom.current.get(`${review}:${rowId}`) ?? "review"
+
   const onOp = useCallback(
     async (rowId: string, op: Op): Promise<boolean> => {
       if (!review) return false
+      const was = flattenRows(feedbacks, "all").find((r) => r.rowId === rowId)?.status
       try {
         await applyOp(review, Number(rowId.split(".")[0]), op)
+        if (op.kind === "setStatus" && op.status === "done" && was && was !== "done") {
+          validatedFrom.current.set(`${review}:${rowId}`, was)
+        }
         setError(null)
         load()
         return true
@@ -225,7 +249,7 @@ export function Panel({
         return false
       }
     },
-    [review, load]
+    [review, load, feedbacks]
   )
 
   const withNotice =
@@ -386,6 +410,7 @@ export function Panel({
             records={records}
             onLoadRecord={loadRecord}
             onOp={onOp}
+            reopenStatus={reopenStatus}
             onEditFeedback={onEditFeedback}
             onTogglePins={withNotice(onTogglePins)}
             onOpenSource={withNotice(onOpenSource)}

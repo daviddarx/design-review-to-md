@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import type { Op } from "../../model/ops.ts"
-import type { PinRecord, PinRef } from "../../model/types.ts"
+import type { PinRecord, PinRef, Status } from "../../model/types.ts"
 import { fileUrl } from "../api.ts"
 import { Flyout } from "./Flyout.tsx"
 import { ActionButton, ActionGroup } from "./icons.tsx"
@@ -16,6 +16,7 @@ export type RowItemProps = {
   pinsShown: boolean // Show pins is on for `owner`
   onLoadRecords(): Promise<(PinRecord | null)[]>
   onOp(op: Op): Promise<boolean>
+  reopenTo: Status // the status Devalidate gives a done row back
   onEditFeedback(n: number): void
   onTogglePins(rowId: string, target: PinTarget): void
   onOpenSource(rowId: string, target: PinTarget): void
@@ -33,6 +34,7 @@ export function RowItem({
   pinsShown,
   onLoadRecords,
   onOp,
+  reopenTo,
   onEditFeedback,
   onTogglePins,
   onOpenSource,
@@ -69,6 +71,7 @@ export function RowItem({
   const note = reviewing && last?.kind === "claude" ? last : null
   const history = note ? row.history.slice(0, -1) : row.history
   const validate = () => void run({ kind: "setStatus", rowId: row.rowId, status: "done" })
+  const devalidate = () => void run({ kind: "setStatus", rowId: row.rowId, status: reopenTo })
   const startRefine = () => setRefining(row.text)
   const toggleHistory = () => setHistoryOpen((v) => !v)
 
@@ -220,6 +223,14 @@ export function RowItem({
         <div className="dr-row-side">
           <ActionGroup>
             {validatable && <ActionButton icon="validate" label="Validate" onClick={validate} />}
+            {row.status === "done" && (
+              <ActionButton
+                icon="devalidate"
+                label="Devalidate"
+                tip={`Devalidate: back to ${reopenTo}`}
+                onClick={devalidate}
+              />
+            )}
             {reviewing && <ActionButton icon="refine" label="Refine" onClick={startRefine} />}
             {history.length > 0 && (
               <ActionButton

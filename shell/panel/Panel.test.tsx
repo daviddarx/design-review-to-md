@@ -233,9 +233,53 @@ describe("Panel", () => {
     await render()
     const labels = (id: string) =>
       [...row(id).querySelectorAll(".dr-action")].map((b) => b.getAttribute("aria-label"))
-    expect(labels("5.a")).toEqual(["Screenshot"])
+    expect(labels("5.a")).toEqual(["Devalidate", "Screenshot"])
     expect(labels("5.b")).toEqual(["Validate", "History", "Screenshot"])
     expect(labels("5.c")).toEqual(["Validate", "Refine", "Show pins", "Screenshot"])
+  })
+
+  it("Devalidate puts a done row back where Validate took it from, else to review", async () => {
+    await render()
+    expect(action("5.a", "Devalidate")!.getAttribute("data-tip")).toBe("Devalidate: back to review")
+    await act(async () => action("5.a", "Devalidate")!.click())
+    expect(opCalls().at(-1)!.body).toEqual({
+      op: { kind: "setStatus", rowId: "5.a", status: "review" },
+      assets: [],
+    })
+    await act(async () => action("5.b", "Validate")!.click())
+    expect(opCalls().at(-1)!.body).toMatchObject({
+      op: { kind: "setStatus", rowId: "5.b", status: "done" },
+    })
+    // The reload now reads 5.b as done.
+    held.set(
+      "/__review/api/reviews/08.4",
+      Promise.resolve(
+        json({
+          meta: { nextFeedback: 6 },
+          feedbacks: [parseFeedback(SPEC.replace("100% `open`", "100% `done`"))],
+        })
+      )
+    )
+    await act(async () =>
+      FakeEventSource.last!.onmessage!({ data: JSON.stringify({ review: "08.4" }) })
+    )
+    expect(action("5.b", "Devalidate")!.getAttribute("data-tip")).toBe("Devalidate: back to open")
+  })
+
+  it("loads every listed row's pin records without a hover, done rows too", async () => {
+    const spec = `# 7. Header \`open\`
+
+- a. Logo \`done\`
+  📍 /concept-08-4 — ![](07-header/7.a-pin.png)
+  - 1. Mark \`done\`
+- b. Menu \`open\`
+`
+    held.set(
+      "/__review/api/reviews/08.4",
+      Promise.resolve(json({ meta: { nextFeedback: 8 }, feedbacks: [parseFeedback(spec)] }))
+    )
+    await render()
+    expect(calls.filter((c) => c.url.endsWith("/07-header/7.a-pin.json"))).toHaveLength(1)
   })
 
   it("letters typed on a row do nothing", async () => {
