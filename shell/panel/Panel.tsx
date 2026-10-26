@@ -41,7 +41,7 @@ export type PanelProps = {
 
 type PinAction = void | Promise<string | null | void>
 
-const DEFAULT_WIDTH = 440
+const DEFAULT_WIDTH = 560
 const MIN_WIDTH = 320
 
 function maxWidth() {
