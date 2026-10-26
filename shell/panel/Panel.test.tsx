@@ -206,6 +206,7 @@ describe("Panel", () => {
 
 - a. Logo \`done\`
   📍 /concept-08-4
+  - 1. Mark \`open\`
 - b. Menu \`open\`
 `
     held.set(
@@ -215,13 +216,16 @@ describe("Panel", () => {
     const owners: string[][] = []
     await render({ onAllPins: (groups) => owners.push(groups.map((g) => g.owner)) })
     expect(owners.at(-1)).toEqual(["7"])
-    const chip = (label: string) =>
-      Array.from(host.querySelectorAll<HTMLButtonElement>(".dr-chip")).find((b) =>
+    const tab = (label: string) =>
+      Array.from(host.querySelectorAll<HTMLButtonElement>(".dr-tab")).find((b) =>
         b.textContent!.startsWith(label)
       )!
-    await act(async () => chip("Done").click())
+    await act(async () => tab("Done").click())
     expect(owners.at(-1)).toEqual(["7.a"])
-    await act(async () => chip("Open").click())
+    // On Open, the done row's pin still covers its open sub-row.
+    await act(async () => tab("Open").click())
+    expect(owners.at(-1)).toEqual(["7", "7.a"])
+    await act(async () => tab("All").click())
     expect(owners.at(-1)).toEqual(["7"])
   })
 
@@ -255,6 +259,28 @@ describe("Panel", () => {
     expect(action("5", "Edit feedback")!.classList.contains("dr-action-primary")).toBe(true)
     expect(row("5").querySelector(".dr-row-side > .dr-action-slot")).toBeNull()
     expect(row("5.c").querySelector(".dr-row-side > .dr-action-slot")).not.toBeNull()
+    // Edit stands apart from the group.
+    expect(action("5", "Edit feedback")!.parentElement!.classList.contains("dr-row-side")).toBe(
+      true
+    )
+  })
+
+  it("Refine keeps the row's last slot, so Save lands where that button was", async () => {
+    await render()
+    await act(async () => action("5.c", "Refine")!.click())
+    const group = row("5.c").querySelector(".dr-row-refining > .dr-refine-group")!
+    expect(group.lastElementChild!.classList.contains("dr-action-slot")).toBe(true)
+  })
+
+  it("a tab reserves its bold label's width", async () => {
+    await render()
+    const labels = Array.from(host.querySelectorAll(".dr-tab-label"))
+    expect(labels.map((l) => [l.textContent, l.getAttribute("data-reserve")])).toEqual([
+      ["All", "All"],
+      ["Open", "Open"],
+      ["To review", "To review"],
+      ["Done", "Done"],
+    ])
   })
 
   it("an API error shows inline", async () => {

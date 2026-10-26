@@ -6,7 +6,7 @@ import { applyOp, createReview, fileUrl, listReviews, readReview, useReviewFeed 
 import { readKey, writeKey } from "../prefs.ts"
 import { Icon } from "./icons.tsx"
 import { counts, flattenRows, pinRecordPath } from "./listModel.ts"
-import type { FlatRow, Filter, PinTarget } from "./listModel.ts"
+import type { Filter, PinTarget } from "./listModel.ts"
 import { FeedbackList } from "./FeedbackList.tsx"
 import { ShortcutHelp } from "./ShortcutHelp.tsx"
 import { ReviewSelect } from "./ReviewSelect.tsx"
@@ -185,14 +185,17 @@ export function Panel({
   )
 
   // The pins of the filter, for the page to show while nothing is picked
-  // out: on All every pin but the done ones, on a status tab that status's.
-  // A pin shows when its own row or one of the rows it covers matches.
+  // out: on All the pins of every row not done, whatever the rows under it;
+  // on a status tab a pin shows when its own row or one it covers matches.
   useEffect(() => {
     let live = true
     const rows = flattenRows(feedbacks, "all")
-    const matches = (r: FlatRow) => (filter === "all" ? r.status !== "done" : r.status === filter)
     const owners = new Set(
-      rows.filter(matches).map((r) => (r.pins.length ? r.rowId : r.inheritedPinFrom))
+      filter === "all"
+        ? rows.filter((r) => r.status !== "done").map((r) => r.rowId)
+        : rows
+            .filter((r) => r.status === filter)
+            .map((r) => (r.pins.length ? r.rowId : r.inheritedPinFrom))
     )
     const pinned = rows.filter((r) => r.pins.length && owners.has(r.rowId))
     void Promise.all(
@@ -331,11 +334,13 @@ export function Panel({
               type="button"
               role="radio"
               aria-checked={filter === f.value}
-              className="dr-chip"
+              className="dr-tab"
               onClick={() => setFilter(f.value)}
             >
-              {f.label}{" "}
-              <span className="dr-chip-count">
+              <span className="dr-tab-label" data-reserve={f.label}>
+                {f.label}
+              </span>{" "}
+              <span className="dr-tab-count">
                 {f.value === "all" ? tally.open + tally.review + tally.done : tally[f.value]}
               </span>
             </button>

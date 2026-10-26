@@ -115,8 +115,9 @@ export function RowItem({
   peekEnd.current = () => owner && onPeekPins(owner.rowId, null)
   useEffect(() => () => peekEnd.current(), [])
 
-  // A flyout is at most as wide as the row's text column.
-  const columnWidth = () => liRef.current?.querySelector(".dr-row-body")?.clientWidth ?? 320
+  // A flyout is at most as wide as the row's text column. The text, not the
+  // column: a narrow panel lays the column out as `display: contents`.
+  const columnWidth = () => liRef.current?.querySelector(".dr-row-text")?.clientWidth || 320
   const shots = owner?.pins.flatMap((p) => (p.screenshot ? [p.screenshot] : [])) ?? []
 
   return (
@@ -131,7 +132,9 @@ export function RowItem({
     >
       <span className="dr-row-num">{row.rowId}</span>
 
-      <div className="dr-row-body">
+      {/* Refining, the column also takes the actions' place, and the save
+          button lands where the row's last button was. */}
+      <div className={refining === null ? "dr-row-body" : "dr-row-body dr-row-refining"}>
         {refining === null ? (
           <div className="dr-row-text">{row.text}</div>
         ) : (
@@ -164,6 +167,7 @@ export function RowItem({
               disabled={busy}
               onClick={() => void submitRefine()}
             />
+            {row.depth > 0 && <span className="dr-action-slot" aria-hidden="true" />}
           </div>
         )}
 
@@ -199,7 +203,7 @@ export function RowItem({
       </div>
 
       {/* The actions keep their places from row to row: a row without Edit
-          (it is the last action) leaves its slot empty. */}
+          (last, apart from the group) leaves its slot empty. */}
       {refining === null && (
         <div className="dr-row-side">
           <ActionGroup>
@@ -248,16 +252,17 @@ export function RowItem({
                 )}
               </>
             )}
-            {row.depth === 0 && (
-              <ActionButton
-                icon="edit"
-                label="Edit feedback"
-                className="dr-action-primary"
-                onClick={() => onEditFeedback(feedbackNumber)}
-              />
-            )}
           </ActionGroup>
-          {row.depth > 0 && <span className="dr-action-slot" aria-hidden="true" />}
+          {row.depth === 0 ? (
+            <ActionButton
+              icon="edit"
+              label="Edit feedback"
+              className="dr-action-primary"
+              onClick={() => onEditFeedback(feedbackNumber)}
+            />
+          ) : (
+            <span className="dr-action-slot" aria-hidden="true" />
+          )}
         </div>
       )}
 

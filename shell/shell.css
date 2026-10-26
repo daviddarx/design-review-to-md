@@ -290,26 +290,25 @@ select.dr-review-select {
   font-variant-numeric: tabular-nums;
 }
 
-/* Status tabs left, New feedback right. First-baseline alignment puts the
-   button's text on the tabs' line, and on their FIRST line once they wrap. */
+/* Status tabs left, New feedback right. The tabs run the bar's full height,
+   so the active one's line can sit on its bottom edge. */
 .dr-filters {
   display: flex;
-  align-items: first baseline;
   justify-content: space-between;
   gap: 8px;
-  padding: 8px var(--dr-gutter);
+  padding: 0 var(--dr-gutter);
   border-bottom: 1px solid var(--dr-line);
+}
+
+.dr-filters > .dr-button {
+  align-self: center;
+  margin: 8px 0;
 }
 
 .dr-filter-tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
   min-width: 0;
-}
-
-.dr-chip {
-  flex: 0 0 auto;
 }
 
 /* The shortcut reminder, bottom right; its tooltip opens upward. */
@@ -329,29 +328,67 @@ select.dr-review-select {
   background: #fff;
 }
 
-.dr-chip {
-  height: 24px;
-  padding: 0 9px;
-  border: 1px solid transparent;
-  border-radius: 999px;
+/* Side padding, no gap: every point of the bar belongs to a tab. The first
+   tab's text lines up with the list's left edge. */
+.dr-tab {
+  position: relative;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 8px;
+  border: 0;
   background: transparent;
   color: var(--dr-text-muted) !important;
   font-size: 12px !important;
   cursor: pointer;
 }
 
-.dr-chip:hover {
-  background: var(--dr-hover);
+.dr-tab:first-child {
+  padding-left: 0;
 }
 
-.dr-chip[aria-checked="true"] {
-  border-color: #cbd5e1;
-  background: #fff;
+.dr-tab:hover,
+.dr-tab[aria-checked="true"] {
   color: var(--dr-text) !important;
-  font-weight: 600 !important;
 }
 
-.dr-chip-count {
+/* The active line: under the text only, over the bar's own bottom border. */
+.dr-tab[aria-checked="true"]::after {
+  content: "";
+  position: absolute;
+  right: 8px;
+  bottom: -1px;
+  left: 8px;
+  height: 3px;
+  background: var(--dr-text);
+}
+
+.dr-tab:first-child::after {
+  left: 0;
+}
+
+.dr-tab[aria-checked="true"] .dr-tab-label {
+  font-weight: 600;
+}
+
+/* The label is always as wide as its bold self, so the tabs do not move
+   when the active one changes: the bold label is laid out, invisibly and
+   with no height, under the real one. */
+.dr-tab-label {
+  display: inline-flex;
+  flex-direction: column;
+}
+
+.dr-tab-label::after {
+  content: attr(data-reserve);
+  content: attr(data-reserve) / "";
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  font-weight: 600;
+}
+
+.dr-tab-count {
   margin-left: 2px;
   color: var(--dr-text-muted);
   font-weight: 400;
@@ -388,6 +425,7 @@ select.dr-review-select {
   min-height: 0;
   overflow-y: auto;
   padding: 0 0 64px;
+  container: dr-list / inline-size; /* the rows' narrow layout */
 }
 
 .dr-empty {
@@ -410,8 +448,8 @@ select.dr-review-select {
 }
 
 /* Each list row's separator is drawn above it: a feedback's across the
-   panel, a sub-row's from where its own text starts (5ch is the number
-   column, 16px a level's indent). */
+   panel, a sub-row's from where the text of the shallower of it and the row
+   above starts (5ch is the number column, 16px a level's indent). */
 .dr-list {
   border-bottom: 1px solid var(--dr-line);
 }
@@ -429,27 +467,40 @@ select.dr-review-select {
   display: none;
 }
 
-.dr-list > .dr-depth-1::before {
+.dr-list > .dr-depth-0 + .dr-row::before {
+  left: calc(var(--dr-gutter) + 5ch + 6px);
+}
+
+.dr-list > .dr-depth-1 + .dr-depth-1::before,
+.dr-list > .dr-depth-1 + .dr-depth-2::before,
+.dr-list > .dr-depth-2 + .dr-depth-1::before {
   left: calc(var(--dr-gutter) + 5ch + 6px + 16px);
 }
 
-.dr-list > .dr-depth-2::before {
+.dr-list > .dr-depth-2 + .dr-depth-2::before {
   left: calc(var(--dr-gutter) + 5ch + 6px + 32px);
+}
+
+/* Whatever the row above, a feedback's own line crosses the panel. */
+.dr-list > .dr-row.dr-depth-0::before {
+  left: 0;
 }
 
 /* Number | text (its status tag first, history and files below) | the
    icon actions, all on the first line's top. */
 .dr-list > .dr-row {
-  padding-top: 8px;
-  padding-bottom: 8px;
+  padding-top: 4px;
+  padding-bottom: 4px;
   display: grid;
   grid-template-columns: minmax(5ch, max-content) minmax(0, 1fr) auto;
   align-items: start;
   column-gap: 6px;
 }
 
+/* The group, then Edit (or its slot) on its own. */
 .dr-row-side {
   display: flex;
+  gap: 8px;
   margin-top: 8px;
 }
 
@@ -507,6 +558,56 @@ select.dr-review-select {
   margin-left: 32px;
 }
 
+/* A narrow panel moves the actions under the text, at its left edge, before
+   the status tag: the text column gives its children to the row's grid,
+   which stacks them in column 2 in this order. */
+@container dr-list (width < 540px) {
+  .dr-list > .dr-row {
+    grid-template-columns: minmax(5ch, max-content) minmax(0, 1fr);
+  }
+
+  .dr-list > .dr-row > .dr-row-body {
+    display: contents;
+  }
+
+  .dr-list > .dr-row > .dr-row-body > *,
+  .dr-list > .dr-row > .dr-row-side {
+    grid-column: 2;
+  }
+
+  .dr-list > .dr-row > .dr-row-side {
+    order: 1;
+  }
+
+  .dr-list > .dr-row > .dr-row-body > .dr-row-meta {
+    order: 2;
+  }
+
+  .dr-list > .dr-row > .dr-row-body > .dr-history {
+    order: 3;
+  }
+
+  .dr-list > .dr-depth-1 > .dr-row-body > *,
+  .dr-list > .dr-depth-1 > .dr-row-side {
+    margin-left: 16px;
+  }
+
+  .dr-list > .dr-depth-2 > .dr-row-body > *,
+  .dr-list > .dr-depth-2 > .dr-row-side {
+    margin-left: 32px;
+  }
+
+  /* Stretched by the grid, so the indent does not push it past the edge. */
+  .dr-refine-group {
+    width: auto;
+  }
+
+  /* Nothing to line up with on the right. */
+  .dr-refine-group > .dr-action-slot {
+    display: none;
+  }
+}
+
 .dr-busy {
   opacity: 0.6;
 }
@@ -530,10 +631,19 @@ select.dr-review-select {
 }
 
 /* Refine: a one-line field and its save button, joined like the row's
-   action group. */
+   action group, on the actions' line and reaching their right end. */
+.dr-list > .dr-row > .dr-row-refining {
+  grid-column: 2 / -1;
+}
+
 .dr-refine-group {
   display: flex;
   width: 100%;
+  margin-top: 8px;
+}
+
+.dr-refine-group > .dr-action-slot {
+  margin-left: 8px;
 }
 
 .dr-refine {
@@ -550,19 +660,21 @@ select.dr-review-select {
   border-bottom-left-radius: 0;
 }
 
+/* 18px tall: a 16px line inside a border of the text's colour. */
 .dr-status {
   padding: 0 6px;
-  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-radius: 999px;
   font:
-    500 11px/18px ui-monospace,
+    500 11px/16px ui-monospace,
     SFMono-Regular,
     Menlo,
     monospace;
 }
 
 .dr-status-open {
-  background: #e2e8f0;
-  color: #334155;
+  background: #dbeafe;
+  color: #1e40af;
 }
 
 .dr-status-review {
@@ -633,13 +745,13 @@ select.dr-review-select {
 }
 
 /* Edit, the row's main action. */
-.dr-row-actions > .dr-action-primary {
+.dr-row-side > .dr-action-primary {
   border-color: var(--dr-text);
   background: var(--dr-text);
   color: #fff !important;
 }
 
-.dr-row-actions > .dr-action-primary:hover {
+.dr-row-side > .dr-action-primary:hover {
   border-color: #334155;
   background: #334155;
   color: #fff !important;
