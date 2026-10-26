@@ -1,17 +1,35 @@
 {
-  "name": "@icfm/design-review",
+  "name": "design-review-to-md",
+  "version": "0.1.0",
   "private": true,
+  "description": "In-browser design review for a running web app: pins, screenshots and feedback saved as markdown for a coding agent.",
   "type": "module",
-  "peerDependencies": {
-    "react": "^19",
-    "react-dom": "^19"
+  "bin": {
+    "design-review": "server/cli.ts"
   },
-  "devDependencies": {
-    "esbuild": "^0.28.2",
-    "happy-dom": "^21.0.4",
-    "source-map-js": "^1.2.2"
+  "engines": {
+    "node": ">=24.2"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write \"**/*.{ts,tsx,mts,css,json,md}\""
   },
   "dependencies": {
-    "modern-screenshot": "^4.7.0"
+    "esbuild": "^0.28.2",
+    "modern-screenshot": "^4.7.0",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "source-map-js": "^1.2.2"
+  },
+  "devDependencies": {
+    "@types/node": "^24",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "happy-dom": "^21.0.4",
+    "prettier": "^3.8.1",
+    "typescript": "^5",
+    "vitest": "^4.1.10"
   }
 }
