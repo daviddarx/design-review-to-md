@@ -122,13 +122,11 @@ describe("pinRecordPath", () => {
 })
 
 describe("suggestReviewName", () => {
-  it("turns a concept route into its version", () => {
-    expect(suggestReviewName("/concept-08-4/x")).toBe("08.4")
-    expect(suggestReviewName("/concept-06-2")).toBe("06.2")
-  })
-
-  it("falls back to the first segment, or nothing", () => {
+  it("is the first path segment as a valid folder name", () => {
+    expect(suggestReviewName("/concept-08-4/x")).toBe("concept-08-4")
     expect(suggestReviewName("/settings/a")).toBe("settings")
+    expect(suggestReviewName("/caf%C3%A9%20menu")).toBe("caf-menu")
+    expect(suggestReviewName("/..")).toBe("")
     expect(suggestReviewName("/")).toBe("")
   })
 })

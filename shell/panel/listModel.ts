@@ -138,13 +138,18 @@ export function pinRecordPath(
 export const statePathOf = (recordPath: string) =>
   recordPath.replace(/-pin(-\d+)?\.json$/, "-state$1.json")
 
-// "New review…" suggestion from the frame's first path segment:
-// `/concept-08-4/x` → `08.4`.
+// "New review…" suggestion: the frame's first path segment, made a valid
+// folder name (what server/storage.ts accepts). `/concept-08-4/x` →
+// `concept-08-4`.
 export function suggestReviewName(pathname: string): string {
   const first = pathname.split("/").find(Boolean) ?? ""
-  const concept = /^concept-(\d+)(?:-(\d+))?$/.exec(first)
-  if (concept) return concept[2] ? `${concept[1]}.${concept[2]}` : concept[1]
-  return first
+  let decoded = first
+  try {
+    decoded = decodeURIComponent(first)
+  } catch {
+    // a malformed escape: keep it as it is
+  }
+  return decoded.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^[-.]+|-+$/g, "")
 }
 
 // A row is one markdown line: a newline typed in the refine field would

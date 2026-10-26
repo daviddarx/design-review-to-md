@@ -540,3 +540,6 @@ plan beside it.
   no window where a pick could run on the defaults. `<` is escaped.
 - `createReviewServer`'s `markers` is required, not defaulted, so a future
   caller cannot silently drop it.
+- **"New review…" suggests the first path segment as is**, made a valid
+  folder name (`/concept-08-4/x` → `concept-08-4`). The `concept-NN-N` →
+  `NN.N` rule was icfm-hooping's and is gone, on his "do not add logic here".
