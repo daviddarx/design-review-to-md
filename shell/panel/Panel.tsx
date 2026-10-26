@@ -9,9 +9,10 @@ import {
   fileUrl,
   listReviews,
   readReview,
+  repoRoot,
   useReviewFeed,
 } from "../api.ts"
-import type { Asset } from "../api.ts"
+import type { Asset, RepoPaths } from "../api.ts"
 import type { CapturedPin } from "../pick/capture.ts"
 import { readKey, writeKey } from "../prefs.ts"
 import { Icon } from "./icons.tsx"
@@ -64,8 +65,8 @@ const FILTERS: { value: Filter; label: string }[] = [
   { value: "done", label: "Done" },
 ]
 
-export const copyPromptText = (review: string) =>
-  `Commit review folder (docs/review/${review}) and work through its open feedbacks — follow packages/design-review/AGENTS.md.`
+export const copyPromptText = (review: string, paths: Omit<RepoPaths, "root">) =>
+  `Commit review folder (${paths.reviews}/${review}) and work through its open feedbacks — follow ${paths.agents}.`
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err))
 
@@ -115,6 +116,11 @@ export function Panel({
     listReviews().then(setReviews, (err) => setError(message(err)))
   }, [])
   useEffect(refreshReviews, [refreshReviews])
+  // Where the reviews and AGENTS.md are, for the copied prompt.
+  const [paths, setPaths] = useState<RepoPaths | null>(null)
+  useEffect(() => {
+    repoRoot().then(setPaths, (err) => setError(message(err)))
+  }, [])
 
   // A sequence number drops responses that a newer load has overtaken. Each
   // load also drops the cached pin records, since a re-pin rewrites them.
@@ -300,9 +306,9 @@ export function Panel({
   }
 
   const copyPrompt = async () => {
-    if (!review) return
+    if (!review || !paths) return
     try {
-      await navigator.clipboard.writeText(copyPromptText(review))
+      await navigator.clipboard.writeText(copyPromptText(review, paths))
       setCopied(true)
     } catch (err) {
       setError(`Could not copy: ${message(err)}`)
@@ -360,8 +366,8 @@ export function Panel({
           type="button"
           className="dr-button"
           onClick={copyPrompt}
-          disabled={!review}
-          title={review ? copyPromptText(review) : undefined}
+          disabled={!review || !paths}
+          title={review && paths ? copyPromptText(review, paths) : undefined}
         >
           {/* Keeps the button as wide as "Copy prompt" while it reads "Copied". */}
           <span className="dr-swap" data-reserve="Copy prompt">

@@ -69,7 +69,10 @@ export function openEditor(file: string, line: number): Promise<{ ok: true }> {
   return request("POST", "/open-editor", { file, line })
 }
 
-export function repoRoot(): Promise<{ root: string }> {
+// `reviews` and `agents` are relative to `root`, as the prompt names them.
+export type RepoPaths = { root: string; reviews: string; agents: string }
+
+export function repoRoot(): Promise<RepoPaths> {
   return request("GET", "/repo-root")
 }
 

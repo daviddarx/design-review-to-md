@@ -5,6 +5,8 @@ import { Storage, StorageError } from "./storage.ts"
 import { EditorTargetError, openEditor } from "./openEditor.ts"
 
 const BODY_LIMIT = 50 * 1024 * 1024
+// Wherever this package is installed: the app's repo names it in the prompt.
+const AGENTS_FILE = path.resolve(import.meta.dirname, "../AGENTS.md")
 
 export class HttpError extends Error {
   status: number
@@ -100,10 +102,16 @@ export async function handleApi(
   if (method !== "GET") guardWrite(req)
   const [head, rawReview, sub, rawN, tail] = parts
 
-  // The shell strips it from a source map's absolute `file://` paths to
-  // record a pin's source repo-relative.
+  // The shell strips `root` from a source map's absolute `file://` paths to
+  // record a pin's source repo-relative. `reviews` and `agents` go into the
+  // copied prompt, relative to the repo the agent runs in.
   if (head === "repo-root" && parts.length === 1 && method === "GET") {
-    return sendJson(res, 200, { root: path.resolve(ctx.repoRoot) })
+    const root = path.resolve(ctx.repoRoot)
+    return sendJson(res, 200, {
+      root,
+      reviews: path.relative(root, ctx.storage.root),
+      agents: path.relative(root, AGENTS_FILE),
+    })
   }
   if (head === "open-editor" && parts.length === 1 && method === "POST") {
     const body = await readJson(req)

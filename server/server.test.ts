@@ -267,7 +267,11 @@ describe("api", () => {
   it("names the repo root", async () => {
     const res = await request("GET", "/__review/api/repo-root")
     expect(res.status).toBe(200)
-    expect(JSON.parse(res.body)).toEqual({ root: path.resolve(process.cwd()) })
+    const repo = path.resolve(process.cwd())
+    const body = JSON.parse(res.body)
+    expect(body.root).toBe(repo)
+    expect(path.resolve(repo, body.agents)).toBe(path.resolve(import.meta.dirname, "../AGENTS.md"))
+    expect(path.resolve(repo, body.reviews)).toBe(path.resolve(root))
   })
 
   it("rejects path traversal on /__review/files", async () => {

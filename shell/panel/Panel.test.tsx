@@ -72,6 +72,9 @@ beforeEach(() => {
         return hold
       }
       if (url === "/__review/api/reviews") return json(["08.4"])
+      if (url === "/__review/api/repo-root") {
+        return json({ root: "/app", reviews: "docs/review", agents: "../tool/AGENTS.md" })
+      }
       if (url === "/__review/api/reviews/08.4") {
         if (reviewStatus !== 200) return json({ error: "cannot read review" }, reviewStatus)
         return json({ meta: { nextFeedback: 6 }, feedbacks: [parseFeedback(SPEC)] })
@@ -141,6 +144,16 @@ describe("Panel", () => {
       "/__review/files/08.4/05-main-navigation/5.d-my%20shot.png"
     )
     expect(link.target).toBe("_blank")
+  })
+
+  it("the copied prompt names the review folder and AGENTS.md where the server says", async () => {
+    await render()
+    const copy = [...host.querySelectorAll<HTMLButtonElement>(".dr-button")].find((b) =>
+      b.querySelector("[data-reserve='Copy prompt']")
+    )!
+    expect(copy.title).toBe(
+      "Commit review folder (docs/review/08.4) and work through its open feedbacks — follow ../tool/AGENTS.md."
+    )
   })
 
   it("lists the review's rows with counts", async () => {
