@@ -6,7 +6,7 @@ import type { CapturedPin } from "./capture.ts"
 import { componentName, describe, openersOf, uniqueSelector } from "./inspect.ts"
 import { clearSourceCache, sourceOf } from "../source/sourceLookup.ts"
 import { StyleTip } from "./StyleTip.tsx"
-import { styleOverview } from "./styles.ts"
+import { sizeLine, styleOverview } from "./styles.ts"
 import type { StyleLine } from "./styles.ts"
 
 type Box = { x: number; y: number; width: number; height: number }
@@ -258,9 +258,10 @@ export function usePicker(frame: HTMLIFrameElement | null): Picker {
       ? (() => {
           const crop = frameBox(f)
           const click = { x: crop.x + picked.mouse.x, y: crop.y + picked.mouse.y }
-          return grabPng(f, false, rect(crop), rect(shellBox(picked.el, f)), click).catch(
-            () => undefined
-          )
+          const box = shellBox(picked.el, f)
+          // The style overview as it showed at the click.
+          const tip = [sizeLine(box), ...styleOverview(picked.el)]
+          return grabPng(f, false, rect(crop), rect(box), click, tip).catch(() => undefined)
         })()
       : Promise.resolve(undefined)
     captured.finishing = Promise.all([png, source]).then(([shot, found]) => {
