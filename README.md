@@ -29,7 +29,8 @@ Requires Node ≥ 24.2. The app must run on a dev server (React 19 for the
    ```
 
 3. In the app's `.gitignore`, add `docs/review/**/*-state.json` (the app
-   state snapshots stay on your machine).
+   state snapshots stay on your machine). With another `--root`, use that
+   folder instead of `docs/review`.
 
 4. `npm run review`, then open the URL it prints.
 
@@ -53,10 +54,14 @@ Without it, the first other stable `data-*` attribute is used.
 - **Feedback.** One numbered topic, `<NN>-<slug>/briefing.md`, with rows and
   sub-rows. Its screenshots, pin records and attachments sit in the same
   folder.
-- **Pin** (⌃P). Pick an element in the app. The tool saves a screenshot, the
-  page and selector, the React component and its source file and line, and
-  a snapshot of localStorage, so the agent can find the code and you can
-  find the spot again later.
+- **Pin** (⌃P, or the pin button beside _New feedback_). Pick an element in
+  the app. The tool saves a screenshot, the page and selector, the React
+  component and its source file and line, and a snapshot of localStorage, so
+  the agent can find the code and you can find the spot again later. While
+  you pick, a box in the app's bottom-right corner shows the element's
+  rendered size, then the width, height, margin, padding, colors, border
+  color and font size its stylesheets set, as written (`var(--space-4)`, not
+  `16px`). The pin's screenshot carries the same box.
 - **Status.** Every row is `open` (yours to hand over), `review` (the agent
   has done it) or `done` (you validated it). From the panel you can validate
   a row, refine its text (the old wording is kept as `Before:`), devalidate
