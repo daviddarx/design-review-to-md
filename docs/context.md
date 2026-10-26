@@ -368,8 +368,8 @@ plan beside it.
 - **Separators follow should-2.png**: a sub-row's line starts at the text
   of the SHALLOWER of it and the row above (adjacent-sibling rules on the
   depth classes); a feedback's line crosses the panel.
-- **Narrow layout (< 540px)**: a container query on `.dr-panel-body`
-  (`dr-list`). The row grid drops its actions column, `.dr-row-body`
+- **Narrow layout (< 540px)** (replaced in briefing-feedback-10): a
+  container query on `.dr-panel-body` (`dr-list`). The row grid drops its actions column, `.dr-row-body`
   becomes `display: contents`, and `order` stacks text, files, actions,
   status tag, history in column 2; the depth indent moves onto each child.
   The flyout width now measures `.dr-row-text`, since a `contents` box has
@@ -385,3 +385,24 @@ plan beside it.
   `:3000`, so its localStorage is its own, not plain `npm run dev`'s.
   `next dev`'s per-checkout lock still applies: worktrunk's server for the
   same worktree must be stopped first.
+
+### briefing-feedback-10
+
+- **Tab counts** are bold 10px in an 18px white circle (a pill past one
+  digit), 6px from the label (+4). A 1px `--dr-line` border outlines the
+  circle: the bar's `#f8fafc` alone barely shows a white disc. The active
+  tab's count takes the text colour. Tabs are 10px side padding (+4 between
+  them); the active line's insets moved with it.
+- **Narrow layout, second take.** The `display: contents` stacking is gone:
+  under 540px the row's grid drops its actions column, the text column keeps
+  the full width (text, files, status tag together), and `.dr-row-side`
+  lands on its own grid row in column 2, `justify-self: end`, so the actions
+  stay right-aligned. The status tag's 8px bottom margin spaces them. While
+  refining, the field keeps the text's place (no 8px top margin) and drops
+  the Edit slot. The flyout width measures `.dr-row-body` again.
+- **Claude's latest note is visible on a row to review.** When a row's
+  status is `review` and its last history entry is a `Claude:` line, that
+  line renders under the text (`.dr-row-note`, muted); History lists only
+  the entries before it, and is not offered when nothing is left. Any other
+  status leaves every note in History: a refined row goes back to `open`,
+  so its old note drops into History until the next round answers it.
