@@ -1188,6 +1188,51 @@ select.dr-review-select {
   box-shadow: 0 4px 16px rgb(15 23 42 / 0.25);
 }
 
+/* The hovered element's rendered size, then the size, spacing, colors and
+   font size its stylesheets set, as written (tokens, not pixels). Always in
+   the app's bottom-right corner. */
+.dr-style-tip {
+  position: absolute;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 3px 12px;
+  max-width: 420px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #1e293b;
+  color: #f1f5f9;
+  font:
+    12px/16px ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Consolas,
+    monospace;
+  box-shadow: 0 6px 20px rgb(15 23 42 / 0.3);
+}
+
+.dr-style-line {
+  display: contents;
+}
+
+.dr-style-prop {
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+.dr-style-value {
+  overflow-wrap: anywhere;
+}
+
+.dr-style-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  border: 1px solid rgb(255 255 255 / 0.4);
+  border-radius: 2px;
+  vertical-align: -1px;
+}
+
 /* Pins where the clicks landed: a teardrop whose tip is the click. Under
    the picker, above the panel (a tool pin can sit on the drawer). A faded,
    dashed pin is the click's recorded position — its element is not on

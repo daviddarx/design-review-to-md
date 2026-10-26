@@ -5,9 +5,12 @@ import { grabPng, snapshotLocalStorage } from "./capture.ts"
 import type { CapturedPin } from "./capture.ts"
 import { componentName, describe, openersOf, uniqueSelector } from "./inspect.ts"
 import { clearSourceCache, sourceOf } from "../source/sourceLookup.ts"
+import { StyleTip } from "./StyleTip.tsx"
+import { styleOverview } from "./styles.ts"
+import type { StyleLine } from "./styles.ts"
 
 type Box = { x: number; y: number; width: number; height: number }
-type Shown = { box: Box; label: string | null }
+type Shown = { box: Box; label: string | null; styles: StyleLine[] }
 type Picked = { el: Element; mouse: { x: number; y: number } }
 
 export type Picker = {
@@ -102,6 +105,7 @@ export function usePicker(frame: HTMLIFrameElement | null): Picker {
   const hovered = useRef<Picked | null>(null)
   const flashed = useRef<Element | null>(null)
   const cancelRef = useRef<() => void>(() => {})
+  const styled = useRef<{ el: Element; lines: StyleLine[] } | null>(null) // read once per element
 
   useEffect(() => {
     frameRef.current = frame
@@ -120,14 +124,24 @@ export function usePicker(frame: HTMLIFrameElement | null): Picker {
       if (target?.isConnected) {
         const box = shellBox(target, frameRef.current)
         const label = picking ? describe(target) : null
-        setShown((s) => (s && sameBox(s.box, box) && s.label === label ? s : { box, label }))
+        if (picking && styled.current?.el !== target)
+          styled.current = { el: target, lines: styleOverview(target) }
+        const styles = picking ? styled.current!.lines : []
+        setShown((s) =>
+          s && sameBox(s.box, box) && s.label === label && s.styles === styles
+            ? s
+            : { box, label, styles }
+        )
       } else {
         setShown(null)
       }
       id = requestAnimationFrame(tick)
     }
     tick()
-    return () => cancelAnimationFrame(id)
+    return () => {
+      cancelAnimationFrame(id)
+      styled.current = null
+    }
   }, [picking, flashing])
 
   // Each flash restarts the clock.
@@ -300,6 +314,10 @@ export function usePicker(frame: HTMLIFrameElement | null): Picker {
       />
     )
 
+  // The app's part of the window: the hint centers on it, the style
+  // overview stays inside it.
+  const area = frame ? frameBox(frame) : null
+
   const layer = (
     <>
       {/* Go to pin's outline sits under the pins; the hovered one over all. */}
@@ -321,8 +339,14 @@ export function usePicker(frame: HTMLIFrameElement | null): Picker {
             {shown.label}
           </div>
         )}
+        {picking && shown && area && <StyleTip box={shown.box} area={area} lines={shown.styles} />}
         {picking && (
-          <div className="dr-picker-hint">Click to pin · ↑ / ↓ parent / child · Esc cancel</div>
+          <div
+            className="dr-picker-hint"
+            style={area ? { left: area.x + area.width / 2, top: area.y + 12 } : undefined}
+          >
+            Click to pin · ↑ / ↓ parent / child · Esc cancel
+          </div>
         )}
         {loading && <div className="dr-pin-loader" style={{ left: loading.x, top: loading.y }} />}
       </div>
