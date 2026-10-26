@@ -155,3 +155,22 @@ export function singleLine(text: string): string {
     .join(" ")
     .trim()
 }
+
+// The history as it reads: each earlier wording, then the Claude notes that
+// answered it. The file is in time order, where a note comes BEFORE the
+// Before line of the text it answered (the text becomes a Before only when
+// it is refined, after the note); the notes after the last Before answered
+// the current text and stay last.
+export function historyByRound(history: HistoryEntry[]): HistoryEntry[] {
+  const out: HistoryEntry[] = []
+  let notes: HistoryEntry[] = []
+  for (const h of history) {
+    if (h.kind === "claude") {
+      notes.push(h)
+    } else {
+      out.push(h, ...notes)
+      notes = []
+    }
+  }
+  return [...out, ...notes]
+}

@@ -3,6 +3,7 @@ import { parseFeedback } from "../../model/markdown.ts"
 import {
   counts,
   flattenRows,
+  historyByRound,
   pinRecordPath,
   singleLine,
   statePathOf,
@@ -135,5 +136,28 @@ describe("suggestReviewName", () => {
 describe("singleLine", () => {
   it("joins lines so a row stays one markdown line", () => {
     expect(singleLine("  one\ntwo \n\n three ")).toBe("one two three")
+  })
+})
+
+describe("historyByRound", () => {
+  it("puts each earlier wording ahead of the notes that answered it", () => {
+    const before = (text: string) => ({ kind: "before" as const, text })
+    const claude = (text: string) => ({ kind: "claude" as const, text })
+    // On disk: a note, then the wording it answered once refined.
+    expect(
+      historyByRound([
+        claude("on A"),
+        before("A"),
+        claude("on B"),
+        claude("more on B"),
+        before("B"),
+      ])
+    ).toEqual([before("A"), claude("on A"), before("B"), claude("on B"), claude("more on B")])
+    // Notes on the current text stay last; Befores with no answer stay in order.
+    expect(historyByRound([before("A"), before("B"), claude("on C")])).toEqual([
+      before("A"),
+      before("B"),
+      claude("on C"),
+    ])
   })
 })

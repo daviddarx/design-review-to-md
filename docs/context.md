@@ -481,3 +481,11 @@ plan beside it.
   `App` builds them with `onRemove` → `removePin` at the pin's index, then
   redraws the remaining ones (the later pins moved down one place) and
   reloads the list. No automated test: it needs a real frame layout.
+- **History reads request, then answer.** The file stays in time order,
+  where a `Claude:` note precedes the `Before:` of the text it answered (the
+  text only becomes a Before when refined, after the note). `historyByRound`
+  (`listModel.ts`) regroups it for the History list: each Before, then the
+  notes written while it was current; notes on the current text stay last.
+  Moving the Before ahead of the notes on disk was tried and reverted: after
+  two rounds the notes on the old and the current text both trail the last
+  Before and cannot be told apart.

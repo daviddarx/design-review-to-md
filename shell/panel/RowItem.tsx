@@ -9,7 +9,7 @@ import type { DraftFile } from "../drawer/draft.ts"
 import type { CapturedPin } from "../pick/capture.ts"
 import { Flyout } from "./Flyout.tsx"
 import { ActionButton, ActionGroup } from "./icons.tsx"
-import { singleLine } from "./listModel.ts"
+import { historyByRound, singleLine } from "./listModel.ts"
 import type { FlatRow, PinTarget } from "./listModel.ts"
 
 export type RowItemProps = {
@@ -83,7 +83,7 @@ export function RowItem({
   // History keeps the rest.
   const last = row.history.at(-1)
   const note = reviewing && last?.kind === "claude" ? last : null
-  const history = note ? row.history.slice(0, -1) : row.history
+  const history = historyByRound(note ? row.history.slice(0, -1) : row.history)
   const validate = () => void run({ kind: "setStatus", rowId: row.rowId, status: "done" })
   const devalidate = () => void run({ kind: "setStatus", rowId: row.rowId, status: reopenTo })
   const startRefine = () => setRefining(row.text)
