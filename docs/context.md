@@ -1,4 +1,10 @@
-# Design Review Tool — `packages/design-review/`
+# Design Review Tool — decision record
+
+> **Moved.** This record was written while the tool lived in the icfm-hooping
+> repo at `packages/design-review/` (the paths below say so). It is now this
+> repository: `packages/design-review/` is the repo root, the briefings are
+> `docs/briefing/`, the spec and plan are `docs/design.md` and `docs/plan.md`.
+> New decisions are appended at the end, under their own headings.
 
 Decision record for feat-100: the in-browser review tool that replaces the
 copy-the-feedback-file loop. Read this before touching `packages/design-review/`
@@ -497,3 +503,26 @@ plan beside it.
   last 10 characters — pin number and extension — always show). Each line
   opens its picture in a new tab. Attachments are not in it; they keep
   their links under the text.
+
+## Own repository (2026-10-26)
+
+- **Moved out of icfm-hooping** so other projects can use it. History came
+  along with `git filter-repo` (the package, this record, the briefings, the
+  spec and the plan; their paths rewritten as noted at the top). The app
+  repo keeps none of it.
+- **Not published.** An app reaches it as a sibling checkout:
+  `node ../design-review-to-md/server/cli.ts` in its `review` script, with
+  `npm --prefix ../design-review-to-md install` first. It is deliberately not
+  in the app's `package.json`: a `file:` dependency would break the app's CI
+  install (Netlify has no sibling folder), and a git dependency would need a
+  push and a reinstall for every adjustment.
+- **Own dependencies.** React, esbuild, vitest, TypeScript and Prettier used
+  to come from the app's `node_modules`; they are now this package's.
+  `@types/node` ^24 and Node ≥ 24.2, for `import.meta.main`.
+- **The copied prompt asks the server where things are.** `GET repo-root`
+  also returns `reviews` (the `--root`) and `agents` (this `AGENTS.md`), both
+  relative to the app's repo, so the prompt reads e.g.
+  `follow ../design-review-to-md/AGENTS.md`. Copy prompt stays disabled until
+  that answer arrives.
+- **Ready line** is matched case-insensitively, so a Vite app's
+  `ready in` also triggers the printed review URL.

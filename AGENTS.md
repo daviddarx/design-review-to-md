@@ -1,6 +1,6 @@
 # Design review — Claude's protocol
 
-Applies when asked to work through a review (`docs/review/<review>/`).
+Applies when asked to work through a review: the folder the prompt names, `<root>/<review>/` (`<root>` is the `--root` the app passes, usually `docs/review`).
 Be strict and terse. No chattiness in the files.
 
 ## Rules
@@ -15,7 +15,7 @@ Be strict and terse. No chattiness in the files.
 
 ## Where things are
 
-`docs/review/<review>/<NN>-<slug>/` is one feedback: its `briefing.md` and, beside it, every file below. Links in `briefing.md` are relative to that folder.
+`<root>/<review>/<NN>-<slug>/` is one feedback: its `briefing.md` and, beside it, every file below. Links in `briefing.md` are relative to that folder.
 
 - `<rowId>` is `5`, `5.c` or `5.b.1` (feedback, row, sub-row).
 - `<rowId>-pin.png` — screenshot of what he pinned. May be missing.
