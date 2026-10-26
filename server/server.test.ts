@@ -366,7 +366,14 @@ describe("cli", () => {
       root: "docs/review",
       command: ["npx", "next", "dev", "-p", "3001"],
     })
+    expect(parseArgs(["--root", "r", "--", "npx", "next", "dev", "-p", "{target}"])).toEqual({
+      port: undefined,
+      target: undefined,
+      root: "r",
+      command: ["npx", "next", "dev", "-p", "{target}"],
+    })
     expect(() => parseArgs(["--port", "3000", "--target", "3001", "--root", "r"])).toThrow()
+    expect(() => parseArgs(["--port", "x", "--root", "r", "--", "y"])).toThrow()
     expect(() => parseArgs(["--bogus", "1", "--", "x"])).toThrow()
   })
 })
