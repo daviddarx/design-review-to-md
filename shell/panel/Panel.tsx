@@ -15,7 +15,7 @@ import {
 import type { Asset, RepoPaths } from "../api.ts"
 import type { CapturedPin } from "../pick/capture.ts"
 import { readKey, writeKey } from "../prefs.ts"
-import { Icon } from "./icons.tsx"
+import { ActionButton, Icon } from "./icons.tsx"
 import { counts, flattenRows, pinRecordPath } from "./listModel.ts"
 import type { Filter, PinTarget } from "./listModel.ts"
 import { FeedbackList } from "./FeedbackList.tsx"
@@ -26,6 +26,7 @@ export type PanelProps = {
   review: string | null
   onReviewChange(t: string): void
   onNewFeedback(): void
+  onPinAndAdd?: () => void // pick first, then a new feedback carrying the pin; no button without it
   startPick?: () => Promise<CapturedPin | null> // Refine's Pin; no 📍 without it
   // Show pins / Restore state may answer with a notice for the panel to show
   // (the element is gone, the state file is missing).
@@ -76,6 +77,7 @@ export function Panel({
   review,
   onReviewChange,
   onNewFeedback,
+  onPinAndAdd,
   startPick,
   onTogglePins,
   onOpenSource,
@@ -403,14 +405,24 @@ export function Panel({
             </button>
           ))}
         </div>
-        <button
-          type="button"
-          className="dr-button dr-button-primary"
-          onClick={onNewFeedback}
-          disabled={!review}
-        >
-          ＋ New feedback
-        </button>
+        <div className="dr-filters-actions">
+          {onPinAndAdd && (
+            <ActionButton
+              icon="pin"
+              label="Pin and create feedback"
+              onClick={onPinAndAdd}
+              disabled={!review}
+            />
+          )}
+          <button
+            type="button"
+            className="dr-button dr-button-primary"
+            onClick={onNewFeedback}
+            disabled={!review}
+          >
+            ＋ New feedback
+          </button>
+        </div>
       </div>
 
       {(error ?? loadError) && (

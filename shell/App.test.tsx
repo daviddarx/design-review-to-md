@@ -146,6 +146,18 @@ describe("Pin & add", () => {
     expect(pins()).toEqual(["1"])
   })
 
+  it("the list's Pin and create feedback button does the same", async () => {
+    await act(async () => root.render(<App />))
+    const button = host.querySelector<HTMLButtonElement>(
+      '.dr-filters [aria-label="Pin and create feedback"]'
+    )!
+    await act(async () => button.click())
+    expect(host.querySelector(".dr-picker-hint")).not.toBeNull()
+    await pick(appElement())
+    expect(host.querySelector(".dr-drawer")).not.toBeNull()
+    expect(pins()).toEqual(["1"])
+  })
+
   it("Esc cancels the pick", async () => {
     await act(async () => root.render(<App />))
     await ctrlP()

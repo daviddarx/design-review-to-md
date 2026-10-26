@@ -239,6 +239,7 @@ export function App() {
             review={review}
             onReviewChange={setReview}
             onNewFeedback={() => openDrawer()}
+            onPinAndAdd={pinAndAdd}
             startPick={() => picker.startPick()}
             onTogglePins={onTogglePins}
             onOpenSource={onOpenSource}

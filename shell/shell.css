@@ -303,7 +303,10 @@ select.dr-review-select {
   border-bottom: 1px solid var(--dr-line);
 }
 
-.dr-filters > .dr-button {
+/* Pin and create feedback, then New feedback. */
+.dr-filters-actions {
+  display: flex;
+  gap: 6px;
   margin-left: auto;
 }
 
@@ -750,6 +753,12 @@ select.dr-review-select {
   border-color: #dc2626;
   background: #dc2626;
   color: #fff !important;
+}
+
+.dr-action:disabled {
+  opacity: 0.5;
+  cursor: default;
+  pointer-events: none;
 }
 
 .dr-action:hover,
