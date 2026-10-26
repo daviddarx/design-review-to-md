@@ -253,6 +253,38 @@ describe("Panel", () => {
     expect(history.previousElementSibling?.classList.contains("dr-row-meta")).toBe(true)
   })
 
+  it("a row to review shows Claude's latest note; History keeps the earlier ones", async () => {
+    const spec = `# 7. Header \`open\`
+
+- a. Shadow \`review\`
+  - Before: Add a shadow
+  - Claude: Kept it soft
+  - Before: Stronger shadow
+  - Claude: Shadow on the label
+- b. Border \`review\`
+  - Claude: Only on hover
+- c. Blur \`open\`
+  - Claude: Kept 2px
+`
+    held.set(
+      "/__review/api/reviews/08.4",
+      Promise.resolve(json({ meta: { nextFeedback: 8 }, feedbacks: [parseFeedback(spec)] }))
+    )
+    await render()
+    expect(row("7.a").querySelector(".dr-row-note")!.textContent).toBe(
+      "Claude: Shadow on the label"
+    )
+    await act(async () => action("7.a", "History")!.click())
+    expect(row("7.a").querySelector(".dr-history")!.textContent).not.toContain("on the label")
+    expect(row("7.a").querySelectorAll(".dr-history > li")).toHaveLength(3)
+    // Its only note is shown, so there is no history left to open.
+    expect(row("7.b").querySelector(".dr-row-note")!.textContent).toBe("Claude: Only on hover")
+    expect(action("7.b", "History")).toBeNull()
+    // Not waiting for review: the note stays in History.
+    expect(row("7.c").querySelector(".dr-row-note")).toBeNull()
+    expect(action("7.c", "History")).not.toBeNull()
+  })
+
   it("the status tag ends the line under the text; a sub-row keeps Edit's slot empty", async () => {
     await render()
     expect(row("5.c").querySelector(".dr-row-meta")!.lastElementChild!.textContent).toBe("review")

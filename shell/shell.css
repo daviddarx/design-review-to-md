@@ -335,7 +335,7 @@ select.dr-review-select {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
-  padding: 0 8px;
+  padding: 0 10px;
   border: 0;
   background: transparent;
   color: var(--dr-text-muted) !important;
@@ -356,9 +356,9 @@ select.dr-review-select {
 .dr-tab[aria-checked="true"]::after {
   content: "";
   position: absolute;
-  right: 8px;
+  right: 10px;
   bottom: -1px;
-  left: 8px;
+  left: 10px;
   height: 3px;
   background: var(--dr-text);
 }
@@ -388,11 +388,28 @@ select.dr-review-select {
   font-weight: 600;
 }
 
+/* The count: small and bold, in a white circle (a pill past one digit). */
 .dr-tab-count {
-  margin-left: 2px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  margin-left: 6px;
+  padding: 0 5px;
+  border: 1px solid var(--dr-line);
+  border-radius: 999px;
+  background: #fff;
   color: var(--dr-text-muted);
-  font-weight: 400;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
   font-variant-numeric: tabular-nums;
+}
+
+.dr-tab[aria-checked="true"] .dr-tab-count {
+  color: var(--dr-text);
 }
 
 .dr-error {
@@ -558,51 +575,25 @@ select.dr-review-select {
   margin-left: 32px;
 }
 
-/* A narrow panel moves the actions under the text, at its left edge, before
-   the status tag: the text column gives its children to the row's grid,
-   which stacks them in column 2 in this order. */
+/* A narrow panel gives the text and its status tag the full width, and
+   wraps the actions onto a row of their own below them, still at the
+   right. The status tag's bottom margin spaces the two. */
 @container dr-list (width < 540px) {
   .dr-list > .dr-row {
     grid-template-columns: minmax(5ch, max-content) minmax(0, 1fr);
   }
 
-  .dr-list > .dr-row > .dr-row-body {
-    display: contents;
-  }
-
-  .dr-list > .dr-row > .dr-row-body > *,
   .dr-list > .dr-row > .dr-row-side {
     grid-column: 2;
+    justify-self: end;
+    margin-top: 0;
   }
 
-  .dr-list > .dr-row > .dr-row-side {
-    order: 1;
-  }
-
-  .dr-list > .dr-row > .dr-row-body > .dr-row-meta {
-    order: 2;
-  }
-
-  .dr-list > .dr-row > .dr-row-body > .dr-history {
-    order: 3;
-  }
-
-  .dr-list > .dr-depth-1 > .dr-row-body > *,
-  .dr-list > .dr-depth-1 > .dr-row-side {
-    margin-left: 16px;
-  }
-
-  .dr-list > .dr-depth-2 > .dr-row-body > *,
-  .dr-list > .dr-depth-2 > .dr-row-side {
-    margin-left: 32px;
-  }
-
-  /* Stretched by the grid, so the indent does not push it past the edge. */
+  /* Refining, the field takes the text's place, not the actions'. */
   .dr-refine-group {
-    width: auto;
+    margin-top: 0;
   }
 
-  /* Nothing to line up with on the right. */
   .dr-refine-group > .dr-action-slot {
     display: none;
   }
@@ -693,6 +684,13 @@ select.dr-review-select {
   list-style: none;
   color: #94a3b8;
   font-weight: 400;
+}
+
+/* Claude's latest note on a row waiting for review, under its text. */
+.dr-row-note {
+  margin-top: 4px;
+  color: var(--dr-text-muted);
+  overflow-wrap: anywhere;
 }
 
 .dr-history-kind {

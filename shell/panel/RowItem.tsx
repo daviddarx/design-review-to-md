@@ -61,6 +61,11 @@ export function RowItem({
   // Validate and Refine answer Claude's work, so only a row waiting for
   // review offers them; History only shows on a row that has some.
   const reviewing = row.status === "review"
+  // A row waiting for review shows Claude's latest note under its text;
+  // History keeps the rest.
+  const last = row.history.at(-1)
+  const note = reviewing && last?.kind === "claude" ? last : null
+  const history = note ? row.history.slice(0, -1) : row.history
   const validate = () => void run({ kind: "setStatus", rowId: row.rowId, status: "done" })
   const startRefine = () => setRefining(row.text)
   const toggleHistory = () => setHistoryOpen((v) => !v)
@@ -115,9 +120,8 @@ export function RowItem({
   peekEnd.current = () => owner && onPeekPins(owner.rowId, null)
   useEffect(() => () => peekEnd.current(), [])
 
-  // A flyout is at most as wide as the row's text column. The text, not the
-  // column: a narrow panel lays the column out as `display: contents`.
-  const columnWidth = () => liRef.current?.querySelector(".dr-row-text")?.clientWidth || 320
+  // A flyout is at most as wide as the row's text column.
+  const columnWidth = () => liRef.current?.querySelector(".dr-row-body")?.clientWidth || 320
   const shots = owner?.pins.flatMap((p) => (p.screenshot ? [p.screenshot] : [])) ?? []
 
   return (
@@ -171,6 +175,12 @@ export function RowItem({
           </div>
         )}
 
+        {note && (
+          <div className="dr-row-note">
+            <span className="dr-history-kind">Claude:</span> {note.text}
+          </div>
+        )}
+
         {/* Under the text: the files as links on a line of their own, then
             the status. */}
         {row.attachments.length > 0 && (
@@ -190,7 +200,7 @@ export function RowItem({
 
         {historyOpen && (
           <ol className="dr-history" aria-label={`History of ${row.rowId}`}>
-            {row.history.map((h, i) => (
+            {history.map((h, i) => (
               <li key={i}>
                 <span className="dr-history-kind">
                   {h.kind === "before" ? "Before:" : "Claude:"}
@@ -209,7 +219,7 @@ export function RowItem({
           <ActionGroup>
             {reviewing && <ActionButton icon="validate" label="Validate" onClick={validate} />}
             {reviewing && <ActionButton icon="refine" label="Refine" onClick={startRefine} />}
-            {row.history.length > 0 && (
+            {history.length > 0 && (
               <ActionButton
                 icon="history"
                 label="History"
