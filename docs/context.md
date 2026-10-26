@@ -406,3 +406,20 @@ plan beside it.
   the entries before it, and is not offered when nothing is left. Any other
   status leaves every note in History: a refined row goes back to `open`,
   so its old note drops into History until the next round answers it.
+
+### briefing-feedback-11
+
+- **The active tab's line is a 1px underline of its label**
+  (`text-decoration`, offset 3px, skip-ink off), the count left out. The
+  3px bar on the tab bar's bottom edge is gone, so the tabs no longer
+  stretch: each is 28px tall and the bar is back to 8px vertical padding.
+- **The bar wraps top-aligned, New feedback first.** `.dr-filters` wraps
+  with `align-items: flex-start`; the tabs' container is `flex: 0 1 auto`,
+  so its basis is its one-line width and the button breaks onto its own
+  line before the tabs give anything up. They shrink and wrap (`min-width:
+0`) only once alone on the line. The button keeps `margin-left: auto`, so
+  it stays at the right when it wraps.
+- **Validate is offered on every row not done**, `open` included: a refined
+  row goes back to `open`, and he wanted to be able to close one without
+  another round. Refine stays on `review` rows only. This supersedes the
+  "Validate and Refine show only on a `review` row" line above.
