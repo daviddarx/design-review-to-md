@@ -489,3 +489,11 @@ plan beside it.
   Moving the Before ahead of the notes on disk was tried and reverted: after
   two rounds the notes on the old and the current text both trail the last
   Before and cannot be told apart.
+- **Several screenshots open as a list.** One pin's screenshot still floats
+  as the picture itself; with two or more, the Screenshot flyout
+  (`.dr-shot-list`) is a white card as wide as the text column (the width
+  a single picture may take), one line per pin: a 56×36 thumbnail (top-left
+  crop) and the file name, truncated in the middle (the head ellipsises, the
+  last 10 characters — pin number and extension — always show). Each line
+  opens its picture in a new tab. Attachments are not in it; they keep
+  their links under the text.

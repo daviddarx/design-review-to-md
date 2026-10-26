@@ -838,6 +838,52 @@ select.dr-review-select {
   box-shadow: 0 8px 24px rgb(15 23 42 / 0.2);
 }
 
+.dr-shot-list ul {
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+}
+
+.dr-shot-list a {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px;
+  border-radius: 4px;
+  color: var(--dr-text);
+  text-decoration: none;
+}
+
+.dr-shot-list a:hover {
+  background: var(--dr-hover);
+}
+
+.dr-shot-list img {
+  flex: 0 0 auto;
+  width: 56px;
+  height: 36px;
+  border: 1px solid var(--dr-line);
+  border-radius: 4px;
+  object-fit: cover;
+  object-position: top left;
+}
+
+/* Truncated in the middle: the head ellipsises, the tail stays whole. */
+.dr-shot-name {
+  display: flex;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.dr-shot-head {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dr-shot-tail {
+  flex: 0 0 auto;
+}
+
 /* Feedback drawer, as the app's own sheets do it: it slides in from the right
    over a slate backdrop that fades in, and both run backwards on close. The
    layer sits below the resize edge (z-index 3) so the panel stays

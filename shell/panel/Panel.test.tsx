@@ -437,6 +437,32 @@ describe("Panel", () => {
     expect(document.querySelector(".dr-flyout")).toBeNull()
   })
 
+  it("several screenshots open as a list: thumbnail and name, each in a new tab", async () => {
+    const spec = `# 7. Header \`open\`
+
+- a. Logo \`review\`
+  📍 /concept-08-4 — ![](07-header/7.a-pin.png)
+  📍 /concept-08-4 — ![](07-header/7.a-pin-2.png)
+`
+    held.set(
+      "/__review/api/reviews/08.4",
+      Promise.resolve(json({ meta: { nextFeedback: 8 }, feedbacks: [parseFeedback(spec)] }))
+    )
+    await render()
+    await act(async () => action("7.a", "Screenshot")!.click())
+    expect(document.querySelector(".dr-flyout.dr-shot")).toBeNull()
+    const links = [
+      ...document.querySelectorAll<HTMLAnchorElement>(
+        '.dr-flyout.dr-shot-list[aria-label="Screenshots of 7.a"] a'
+      ),
+    ]
+    expect(links.map((l) => [l.title, l.target, Boolean(l.querySelector("img"))])).toEqual([
+      ["7.a-pin.png", "_blank", true],
+      ["7.a-pin-2.png", "_blank", true],
+    ])
+    expect(links[1].querySelector(".dr-shot-tail")!.textContent).toBe("a-pin-2.png".slice(-10))
+  })
+
   it("Esc closes the screenshot flyout", async () => {
     await render()
     await act(async () => action("5.c", "Screenshot")!.click())

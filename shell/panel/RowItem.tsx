@@ -426,7 +426,7 @@ export function RowItem({
         </div>
       )}
 
-      {shotOpen && owner && shots.length > 0 && (
+      {shotOpen && owner && shots.length === 1 && (
         <Flyout
           anchor={shotButton}
           maxWidth={columnWidth()}
@@ -434,13 +434,47 @@ export function RowItem({
           label={`Screenshot of ${owner.rowId}`}
           onDismiss={() => setShotOpen(false)}
         >
-          {shots.map((shot) => (
-            <a key={shot} href={fileUrl(review, shot)} target="_blank" rel="noreferrer">
-              <img src={fileUrl(review, shot)} alt="" title="Open in a new tab" />
-            </a>
-          ))}
+          <a href={fileUrl(review, shots[0])} target="_blank" rel="noreferrer">
+            <img src={fileUrl(review, shots[0])} alt="" title="Open in a new tab" />
+          </a>
+        </Flyout>
+      )}
+      {/* Several: a list as wide as one screenshot would be, each a small
+          thumbnail and its name, opening in a new tab. */}
+      {shotOpen && owner && shots.length > 1 && (
+        <Flyout
+          anchor={shotButton}
+          width={columnWidth()}
+          className="dr-shot-list"
+          label={`Screenshots of ${owner.rowId}`}
+          onDismiss={() => setShotOpen(false)}
+        >
+          <ul>
+            {shots.map((shot) => {
+              const name = decodeURIComponent(shot.split("/").at(-1) ?? shot)
+              const [head, tail] = splitForMiddleTruncation(name)
+              return (
+                <li key={shot}>
+                  <a href={fileUrl(review, shot)} target="_blank" rel="noreferrer" title={name}>
+                    <img src={fileUrl(review, shot)} alt="" />
+                    <span className="dr-shot-name">
+                      <span className="dr-shot-head">{head}</span>
+                      <span className="dr-shot-tail">{tail}</span>
+                    </span>
+                  </a>
+                </li>
+              )
+            })}
+          </ul>
         </Flyout>
       )}
     </li>
   )
+}
+
+// A long name gives way in its middle: the head ellipsises, the last
+// characters (the pin's number and the extension) always show.
+function splitForMiddleTruncation(name: string): [string, string] {
+  const keep = Math.min(name.length, 10)
+  return [name.slice(0, name.length - keep), name.slice(name.length - keep)]
 }
