@@ -58,9 +58,11 @@ export function RowItem({
     }
   }
 
-  // Validate and Refine answer Claude's work, so only a row waiting for
-  // review offers them; History only shows on a row that has some.
+  // Any row not done can be validated; Refine answers Claude's work, so only
+  // a row waiting for review offers it. History only shows on a row that
+  // has some.
   const reviewing = row.status === "review"
+  const validatable = reviewing || row.status === "open"
   // A row waiting for review shows Claude's latest note under its text;
   // History keeps the rest.
   const last = row.history.at(-1)
@@ -217,7 +219,7 @@ export function RowItem({
       {refining === null && (
         <div className="dr-row-side">
           <ActionGroup>
-            {reviewing && <ActionButton icon="validate" label="Validate" onClick={validate} />}
+            {validatable && <ActionButton icon="validate" label="Validate" onClick={validate} />}
             {reviewing && <ActionButton icon="refine" label="Refine" onClick={startRefine} />}
             {history.length > 0 && (
               <ActionButton

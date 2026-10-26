@@ -229,12 +229,12 @@ describe("Panel", () => {
     expect(owners.at(-1)).toEqual(["7"])
   })
 
-  it("only a row to review offers Validate and Refine; only a row with history offers History", async () => {
+  it("a row not done offers Validate, only one to review Refine; only one with history History", async () => {
     await render()
     const labels = (id: string) =>
       [...row(id).querySelectorAll(".dr-action")].map((b) => b.getAttribute("aria-label"))
     expect(labels("5.a")).toEqual(["Screenshot"])
-    expect(labels("5.b")).toEqual(["History", "Screenshot"])
+    expect(labels("5.b")).toEqual(["Validate", "History", "Screenshot"])
     expect(labels("5.c")).toEqual(["Validate", "Refine", "Show pins", "Screenshot"])
   })
 
