@@ -118,26 +118,41 @@ export function resolveFrames(
   return { doc, win: doc.defaultView, offset }
 }
 
+// How often the frame tree is looked at while the tab is hidden, where
+// animation frames do not run, so a nested frame loading there is still caught.
+const WATCH_HIDDEN_MS = 500
+
 // Hands every same-origin document the frame tree shows to `onNew` once, as
 // soon as it is there — polled per animation frame, since a nested iframe
 // (the Storybook preview) loads after its parent and a navigation brings a
-// new document with no event the shell could listen for. Returns what stops
-// the watch.
+// new document with no event the shell could listen for; the frame's own
+// `load` and, while the tab is hidden, a slow timer stand in for the frames
+// the browser then stops delivering.
+// Returns what stops the watch.
 export function watchDocuments(
   frame: HTMLIFrameElement,
   onNew: (doc: Document, win: Window) => void
 ): () => void {
   const seen = new WeakSet<Document>()
   let id = 0
-  const tick = () => {
+  const look = () => {
     for (const doc of documentsOf(docOf(frame))) {
       if (seen.has(doc)) continue
       seen.add(doc)
       const win = doc.defaultView
       if (win) onNew(doc, win)
     }
+  }
+  const tick = () => {
+    look()
     id = requestAnimationFrame(tick)
   }
   tick()
-  return () => cancelAnimationFrame(id)
+  frame.addEventListener("load", look)
+  const timer = setInterval(() => document.hidden && look(), WATCH_HIDDEN_MS)
+  return () => {
+    cancelAnimationFrame(id)
+    frame.removeEventListener("load", look)
+    clearInterval(timer)
+  }
 }

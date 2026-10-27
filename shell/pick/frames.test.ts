@@ -131,6 +131,8 @@ describe("watchDocuments", () => {
     const frame = {
       contentDocument: document,
       contentWindow: window,
+      addEventListener() {},
+      removeEventListener() {},
     } as unknown as HTMLIFrameElement
     const stop = watchDocuments(frame, seen)
     expect(seen).toHaveBeenCalledWith(document, window)
