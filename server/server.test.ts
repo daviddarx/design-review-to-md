@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { promises as fs } from "node:fs"
 import http from "node:http"
 import type { AddressInfo, Socket } from "node:net"
@@ -10,6 +10,10 @@ import { resolveEditorTarget } from "./openEditor.ts"
 import { createShellBuild } from "./shellBuild.ts"
 import { reviewOf } from "./events.ts"
 import { parseArgs } from "./cli.ts"
+import { pinAssets } from "../shell/drawer/draft.ts"
+import { resolveSource, sourceFromStack } from "../shell/source/sourceLookup.ts"
+import type { PinRecord } from "../model/types.ts"
+import { SourceMapGenerator } from "source-map-js"
 
 let root: string
 let upstream: http.Server
@@ -318,6 +322,134 @@ describe("events", () => {
       })
     })
     expect(JSON.parse(message)).toEqual({ review: "alpha" })
+  })
+})
+
+// The reviewed app's repo, with a design-system package linked into it the
+// way a pnpm workspace does, and an older copy of the same component.
+describe("resolve-source", () => {
+  const REAL = "packages/ds/src/components/actions/Button/Button.tsx"
+  const COPY = "scripts/fixtures/actions/Button/Button.tsx"
+  let app: string
+  let appServer: http.Server
+
+  async function serveApp(...files: string[]) {
+    for (const f of files) {
+      await fs.mkdir(path.dirname(path.join(app, f)), { recursive: true })
+      await fs.writeFile(path.join(app, f), "export {}\n")
+    }
+    appServer = createReviewServer({
+      targetPort: 1,
+      storage: new Storage(path.join(app, "docs/review")),
+      shellAssets: async () => ({ js: "", css: "" }),
+      repoRoot: app,
+      markers: [],
+    })
+    base = `http://localhost:${await listen(appServer)}`
+  }
+
+  const resolve = async (query: string) => {
+    const res = await request("GET", `/__review/api/resolve-source?${query}`)
+    return { status: res.status, body: JSON.parse(res.body) }
+  }
+
+  beforeEach(async () => {
+    app = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "review-app-")))
+  })
+
+  afterEach(async () => {
+    vi.unstubAllGlobals()
+    await close(appServer)
+    await fs.rm(app, { recursive: true, force: true })
+  })
+
+  it("answers a bare name with its repo-relative path", async () => {
+    await serveApp(REAL, "src/App.tsx")
+    expect(await resolve("name=Button.tsx")).toEqual({ status: 200, body: { file: REAL } })
+    expect(await resolve("name=Missing.tsx")).toEqual({
+      status: 200,
+      body: { file: "Missing.tsx" },
+    })
+  })
+
+  it("lists the candidates, unless the script URL names one", async () => {
+    await serveApp(REAL, COPY)
+    expect(await resolve("name=Button.tsx")).toEqual({
+      status: 200,
+      body: { file: "Button.tsx", candidates: [REAL, COPY] },
+    })
+    const from = encodeURIComponent(`http://localhost:6006/@fs${app}/${REAL}?t=1`)
+    expect(await resolve(`name=Button.tsx&from=${from}`)).toEqual({
+      status: 200,
+      body: { file: REAL },
+    })
+  })
+
+  it("refuses anything but a bare file name", async () => {
+    await serveApp(REAL)
+    expect((await resolve("name=src%2FButton.tsx")).status).toBe(400)
+    expect((await resolve("name=..")).status).toBe(400)
+    expect((await resolve("")).status).toBe(400)
+  })
+
+  it("saves a pin whose map named only Button.tsx with its repo path", async () => {
+    await serveApp(REAL, COPY)
+    // Vite's inline map for a workspace-linked module lists the basename.
+    const script = `http://localhost:6006/@fs${app}/${REAL}`
+    const gen = new SourceMapGenerator({ file: "Button.tsx" })
+    gen.addMapping({
+      generated: { line: 40, column: 9 },
+      original: { line: 91, column: 4 },
+      source: "Button.tsx",
+    })
+    const served: Record<string, string> = {
+      [script]: "code\n//# sourceMappingURL=Button.tsx.map",
+      [`${script}.map`]: gen.toString(),
+    }
+    const stack = `Error: react-stack-top-frame\n    at Button (${script}:40:10)`
+    const found = await sourceFromStack(stack, async (u) => served[u] ?? null, app)
+    expect(found).toMatchObject({ file: "Button.tsx", line: 91 })
+
+    // The shell's own API call, sent to this server.
+    const realFetch = globalThis.fetch
+    vi.stubGlobal("fetch", (url: string, init?: RequestInit) => realFetch(base + url, init))
+    const source = await resolveSource(found!)
+    expect(source).toEqual({ file: REAL, line: 91 })
+
+    const record: PinRecord = {
+      version: 1,
+      at: "2026-10-27T00:00:00.000Z",
+      steps: [
+        {
+          url: "http://localhost:6006/?path=/story/button",
+          path: "/?path=/story/button",
+          viewport: { width: 800, height: 600, dpr: 1 },
+          mouse: { x: 1, y: 1 },
+          element: {
+            selector: "button",
+            tag: "button",
+            text: "Save",
+            rect: { x: 0, y: 0, width: 10, height: 10 },
+            source,
+          },
+          inTool: false,
+        },
+      ],
+    }
+    await request("POST", "/__review/api/reviews", { json: { name: "r" } })
+    const pin = { path: "/?path=/story/button" }
+    const created = await request("POST", "/__review/api/reviews/r/feedbacks", {
+      json: {
+        title: "Button",
+        rows: [],
+        pins: [pin],
+        assets: pinAssets({ pin, record, state: "{}" }, "$feedback", 0),
+      },
+    })
+    expect(created.status).toBe(200)
+    const saved = await request("GET", "/__review/files/r/01-button/1-pin.json")
+    expect(saved.status).toBe(200)
+    expect(JSON.parse(saved.body).steps[0].element.source).toEqual({ file: REAL, line: 91 })
   })
 })
 

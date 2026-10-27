@@ -3,6 +3,7 @@ import type http from "node:http"
 import path from "node:path"
 import { Storage, StorageError } from "./storage.ts"
 import { EditorTargetError, openEditor } from "./openEditor.ts"
+import { isBareName, type ResolvedSource } from "./findFiles.ts"
 
 const BODY_LIMIT = 50 * 1024 * 1024
 // Wherever this package is installed: the app's repo names it in the prompt.
@@ -16,7 +17,11 @@ export class HttpError extends Error {
   }
 }
 
-export type ApiContext = { storage: Storage; repoRoot: string }
+export type ApiContext = {
+  storage: Storage
+  repoRoot: string
+  resolveSource: (name: string, from?: string) => Promise<ResolvedSource>
+}
 
 function sendJson(res: http.ServerResponse, status: number, body: unknown) {
   res.writeHead(status, { "content-type": "application/json; charset=utf-8" })
@@ -112,6 +117,15 @@ export async function handleApi(
       reviews: path.relative(root, ctx.storage.root),
       agents: path.relative(root, AGENTS_FILE),
     })
+  }
+  // A source map that gave only a file's basename (Vite, for a
+  // workspace-linked package): the shell asks which file of the repo it is.
+  // `from` is the script URL the stack frame was in.
+  if (head === "resolve-source" && parts.length === 1 && method === "GET") {
+    const query = new URL(req.url ?? "/", "http://localhost").searchParams
+    const name = query.get("name") ?? ""
+    if (!isBareName(name)) throw new HttpError(400, "name must be a bare file name")
+    return sendJson(res, 200, await ctx.resolveSource(name, query.get("from") ?? undefined))
   }
   if (head === "open-editor" && parts.length === 1 && method === "POST") {
     const body = await readJson(req)

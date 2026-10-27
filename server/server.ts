@@ -3,6 +3,7 @@ import { mkdirSync } from "node:fs"
 import type { Duplex } from "node:stream"
 import { handleApi, handleFile, HttpError, sendError } from "./api.ts"
 import { createChangeFeed } from "./events.ts"
+import { createSourceResolver } from "./findFiles.ts"
 import { proxyRequest, proxyUpgrade } from "./proxy.ts"
 import type { Storage } from "./storage.ts"
 
@@ -10,7 +11,7 @@ export type ReviewServerOptions = {
   targetPort: number
   storage: Storage
   shellAssets: () => Promise<{ js: string; css: string }>
-  repoRoot?: string // open-editor confinement; defaults to process.cwd()
+  repoRoot?: string // open-editor confinement and source search; defaults to process.cwd()
   markers: string[] // attributes the picker anchors on first (--markers)
 }
 
@@ -57,7 +58,8 @@ const SHELL_HTML = `<!doctype html>
 
 export function createReviewServer(opts: ReviewServerOptions): http.Server {
   const { targetPort, storage, shellAssets } = opts
-  const ctx = { storage, repoRoot: opts.repoRoot ?? process.cwd() }
+  const repoRoot = opts.repoRoot ?? process.cwd()
+  const ctx = { storage, repoRoot, resolveSource: createSourceResolver(repoRoot) }
   const html = shellHtml(opts.markers)
   mkdirSync(storage.root, { recursive: true })
   const feed = createChangeFeed(storage.root)
