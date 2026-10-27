@@ -1,8 +1,10 @@
 import { useEffect, useRef } from "react"
+import { watchDocuments } from "./pick/frames.ts"
 
-// A tool shortcut caught in both documents — the shell's window and the
-// frame's (re-attached on every frame `load`, since the listener dies with
-// its document) — even inside a text field. Only while `enabled`; otherwise
+// A tool shortcut caught in every document — the shell's window, the
+// frame's and every same-origin iframe's inside it (a Storybook story's),
+// each as it appears, since a key pressed in a nested frame never reaches
+// the one above — even inside a text field. Only while `enabled`; otherwise
 // the key goes to the app untouched.
 export function useShortcut(
   frame: HTMLIFrameElement | null,
@@ -25,32 +27,27 @@ export function useShortcut(
     }
 
     window.addEventListener("keydown", onKeyDown, true)
-    let attached: Window | null = null
-    const detach = () => {
-      try {
-        attached?.removeEventListener("keydown", onKeyDown, true)
-      } catch {
-        // The old document is gone.
-      }
-      attached = null
-    }
-    const attach = () => {
-      detach()
-      const win = frame?.contentWindow
-      if (!win) return
-      try {
-        win.addEventListener("keydown", onKeyDown, true)
-        attached = win
-      } catch {
-        // Cross-origin: the frame keeps its keys.
-      }
-    }
-    frame?.addEventListener("load", attach)
-    if (frame?.contentDocument?.readyState === "complete") attach()
+    const attached = new Set<Window>()
+    const stop = frame
+      ? watchDocuments(frame, (_doc, win) => {
+          try {
+            win.addEventListener("keydown", onKeyDown, true)
+            attached.add(win)
+          } catch {
+            // Cross-origin: the frame keeps its keys.
+          }
+        })
+      : () => {}
     return () => {
+      stop()
       window.removeEventListener("keydown", onKeyDown, true)
-      frame?.removeEventListener("load", attach)
-      detach()
+      for (const win of attached) {
+        try {
+          win.removeEventListener("keydown", onKeyDown, true)
+        } catch {
+          // The old document is gone.
+        }
+      }
     }
   }, [frame])
 }

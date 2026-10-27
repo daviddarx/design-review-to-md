@@ -1,4 +1,5 @@
 import { useEffect } from "react"
+import { watchDocuments } from "./frames.ts"
 
 const PATCHED = Symbol.for("design-review:keep-canvas-pixels")
 const WEBGL = new Set(["webgl", "webgl2", "experimental-webgl"])
@@ -26,26 +27,12 @@ export function keepCanvasPixels(win: Window) {
   proto[PATCHED] = true
 }
 
-// Every document the frame loads is patched as soon as it exists — before
-// the app (hydrated later, its map later still) asks for a context.
+// Every document the frame loads, nested same-origin iframes included, is
+// patched as soon as it exists — before the app (hydrated later, its map
+// later still) asks for a context.
 export function useKeepCanvasPixels(frame: HTMLIFrameElement | null) {
   useEffect(() => {
     if (!frame) return
-    let id = 0
-    let seen: Document | null = null
-    const tick = () => {
-      try {
-        const doc = frame.contentDocument
-        if (doc && doc !== seen && frame.contentWindow) {
-          seen = doc
-          keepCanvasPixels(frame.contentWindow)
-        }
-      } catch {
-        // A cross-origin page in the frame: nothing to patch.
-      }
-      id = requestAnimationFrame(tick)
-    }
-    tick()
-    return () => cancelAnimationFrame(id)
+    return watchDocuments(frame, (_doc, win) => keepCanvasPixels(win))
   }, [frame])
 }
