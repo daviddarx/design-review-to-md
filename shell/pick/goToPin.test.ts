@@ -146,6 +146,33 @@ describe("goToPin in the frame", () => {
     expect(location.reload).toHaveBeenCalled()
   })
 
+  it("finds an element inside a nested iframe through the step's frames", async () => {
+    // The frame shows this very document: a Storybook manager with its
+    // preview iframe, and the story inside it.
+    document.body.innerHTML = `<div id="manager"><iframe id="storybook-preview-iframe" srcdoc="<p></p>"></iframe></div>`
+    const previewDoc = document.querySelector("iframe")!.contentDocument!
+    previewDoc.body.innerHTML = `<div id="storybook-root"><button data-slot="story">Go</button></div>`
+    const el = previewDoc.querySelector("button")!
+    el.scrollIntoView = vi.fn()
+    const { frame } = fakeFrame("/", document)
+    const r = appRecord('[data-slot="story"]', "/")
+    r.steps[0].frames = [{ selector: "#storybook-preview-iframe", url: "about:srcdoc" }]
+    const flash = vi.fn()
+    expect(await goToPin(frame, r, flash, noState)).toBe("found")
+    expect(flash).toHaveBeenCalledWith(el)
+    expect(el.scrollIntoView).toHaveBeenCalledWith({ block: "center" })
+  })
+
+  it("reports an element behind a missing or cross-origin frame as missing", async () => {
+    document.body.innerHTML = `<iframe id="foreign"></iframe>`
+    const { frame } = fakeFrame("/", document)
+    const r = appRecord("button", "/")
+    r.steps[0].frames = [{ selector: "#foreign" }]
+    const flash = vi.fn()
+    expect(await goToPin(frame, r, flash, noState)).toBe("missing")
+    expect(flash).not.toHaveBeenCalled()
+  }, 8000)
+
   it("not found, puts the saved app state back and loads the page again", async () => {
     const doc = document.implementation.createHTMLDocument("app")
     const { frame, location } = fakeFrame("/tickets", doc)

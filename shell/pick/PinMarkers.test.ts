@@ -96,6 +96,37 @@ describe("markerPoint", () => {
     })
   })
 
+  it("follows the step's frames into a nested iframe and adds its offset", () => {
+    document.body.innerHTML = `<iframe id="storybook-preview-iframe" srcdoc="<p></p>"></iframe>`
+    const preview = document.querySelector("iframe") as HTMLIFrameElement
+    preview.getBoundingClientRect = box(20, 30, 600, 400)
+    const previewDoc = preview.contentDocument!
+    previewDoc.body.innerHTML = `<button id="target">Go</button>`
+    previewDoc.querySelector("#target")!.getBoundingClientRect = box(0, 100, 200, 40)
+    const nested = step({ frames: [{ selector: "#storybook-preview-iframe" }] })
+    expect(markerPoint(nested, fakeFrame("/tickets", document))).toEqual({
+      x: 500 + 20 + 60,
+      y: 10 + 30 + 120,
+      exact: true,
+    })
+    // A record without frames is looked up in the frame's own document.
+    expect(markerPoint(step(), fakeFrame("/tickets", document))).toEqual({
+      x: 630,
+      y: 230,
+      exact: false,
+    })
+  })
+
+  it("falls back to the recorded click when the nested frame is gone", () => {
+    const doc = document.implementation.createHTMLDocument("app")
+    const nested = step({ frames: [{ selector: "#storybook-preview-iframe" }] })
+    expect(markerPoint(nested, fakeFrame("/tickets", doc))).toEqual({
+      x: 630,
+      y: 230,
+      exact: false,
+    })
+  })
+
   it("shows nothing while the frame is on another page", () => {
     const doc = document.implementation.createHTMLDocument("app")
     expect(markerPoint(step(), fakeFrame("/rooms", doc))).toBeNull()

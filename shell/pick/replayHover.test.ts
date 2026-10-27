@@ -52,6 +52,23 @@ describe("replayHover", () => {
     expect(seen).toContain("pointerover:nav")
   })
 
+  it("hovers an element inside a nested iframe", () => {
+    setup(`<iframe id="storybook-preview-iframe" srcdoc="<p></p>"></iframe>`)
+    const previewDoc = document.querySelector("iframe")!.contentDocument!
+    previewDoc.body.innerHTML = '<nav id="nav"><a id="item">Tickets</a></nav>'
+    const seen: string[] = []
+    previewDoc.addEventListener("pointerover", (e) => seen.push((e.target as Element).id), true)
+    const nested = { ...step("#nav > a"), frames: [{ selector: "#storybook-preview-iframe" }] }
+    const end = replayHover(frame, nested)
+    expect(end).not.toBeNull()
+    expect(seen).toEqual(["item"])
+  })
+
+  it("does nothing for a pin behind a frame it cannot reach", () => {
+    setup(`<iframe id="foreign"></iframe>`)
+    expect(replayHover(frame, { ...step("#nav"), frames: [{ selector: "#foreign" }] })).toBeNull()
+  })
+
   it("does nothing for a pin in the review tool", () => {
     setup('<nav id="nav"></nav>')
     expect(replayHover(frame, step("#nav", true))).toBeNull()
