@@ -2,6 +2,7 @@
 // localStorage.
 import { domToCanvas } from "modern-screenshot"
 import type { PinRecord, PinRef } from "../../model/types.ts"
+import { docOf, frameOffset } from "./frames.ts"
 import type { StyleLine } from "./styles.ts"
 
 // What a pick hands back. No `png` when the render failed or timed out: the
@@ -30,20 +31,51 @@ function withTimeout<T>(promise: Promise<T>, ms: number, what: string): Promise<
   return Promise.race([promise, timeout]).finally(() => clearTimeout(id))
 }
 
+const isIframe = (node: Node): node is HTMLIFrameElement =>
+  (node as Element).tagName === "IFRAME" || (node as Element).tagName === "FRAME"
+
 // What `doc` shows in its window, rendered from the DOM rather than from the
 // screen (screen capture made Chrome ask to share the tab and then pinned its
 // "Sharing this tab" bar to the window). Inner scroll positions are kept.
-function renderViewport(doc: Document, scale: number, skip?: Element): Promise<HTMLCanvasElement> {
+// Every same-origin iframe in it (a Storybook story) is rendered on its own
+// and laid over the frame's content box: left to the library, the frame's
+// document is inlined where the element was and lands elsewhere (an inline
+// iframe sits on a baseline, its document does not). A cross-origin frame is
+// the library's to draw, which is blank.
+async function renderViewport(
+  doc: Document,
+  scale: number,
+  skip?: Element
+): Promise<HTMLCanvasElement> {
   const win = doc.defaultView
-  if (!win) return Promise.reject(new Error("Document has no window"))
-  return domToCanvas(doc.documentElement, {
+  if (!win) throw new Error("Document has no window")
+  const nested = Array.from(doc.querySelectorAll("iframe, frame")).filter(
+    (f): f is HTMLIFrameElement => isIframe(f) && f !== skip && Boolean(docOf(f))
+  )
+  const canvas = await domToCanvas(doc.documentElement, {
     width: win.innerWidth,
     height: win.innerHeight,
     scale,
     timeout: CAPTURE_MS,
     features: { restoreScrollPosition: true },
-    filter: skip ? (node) => node !== skip : null,
+    filter: (node) => node !== skip && !nested.includes(node as HTMLIFrameElement),
   })
+  const ctx = canvas.getContext("2d")
+  for (const frame of nested) {
+    const inner = docOf(frame)
+    if (!inner || !ctx) continue
+    const sub = await renderViewport(inner, scale).catch(() => null)
+    if (!sub) continue
+    const o = frameOffset(frame)
+    ctx.drawImage(
+      sub,
+      o.x * scale,
+      o.y * scale,
+      frame.clientWidth * scale,
+      frame.clientHeight * scale
+    )
+  }
+  return canvas
 }
 
 // The app's viewport, or with `withShell` the whole tool window with the
