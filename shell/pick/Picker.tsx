@@ -3,6 +3,7 @@ import type { ReactNode } from "react"
 import type { PinRecord, PinStep } from "../../model/types.ts"
 import { grabPng, snapshotLocalStorage } from "./capture.ts"
 import type { CapturedPin } from "./capture.ts"
+import { docOf, frameChainOf, framesTo, offsetWithin, watchDocuments } from "./frames.ts"
 import { componentName, describe, openersOf, uniqueSelector } from "./inspect.ts"
 import { clearSourceCache, sourceOf } from "../source/sourceLookup.ts"
 import { StyleTip } from "./StyleTip.tsx"
@@ -57,17 +58,33 @@ function frameBox(frame: HTMLIFrameElement): Box {
   }
 }
 
+// Where the viewport of `el`'s document starts, in shell coordinates: the
+// frame's content box, plus the nested iframes down to that document (a
+// Storybook story's). The shell's own document starts at 0.
+function docOffset(el: Element, frame: HTMLIFrameElement | null): { x: number; y: number } {
+  if (!frame || el.ownerDocument === document) return { x: 0, y: 0 }
+  const box = frameBox(frame)
+  const root = docOf(frame)
+  const nested = (root && offsetWithin(root, el.ownerDocument)) || { x: 0, y: 0 }
+  return { x: box.x + nested.x, y: box.y + nested.y }
+}
+
 // `el`'s box in shell coordinates, wherever it lives.
 function shellBox(el: Element, frame: HTMLIFrameElement | null): Box {
   const r = el.getBoundingClientRect()
-  const off = frame && el.ownerDocument !== document ? frameBox(frame) : { x: 0, y: 0 }
+  const off = docOffset(el, frame)
   return { x: r.left + off.x, y: r.top + off.y, width: r.width, height: r.height }
 }
 
 const rect = (b: Box) => new DOMRect(b.x, b.y, b.width, b.height)
 
-function stepOf({ el, mouse }: Picked): PinStep {
-  const win = el.ownerDocument.defaultView ?? window
+// The step records the app's own address and viewport (the frame's), and
+// the iframes down to the element when it sits in a nested one; `mouse` and
+// `rect` are in the element's own document, so they match each other.
+function stepOf({ el, mouse }: Picked, frame: HTMLIFrameElement | null): PinStep {
+  const root = frame && docOf(frame)
+  const win = root?.defaultView ?? el.ownerDocument.defaultView ?? window
+  const frames = root ? frameChainOf(el, root) : null
   const r = el.getBoundingClientRect()
   const component = componentName(el)
   const openers = openersOf(el)
@@ -85,14 +102,16 @@ function stepOf({ el, mouse }: Picked): PinStep {
     },
     inTool: false, // the tool's own UI is no longer pickable
     ...(openers.length ? { openers } : {}),
+    ...(frames?.length ? { frames } : {}),
   }
 }
 
 // The inspector. While a pick runs, a full-window layer in the shell
 // (pointer-events: none) outlines the hovered element with its label;
-// pointer and key listeners sit on both the shell window and the frame's
-// window, in the capture phase, so the app never sees the click. The app's
-// DOM is only ever read, never changed.
+// pointer and key listeners sit on the shell window, the frame's window and
+// every same-origin iframe's inside it (events never leave a document), in
+// the capture phase, so the app never sees the click. The app's DOM is only
+// ever read, never changed.
 export function usePicker(frame: HTMLIFrameElement | null): Picker {
   const [picking, setPicking] = useState(false)
   const [loading, setLoading] = useState<{ x: number; y: number } | null>(null)
@@ -166,19 +185,19 @@ export function usePicker(frame: HTMLIFrameElement | null): Picker {
   const pickElement = useCallback(
     () =>
       new Promise<Picked | null>((resolve) => {
-        let frameWin: Window | null = null
         const inLayer = (el: Element) => Boolean(layerRef.current?.contains(el))
         const toPicked = (el: Element, e?: MouseEvent): Picked => ({
           el,
           mouse: e ? { x: e.clientX, y: e.clientY } : (hovered.current?.mouse ?? { x: 0, y: 0 }),
         })
-        // Only the app is pinned: the tool's own UI is not (his call, while
-        // the tool's review goes on the older way). A click on it does nothing.
-        const pickable = (t: EventTarget | null): t is Element =>
-          isElement(t) &&
-          t !== frameRef.current &&
-          !inLayer(t) &&
-          t.ownerDocument === frameRef.current?.contentDocument
+        // Only the app is pinned — its own document or a same-origin iframe
+        // in it: the tool's own UI is not (his call, while the tool's review
+        // goes on the older way). A click on it does nothing.
+        const pickable = (t: EventTarget | null): t is Element => {
+          if (!isElement(t) || t === frameRef.current || inLayer(t)) return false
+          const root = frameRef.current && docOf(frameRef.current)
+          return Boolean(root && framesTo(root, t.ownerDocument))
+        }
 
         const onMove = (e: Event) => {
           hovered.current = pickable(e.target) ? toPicked(e.target, e as MouseEvent) : null
@@ -215,24 +234,27 @@ export function usePicker(frame: HTMLIFrameElement | null): Picker {
             // The old document is gone.
           }
         }
-        const attachFrame = () => {
-          if (frameWin) listen(frameWin, false)
-          frameWin = frameRef.current?.contentWindow ?? null
-          if (frameWin) listen(frameWin, true)
-        }
-        const attachedFrame = frameRef.current
+        // The frame's window and every nested same-origin one, as they come:
+        // a navigation during the pick brings a new document, and a nested
+        // iframe (the Storybook preview) loads after its parent.
+        const attached = new Set<Window>()
+        const frame = frameRef.current
+        const stopWatch = frame
+          ? watchDocuments(frame, (_doc, win) => {
+              attached.add(win)
+              listen(win, true)
+            })
+          : () => {}
         function finish(result: Picked | null) {
+          stopWatch()
           listen(window, false)
-          if (frameWin) listen(frameWin, false)
-          attachedFrame?.removeEventListener("load", attachFrame)
+          for (const win of attached) listen(win, false)
+          attached.clear()
           cancelRef.current = () => {}
           resolve(result)
         }
 
         listen(window, true)
-        attachFrame()
-        // A navigation during the pick brings a new document.
-        attachedFrame?.addEventListener("load", attachFrame)
         cancelRef.current = () => finish(null)
       }),
     []
@@ -243,7 +265,7 @@ export function usePicker(frame: HTMLIFrameElement | null): Picker {
   // it; `finishing` says when. Only the app is rendered, so the shell's
   // layers never need hiding for the picture.
   const capture = useCallback((picked: Picked): CapturedPin => {
-    const step = stepOf(picked)
+    const step = stepOf(picked, frameRef.current)
     // Fresh maps every pick: the app may have changed since the last one.
     clearSourceCache()
     const source = sourceOf(picked.el)
@@ -257,7 +279,8 @@ export function usePicker(frame: HTMLIFrameElement | null): Picker {
     const png = f
       ? (() => {
           const crop = frameBox(f)
-          const click = { x: crop.x + picked.mouse.x, y: crop.y + picked.mouse.y }
+          const off = docOffset(picked.el, f)
+          const click = { x: off.x + picked.mouse.x, y: off.y + picked.mouse.y }
           const box = shellBox(picked.el, f)
           // The style overview as it showed at the click.
           const tip = [sizeLine(box), ...styleOverview(picked.el)]
@@ -281,8 +304,7 @@ export function usePicker(frame: HTMLIFrameElement | null): Picker {
         const picked = await pickElement()
         if (!picked) return null
         // At the click, under way until the pin's picture and source are in.
-        const f = frameRef.current
-        const off = f ? frameBox(f) : { x: 0, y: 0 }
+        const off = docOffset(picked.el, frameRef.current)
         const spot = { x: off.x + picked.mouse.x, y: off.y + picked.mouse.y }
         setLoading(spot)
         const captured = capture(picked)
