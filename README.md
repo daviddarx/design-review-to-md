@@ -62,6 +62,13 @@ Without it, the first other stable `data-*` attribute is used.
   rendered size, then the width, height, margin, padding, colors, border
   color and font size its stylesheets set, as written (`var(--space-4)`, not
   `16px`). The pin's screenshot carries the same box.
+  An element inside a same-origin iframe in the app can be pinned too — a
+  Storybook dev server, say, where every story renders in
+  `#storybook-preview-iframe` inside the manager: the pin records the chain
+  of iframes down to the element (`frames` in its JSON record, with the
+  story iframe's URL) beside the manager's own address, so Show pins, the
+  markers, hover replay and the source lookup find it again. A cross-origin
+  iframe is left alone.
 - **Status.** Every row is `open` (yours to hand over), `review` (the agent
   has done it) or `done` (you validated it). From the panel you can validate
   a row, refine its text (the old wording is kept as `Before:`), devalidate

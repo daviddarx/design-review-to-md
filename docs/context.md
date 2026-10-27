@@ -543,3 +543,37 @@ plan beside it.
 - **"New review…" suggests the first path segment as is**, made a valid
   folder name (`/concept-08-4/x` → `concept-08-4`). The `concept-NN-N` →
   `NN.N` rule was icfm-hooping's and is gone, on his "do not add logic here".
+
+## Nested iframes — Storybook (2026-10-27)
+
+- **Why.** A Storybook 10 dev server renders every story in a nested
+  same-origin iframe (`iframe.html?id=…`, `#storybook-preview-iframe`)
+  inside its manager. The shell only reached into `frame.contentDocument`,
+  so a pin landed on the manager chrome, never on the component.
+- **How.** `shell/pick/frames.ts` treats the app as a tree of same-origin
+  documents, walked top-down over `iframe.contentDocument` (null for a
+  cross-origin frame, which is skipped; no `frameElement`, which happy-dom
+  lacks and a browser does not need). A pick records `PinStep.frames` — the
+  iframes between the app's document and the element's, outermost first,
+  each as its selector in the document above and the URL it showed (the
+  story's). `url`, `path` and `viewport` stay the app's own (the manager's
+  `?path=/story/…`, what URL mirroring and the 📍 line use), `mouse` and
+  `element.rect` are in the element's document, so they match each other.
+  Go to pin, the markers (offsets of the nested frames added) and hover
+  replay resolve the chain with `resolveFrames` each time they look; the
+  picker, ⌃R/⌃P and the canvas patch listen on every document of the tree
+  as it appears (`watchDocuments`, polled per animation frame: a nested
+  frame loads after its parent and a navigation brings a new document with
+  no event the shell could hear). The screenshot is unchanged:
+  modern-screenshot clones same-origin iframes into its render. Any depth
+  works; one level is what Storybook needs.
+- **Compatibility.** A record without `frames` is the app's own document,
+  so every earlier pin reads as before; the markdown 📍 line is untouched.
+  A chain that cannot be followed (frame gone, cross-origin) reads as the
+  element missing, like a page not showing; the marker then falls back to
+  the recorded click.
+- **Not done.** The source lookup runs on the story's element as on any
+  other (fibers and script URLs are per document); whether Vite's inline
+  source maps resolve to a repo path was not verified in a browser. The
+  `url` of a frame is recorded, not used to navigate: the manager's address
+  already selects the story.

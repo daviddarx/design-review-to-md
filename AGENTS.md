@@ -19,7 +19,7 @@ Be strict and terse. No chattiness in the files.
 
 - `<rowId>` is `5`, `5.c` or `5.b.1` (feedback, row, sub-row).
 - `<rowId>-pin.png` — screenshot of what he pinned. May be missing.
-- `<rowId>-pin.json` — where it is: `steps[]` with `url`, `element.selector`, `element.component` and `element.source` (`file`, `line`, when known). Read this to find the code.
+- `<rowId>-pin.json` — where it is: `steps[]` with `url`, `element.selector`, `element.component` and `element.source` (`file`, `line`, when known). Read this to find the code. A step with `frames[]` was pinned inside nested iframes (a Storybook story): each entry's `selector` names the iframe in the document above it and `url` what it showed; `element.selector` is then relative to the innermost one.
 - `<rowId>-state.json` — localStorage snapshot of what he saw. Gitignored, so it may be missing on another machine.
 - A row can have several pins, one `📍` line each. The files above belong to its first; the k-th pin's are `<rowId>-pin-k.png`, `<rowId>-pin-k.json` and `<rowId>-state-k.json`.
 - `<rowId>-<name>` — attachments he added.
