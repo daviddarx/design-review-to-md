@@ -69,6 +69,10 @@ Without it, the first other stable `data-*` attribute is used.
   story iframe's URL) beside the manager's own address, so Show pins, the
   markers, hover replay and the source lookup find it again. A cross-origin
   iframe is left alone.
+  The source file is recorded repo-relative: when the app's source map names
+  only a basename (Vite does for a workspace-linked package), the tool
+  searches the repo for it and records its path, or keeps the name with
+  every match as `candidates` when several files share it.
 - **Status.** Every row is `open` (yours to hand over), `review` (the agent
   has done it) or `done` (you validated it). From the panel you can validate
   a row, refine its text (the old wording is kept as `Before:`), devalidate

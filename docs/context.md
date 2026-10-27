@@ -584,3 +584,32 @@ plan beside it.
   source maps resolve to a repo path was not verified in a browser. The
   `url` of a frame is recorded, not used to navigate: the manager's address
   already selects the story.
+
+## Bare source names — Vite workspaces (2026-10-27)
+
+- **Why.** Storybook 10 (Vite) with components from a pnpm workspace
+  package: the module's inline source map lists only `Button.tsx`, so a pin
+  recorded `source: { file: "Button.tsx", line: 91 }`, which an agent cannot
+  open.
+- **How.** A mapped source with no `/` keeps the script URL it came from;
+  the shell asks `GET /__review/api/resolve-source?name=&from=`. The server
+  (`server/findFiles.ts`) lists the repo's files with `git ls-files
+--cached --others --exclude-standard` (so `.gitignore` holds), or walks it
+  outside git, always skipping `node_modules`, `dist`, `storybook-static`
+  and `.git`; the matches for a name are cached for the server's life. One
+  match → its repo-relative path. Several → the one the script URL ends in
+  (Vite serves the module at `/@fs/<absolute path>` or under its root), else
+  the basename plus `source.candidates` (every match). None → the basename.
+  The repo searched is the server's `repoRoot` (cwd), as for open-editor.
+- **Awaited, not patched.** The pick already hands its pin back at once and
+  finishes the source in the background (`finishing`, which a save awaits),
+  so the resolution runs there, right after the map lookup, with its own
+  3 s bound: the drawer never waits, and the saved record has the final
+  path without a second write. A search that fails or is late leaves the
+  basename.
+- **The script URL matters.** icfm-ds-naked has six `Button.tsx` (five
+  under `scripts/fixtures`); a unique-match rule alone would leave its pins
+  on `candidates`. Checked against a live Vite 6 + React 19 dev server
+  through the CLI (its map does list the bare `Button.tsx`): the lookup,
+  run in Node with a stack built from the served module, recorded
+  `src/components/actions/Button/Button.tsx`. Not driven in a browser.
