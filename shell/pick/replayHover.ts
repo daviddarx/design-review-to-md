@@ -1,4 +1,5 @@
 import type { PinStep } from "../../model/types.ts"
+import { resolveFrames } from "./frames.ts"
 
 // The pinned element, or — when it only exists while something is hovered
 // (a flyout row) — its nearest ancestor that is on the page now: the
@@ -22,18 +23,19 @@ function nearestOnPage(doc: Document, selector: string): Element | null {
 // `over`, and `enter` on the element and each ancestor — so React's
 // onPointerEnter/onMouseEnter fire too. CSS :hover cannot be faked and stays
 // off. Returns what ends it (the matching `out` / `leave` events), or null
-// for a pin with nothing to hover in the frame.
+// for a pin with nothing to hover in the frame (or in the nested iframe its
+// `frames` lead to).
 export function replayHover(frame: HTMLIFrameElement | null, step: PinStep): (() => void) | null {
   if (step.inTool) return null
-  let doc: Document | null | undefined
-  let win: (Window & typeof globalThis) | null | undefined
+  let found: ReturnType<typeof resolveFrames>
   try {
-    doc = frame?.contentDocument
-    win = frame?.contentWindow as (Window & typeof globalThis) | null
+    found = resolveFrames(frame?.contentDocument, step.frames)
   } catch {
     return null
   }
-  if (!doc || !win) return null
+  if (!found?.win) return null
+  const doc = found.doc
+  const win = found.win as Window & typeof globalThis
   const el = nearestOnPage(doc, step.element.selector)
   if (!el) return null
   const chain: Element[] = []

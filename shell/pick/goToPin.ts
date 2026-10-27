@@ -1,4 +1,5 @@
 import type { PinOpener, PinRecord, PinStep } from "../../model/types.ts"
+import { resolveFrames } from "./frames.ts"
 import { escapeIdent } from "./inspect.ts"
 
 // How long the app may take to render the pinned element after a load: the
@@ -132,10 +133,11 @@ async function arrive(frame: HTMLIFrameElement, win: Window, to: string, force: 
 }
 
 // The element on the page now, opening the popups it was picked in when
-// they are closed.
+// they are closed. Its document is the one the step's frames lead to (a
+// nested iframe may load after the page: it is looked for again each frame).
 async function locate(frame: HTMLIFrameElement, step: PinStep): Promise<Element | null> {
   const { selector } = step.element
-  const doc = () => frame.contentDocument
+  const doc = () => resolveFrames(frame.contentDocument, step.frames)?.doc
   const openers = step.openers ?? []
   // The element, or — when it lives in a popup that is closed — its first
   // trigger, which says the page has rendered.

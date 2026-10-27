@@ -10,7 +10,8 @@ import type { PinFrame } from "../../model/types.ts"
 import { uniqueSelector } from "./inspect.ts"
 
 export type Offset = { x: number; y: number }
-export type Resolved = { doc: Document; win: Window; offset: Offset }
+// `win` is null only for a document without one (a detached one in tests).
+export type Resolved = { doc: Document; win: Window | null; offset: Offset }
 
 const isFrame = (el: Element | null): el is HTMLIFrameElement =>
   Boolean(el && (el.tagName === "IFRAME" || el.tagName === "FRAME"))
@@ -114,9 +115,7 @@ export function resolveFrames(
     offset.y += o.y
     doc = inner
   }
-  const win = doc.defaultView
-  if (!win) return null
-  return { doc, win, offset }
+  return { doc, win: doc.defaultView, offset }
 }
 
 // Hands every same-origin document the frame tree shows to `onNew` once, as

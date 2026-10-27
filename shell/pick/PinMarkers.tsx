@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import type { PinStep } from "../../model/types.ts"
+import { resolveFrames } from "./frames.ts"
 import { followOpeners } from "./goToPin.ts"
 import { replayHover } from "./replayHover.ts"
 
@@ -26,7 +27,9 @@ const clamp01 = (n: number) => Math.min(1, Math.max(0, n))
 // resizing). Otherwise, for an app pin on its own page, by the trigger of
 // the closed popup it was in, at the same offset from it as when picked;
 // failing that, at the click's recorded viewport position (`exact: false`). Nothing for an app pin while
-// the frame shows another page, or a tool pin whose element is gone.
+// the frame shows another page, or a tool pin whose element is gone. An
+// element in a nested iframe (the step's `frames`) is looked for there, its
+// frames' offsets added; with that frame gone the recorded click stands.
 export function markerPoint(step: PinStep, frame: HTMLIFrameElement | null): Spot | null {
   let doc: Document | null | undefined = document
   let off = { x: 0, y: 0 }
@@ -38,9 +41,11 @@ export function markerPoint(step: PinStep, frame: HTMLIFrameElement | null): Spo
     } catch {
       return null
     }
-    doc = frame.contentDocument
     const r = frame.getBoundingClientRect()
     off = { x: r.left + frame.clientLeft, y: r.top + frame.clientTop }
+    const nested = resolveFrames(frame.contentDocument, step.frames)
+    doc = nested?.doc
+    if (nested) off = { x: off.x + nested.offset.x, y: off.y + nested.offset.y }
   }
   const { mouse } = step
   const was = step.element.rect
