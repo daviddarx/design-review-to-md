@@ -40,7 +40,17 @@ export type PinStep = {
   // The triggers of the popups the element was in, outermost first: Go to
   // pin clicks them open again. `controls` is the popup's id when picked.
   openers?: PinOpener[]
+  // The same-origin iframes between the app's document and the element's,
+  // outermost first (a Storybook story sits in `#storybook-preview-iframe`
+  // inside the manager). `url`, `path` and `viewport` above are the app's
+  // own document's; `mouse` and `element.rect` are in the element's
+  // document's viewport. Absent on a pin in the app's own document — every
+  // pin made before this field existed reads as one.
+  frames?: PinFrame[]
 }
+// `selector` finds the iframe in the document above it; `url` is what it
+// showed when picked (the story's `iframe.html?id=…`).
+export type PinFrame = { selector: string; url?: string }
 // `rect`: the trigger's box when picked, so a pin whose popup is closed sits
 // by its trigger, wherever that moved (absent on pins made before it).
 export type PinOpener = {
