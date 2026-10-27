@@ -76,6 +76,17 @@ export function repoRoot(): Promise<RepoPaths> {
   return request("GET", "/repo-root")
 }
 
+// A source map's bare file name (`Button.tsx`) as the repo file it is: its
+// repo-relative path, or the name with `candidates` when several match.
+// `from` is the script URL the name was mapped from.
+export function resolveSourceName(
+  name: string,
+  from?: string
+): Promise<{ file: string; candidates?: string[] }> {
+  const query = new URLSearchParams({ name, ...(from ? { from } : {}) })
+  return request("GET", `/resolve-source?${query}`)
+}
+
 // URL of a review asset (screenshot, attachment, pin record).
 export function fileUrl(review: string, relative: string): string {
   const rest = relative.split("/").map(encodeURIComponent).join("/")

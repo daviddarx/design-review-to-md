@@ -7,6 +7,7 @@ import {
   debugStacks,
   mapUrlOf,
   repoRelative,
+  resolveSource,
   sourceFromStack,
   sourceOf,
   stackFrames,
@@ -95,6 +96,40 @@ describe("sourceFromStack", () => {
   it("answers undefined when nothing maps", async () => {
     const stack = "Error\n    at X (http://h/missing.js:1:1)"
     expect(await sourceFromStack(stack, async () => null, ROOT)).toBeUndefined()
+  })
+})
+
+describe("resolveSource", () => {
+  const bare = { file: "Button.tsx", line: 91, script: "http://h/@fs/r/Button.tsx" }
+
+  it("leaves a path alone and asks nothing", async () => {
+    const ask = vi.fn()
+    expect(await resolveSource({ file: "src/Nav.tsx", line: 4 }, ask)).toEqual({
+      file: "src/Nav.tsx",
+      line: 4,
+    })
+    expect(ask).not.toHaveBeenCalled()
+  })
+
+  it("takes the server's path for a bare name, sending the script it came from", async () => {
+    const ask = vi.fn(async () => ({ file: "packages/ds/Button.tsx" }))
+    expect(await resolveSource(bare, ask)).toEqual({ file: "packages/ds/Button.tsx", line: 91 })
+    expect(ask).toHaveBeenCalledWith("Button.tsx", "http://h/@fs/r/Button.tsx")
+  })
+
+  it("records the candidates when several files match", async () => {
+    const ask = async () => ({ file: "Button.tsx", candidates: ["a/Button.tsx", "b/Button.tsx"] })
+    expect(await resolveSource(bare, ask)).toEqual({
+      file: "Button.tsx",
+      line: 91,
+      candidates: ["a/Button.tsx", "b/Button.tsx"],
+    })
+  })
+
+  it("keeps the bare name when the server fails or is too slow", async () => {
+    const plain = { file: "Button.tsx", line: 91 }
+    expect(await resolveSource(bare, async () => Promise.reject(new Error("x")))).toEqual(plain)
+    expect(await resolveSource(bare, () => new Promise(() => {}), 20)).toEqual(plain)
   })
 })
 

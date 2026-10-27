@@ -34,7 +34,12 @@ export type PinStep = {
     component?: string
     text: string
     rect: { x: number; y: number; width: number; height: number }
-    source?: { file: string; line: number }
+    // `file` is repo-relative. When the source map gave only a basename
+    // (Vite, for a workspace-linked package) the server searched the repo
+    // for it: one match is its path; several leave the basename in `file`
+    // and list every match, repo-relative, in `candidates`; none leave the
+    // basename alone.
+    source?: { file: string; line: number; candidates?: string[] }
   }
   inTool: boolean // picked inside the review tool's own UI
   // The triggers of the popups the element was in, outermost first: Go to

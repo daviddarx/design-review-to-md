@@ -6,13 +6,24 @@
 // Its first frame outside React and node_modules is mapped back through the
 // served script's own source map — plain HTTP, the way any bundler serves it.
 import { SourceMapConsumer } from "source-map-js"
-import { repoRoot } from "../api.ts"
+import { repoRoot, resolveSourceName } from "../api.ts"
 
-export type Source = { file: string; line: number }
+// `candidates`: `file` is a bare name several repo files carry (see
+// resolveSource).
+export type Source = { file: string; line: number; candidates?: string[] }
+// What a map gave. A bare name (no directory: Vite's inline map for a
+// workspace-linked file lists `Button.tsx`) keeps the script it came from,
+// for resolveSource; it is never recorded.
+export type MappedSource = Source & { script?: string }
+export type ResolveName = (
+  name: string,
+  from?: string
+) => Promise<{ file: string; candidates?: string[] }>
 export type Frame = { url: string; line: number; column: number }
 export type FetchText = (url: string) => Promise<string | null>
 
 const LOOKUP_MS = 1500
+const RESOLVE_MS = 3000
 const MAX_ANCESTORS = 60
 const MAX_MAPS = 50
 
@@ -109,7 +120,7 @@ export async function sourceFromStack(
   stack: string,
   fetchText: FetchText,
   root: string | null
-): Promise<Source | undefined> {
+): Promise<MappedSource | undefined> {
   for (const frame of stackFrames(stack)) {
     if (VENDOR_URL.test(frame.url)) continue
     const consumer = await consumerFor(frame.url, fetchText)
@@ -118,9 +129,36 @@ export async function sourceFromStack(
     const pos = consumer.originalPositionFor({ line: frame.line, column: frame.column - 1 })
     if (!pos.source || !pos.line) continue
     const file = repoRelative(pos.source, root)
-    if (file) return { file, line: pos.line }
+    if (file)
+      return file.includes("/")
+        ? { file, line: pos.line }
+        : { file, line: pos.line, script: frame.url }
   }
   return undefined
+}
+
+// A bare name made a repo path by the server, which searches the repo for
+// it. Kept as it is when the search finds nothing, fails or takes longer
+// than `timeoutMs`; several matches become `candidates`. Never throws.
+export async function resolveSource(
+  found: MappedSource,
+  resolveName: ResolveName = resolveSourceName,
+  timeoutMs = RESOLVE_MS
+): Promise<Source> {
+  const { script, ...source } = found
+  if (source.file.includes("/")) return source
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const late = new Promise<undefined>((resolve) => {
+    timer = setTimeout(() => resolve(undefined), timeoutMs)
+  })
+  const answer = await Promise.race([resolveName(source.file, script).catch(() => undefined), late])
+  clearTimeout(timer)
+  if (!answer || typeof answer.file !== "string") return source
+  return {
+    file: answer.file,
+    line: source.line,
+    ...(answer.candidates?.length ? { candidates: answer.candidates } : {}),
+  }
 }
 
 type Fiber = { _debugStack?: unknown; return?: Fiber | null }
@@ -162,7 +200,7 @@ function root(): Promise<string | null> {
   return rootPromise
 }
 
-async function lookup(el: Element): Promise<Source | undefined> {
+async function lookup(el: Element): Promise<MappedSource | undefined> {
   const stacks = debugStacks(el)
   if (!stacks.length) return undefined
   const r = await root()
@@ -173,8 +211,15 @@ async function lookup(el: Element): Promise<Source | undefined> {
   return undefined
 }
 
-// Never throws, and gives up after `timeoutMs` (a pin never waits longer).
-export function sourceOf(el: Element, timeoutMs = LOOKUP_MS): Promise<Source | undefined> {
+// Never throws. The map lookup gives up after `timeoutMs`; a bare name it
+// found is then resolved by the server, bounded on its own (resolveSource),
+// so a slow search never costs the pin its line.
+export async function sourceOf(el: Element, timeoutMs = LOOKUP_MS): Promise<Source | undefined> {
+  const found = await mappedSourceOf(el, timeoutMs)
+  return found && resolveSource(found)
+}
+
+function mappedSourceOf(el: Element, timeoutMs: number): Promise<MappedSource | undefined> {
   return new Promise((resolve) => {
     const timer = setTimeout(() => resolve(undefined), timeoutMs)
     lookup(el).then(
