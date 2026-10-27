@@ -564,9 +564,16 @@ plan beside it.
   picker, ⌃R/⌃P and the canvas patch listen on every document of the tree
   as it appears (`watchDocuments`, polled per animation frame: a nested
   frame loads after its parent and a navigation brings a new document with
-  no event the shell could hear). The screenshot is unchanged:
-  modern-screenshot clones same-origin iframes into its render. Any depth
-  works; one level is what Storybook needs.
+  no event the shell could hear; while the tab is hidden, where animation
+  frames stop, a 500ms timer looks instead — guarded on `document.hidden`,
+  since the look is slow enough in happy-dom to time App's tests out).
+  **Screenshots**: `renderViewport` renders every same-origin iframe's
+  document on its own and draws it over the frame's content box, as the
+  shell does with the app. Left to modern-screenshot, the frame's document
+  is inlined as a block where the iframe element was, and an inline iframe
+  sits on a baseline, so the story landed ~20px below the outline. The cost
+  is the iframe's own border, which goes with the skipped element. Any
+  depth works; one level is what Storybook needs.
 - **Compatibility.** A record without `frames` is the app's own document,
   so every earlier pin reads as before; the markdown 📍 line is untouched.
   A chain that cannot be followed (frame gone, cross-origin) reads as the
