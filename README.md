@@ -79,8 +79,10 @@ Without it, the first other stable `data-*` attribute is used.
   it or delete it.
 - **Handing over.** _Copy prompt_ puts a one-line instruction on the
   clipboard. Paste it into the agent, which follows [AGENTS.md](AGENTS.md):
-  it works only on `open` rows, sets them to `review`, and adds a
-  `Claude:` note only when something differs from what you asked.
+  it first reads every `open` row and asks you, one question at a time,
+  about anything unclear; then it works only on `open` rows, sets them to
+  `review`, and adds a `Claude:` note only when something differs from what
+  you asked.
 
 ## Developing
 

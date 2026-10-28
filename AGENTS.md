@@ -3,6 +3,13 @@
 Applies when asked to work through a review: the folder the prompt names, `<root>/<review>/` (`<root>` is the `--root` the app passes, usually `docs/review`).
 Be strict and terse. No chattiness in the files.
 
+## Before you start
+
+1. Read every `open` row of the review first — its `briefing.md`, pin screenshots and `pin.json`, attachments, and the code they point to. Change nothing yet.
+2. Note what is unclear: a row that reads two ways, rows that contradict each other, a design decision he has not made, a pin you cannot find in the code, a request that would break something else.
+3. Nothing unclear: go ahead. Otherwise ask in the terminal before touching any code — one question at a time, naming the row (`5.c`), multiple choice when you can, your recommendation first. Wait for his answer before the next question.
+4. Ask only what changes what you build; a sensible default is not a question. Questions and answers stay in the terminal, never in the files. If he leaves it to you, decide.
+
 ## Rules
 
 - Work only on rows tagged `open`, in the review you were given.
