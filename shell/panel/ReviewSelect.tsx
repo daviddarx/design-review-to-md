@@ -70,7 +70,7 @@ export function ReviewSelect({ reviews, review, onChange, onCreate, onOpen }: Re
     >
       {!review && (
         <option value="" disabled>
-          Choose a review
+          {reviews.length ? "Choose a review" : "Create a review…"}
         </option>
       )}
       {review && !reviews.includes(review) && <option value={review}>{review}</option>}

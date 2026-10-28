@@ -24,7 +24,7 @@ import { ReviewSelect } from "./ReviewSelect.tsx"
 
 export type PanelProps = {
   review: string | null
-  onReviewChange(t: string): void
+  onReviewChange(t: string | null): void // null: the remembered review is not one of this repo's
   onNewFeedback(): void
   onPinAndAdd?: () => void // pick first, then a new feedback carrying the pin; no button without it
   startPick?: () => Promise<CapturedPin | null> // Refine's Pin; no 📍 without it
@@ -114,10 +114,28 @@ export function Panel({
     return () => window.removeEventListener("resize", onResize)
   }, [])
 
+  // `listed` once the folders are known. Only the latest listing counts: an
+  // older one must not drop a review just created.
+  const [listed, setListed] = useState(false)
+  const listSeq = useRef(0)
   const refreshReviews = useCallback(() => {
-    listReviews().then(setReviews, (err) => setError(message(err)))
+    const seq = ++listSeq.current
+    listReviews().then(
+      (names) => {
+        if (seq !== listSeq.current) return
+        setReviews(names)
+        setListed(true)
+      },
+      (err) => setError(message(err))
+    )
   }, [])
   useEffect(refreshReviews, [refreshReviews])
+  // The review is remembered per origin, and every repo served on the same
+  // port shares it: one that is not among this repo's folders is let go, so
+  // the select asks for one instead of showing a stranger's name.
+  useEffect(() => {
+    if (listed && review && !reviews.includes(review)) onReviewChange(null)
+  }, [listed, review, reviews, onReviewChange])
   // Where the reviews and AGENTS.md are, for the copied prompt.
   const [paths, setPaths] = useState<RepoPaths | null>(null)
   useEffect(() => {
@@ -299,6 +317,7 @@ export function Panel({
     try {
       const created = await createReview(name)
       setError(null)
+      setReviews((r) => (r.includes(created.name) ? r : [...r, created.name].sort()))
       refreshReviews()
       onReviewChange(created.name)
     } catch (err) {
@@ -443,7 +462,11 @@ export function Panel({
 
       <div className="dr-panel-body" inert={covered}>
         {!review ? (
-          <p className="dr-empty">Choose a review, or create one from the menu above.</p>
+          <p className="dr-empty">
+            {reviews.length
+              ? "Choose a review, or create one from the menu above."
+              : "Create a review from the menu above."}
+          </p>
         ) : !loaded ? null : feedbacks.length === 0 ? (
           <p className="dr-empty">No feedback yet</p>
         ) : rows.length === 0 ? (

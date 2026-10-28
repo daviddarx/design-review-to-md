@@ -132,6 +132,28 @@ function key(el: HTMLElement, k: string, extra: KeyboardEventInit = {}) {
 }
 
 describe("Panel", () => {
+  it("lets go of a remembered review that is not among this repo's folders", async () => {
+    const changes: (string | null)[] = []
+    await render({ review: "plan-d-repin", onReviewChange: (r) => changes.push(r) })
+    expect(changes).toEqual([null])
+    await render({ review: null, onReviewChange: (r) => changes.push(r) })
+    const select = host.querySelector<HTMLSelectElement>('select[aria-label="Review"]')!
+    expect(select.value).toBe("")
+    expect(select.options[0].textContent).toBe("Choose a review")
+    expect(changes).toEqual([null])
+  })
+
+  it("with no review folder yet, the select asks to create one", async () => {
+    held.set("/__review/api/reviews", Promise.resolve(json([])))
+    await render({ review: null })
+    const select = host.querySelector<HTMLSelectElement>('select[aria-label="Review"]')!
+    expect(select.options[0].textContent).toBe("Create a review…")
+    expect([...select.options].map((o) => o.textContent)).toEqual([
+      "Create a review…",
+      "New review…",
+    ])
+  })
+
   it("renders a row's attachment lines as links to the file", async () => {
     await render()
     // Grey chips under the text, as in the drawer; no button for them.
