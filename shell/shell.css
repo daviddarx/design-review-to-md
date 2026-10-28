@@ -117,7 +117,7 @@ body {
 
 .dr-panel-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 6px;
   padding: 10px var(--dr-gutter);
   border-bottom: 1px solid var(--dr-line);
@@ -132,6 +132,21 @@ body {
   color: var(--dr-text);
   font: inherit;
   box-sizing: border-box;
+}
+
+/* A one-line field that wraps instead of scrolling sideways, growing a line
+   at a time (Refine, New review): its text is never hidden. */
+.dr-grow {
+  display: block;
+  height: auto;
+  min-height: 28px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  line-height: 18px;
+  resize: none;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  field-sizing: content;
 }
 
 .dr-input:focus-visible {
@@ -615,6 +630,7 @@ select.dr-review-select {
 
 .dr-refine-group {
   display: flex;
+  align-items: flex-start;
   width: 100%;
   margin-top: 8px;
 }

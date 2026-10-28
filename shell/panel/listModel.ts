@@ -161,6 +161,10 @@ export function singleLine(text: string): string {
     .trim()
 }
 
+// A one-line field that wraps (a textarea): a typed or pasted newline
+// becomes a space as it comes in, so Enter is left to submit.
+export const oneLine = (text: string) => text.replace(/\r?\n/g, " ")
+
 // The history as it reads: each earlier wording, then the Claude notes that
 // answered it. The file is in time order, where a note comes BEFORE the
 // Before line of the text it answered (the text becomes a Before only when

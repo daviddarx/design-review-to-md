@@ -9,7 +9,7 @@ import type { DraftFile } from "../drawer/draft.ts"
 import type { CapturedPin } from "../pick/capture.ts"
 import { Flyout } from "./Flyout.tsx"
 import { ActionButton, ActionGroup } from "./icons.tsx"
-import { historyByRound, singleLine } from "./listModel.ts"
+import { historyByRound, oneLine, singleLine } from "./listModel.ts"
 import type { FlatRow, PinTarget } from "./listModel.ts"
 
 export type RowItemProps = {
@@ -230,17 +230,18 @@ export function RowItem({
         {refining === null ? (
           <div className="dr-row-text">{row.text}</div>
         ) : (
-          // One line, with Pin, Attach and Save joined to it as a group.
+          // One line of text (wrapped as it grows), with Pin, Attach and Save
+          // joined to it as a group.
           <div className="dr-refine-group" role="group">
-            <input
-              type="text"
-              className="dr-input dr-refine"
+            <textarea
+              className="dr-input dr-grow dr-refine"
+              rows={1}
               aria-label={`Refine ${row.rowId}`}
               autoFocus
               value={refining}
               disabled={busy}
               onFocus={(e) => e.currentTarget.select()}
-              onChange={(e) => setRefining(e.target.value)}
+              onChange={(e) => setRefining(oneLine(e.target.value))}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault()

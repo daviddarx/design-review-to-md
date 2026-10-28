@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { suggestReviewName } from "./listModel.ts"
+import { oneLine, suggestReviewName } from "./listModel.ts"
 
 const NEW = "\u0000new"
 
@@ -32,15 +32,16 @@ export function ReviewSelect({ reviews, review, onChange, onCreate, onOpen }: Re
       }
     }
     return (
-      <input
-        className="dr-input dr-review-select"
+      <textarea
+        className="dr-input dr-grow dr-review-select"
+        rows={1}
         aria-label="New review name"
         autoFocus
         value={draft}
         disabled={busy}
         placeholder="Review name"
         onFocus={(e) => e.currentTarget.select()}
-        onChange={(e) => setDraft(e.target.value)}
+        onChange={(e) => setDraft(oneLine(e.target.value))}
         onBlur={() => !busy && setDraft(null)}
         onKeyDown={(e) => {
           if (e.key === "Enter") {

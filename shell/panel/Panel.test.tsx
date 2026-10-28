@@ -122,8 +122,8 @@ const action = (id: string, label: string) =>
   row(id).querySelector<HTMLButtonElement>(`.dr-action[aria-label="${label}"]`)
 const opCalls = () => calls.filter((c) => c.url.endsWith("/ops"))
 
-function type(field: HTMLInputElement, value: string) {
-  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(field, value)
+function type(field: HTMLInputElement | HTMLTextAreaElement, value: string) {
+  Object.getOwnPropertyDescriptor(Object.getPrototypeOf(field), "value")!.set!.call(field, value)
   field.dispatchEvent(new Event("input", { bubbles: true }))
 }
 
@@ -187,10 +187,11 @@ describe("Panel", () => {
   it("Refine opens the field; Enter sends one line", async () => {
     await render()
     await act(async () => action("5.c", "Refine")!.click())
-    const field = row("5.c").querySelector<HTMLInputElement>("input.dr-refine")!
-    expect(field.type).toBe("text")
+    const field = row("5.c").querySelector<HTMLTextAreaElement>("textarea.dr-refine")!
     expect(field.value).toContain("Search field")
-    await act(async () => type(field, "Align the search field"))
+    // It wraps, but stays one line: a pasted newline becomes a space.
+    await act(async () => type(field, "Align the\nsearch field"))
+    expect(field.value).toBe("Align the search field")
     await act(async () => key(field, "Enter"))
     expect(opCalls()[0].body).toEqual({
       op: { kind: "refine", rowId: "5.c", text: "Align the search field" },
@@ -201,7 +202,7 @@ describe("Panel", () => {
   it("Refine's save button, joined to the field, sends it too", async () => {
     await render()
     await act(async () => action("5.c", "Refine")!.click())
-    const field = row("5.c").querySelector<HTMLInputElement>("input.dr-refine")!
+    const field = row("5.c").querySelector<HTMLTextAreaElement>("textarea.dr-refine")!
     await act(async () => type(field, "Align it"))
     const save = row("5.c").querySelector<HTMLButtonElement>(
       '[aria-label="Save refinement of 5.c"]'
@@ -400,7 +401,9 @@ describe("Panel", () => {
     await act(async () => input.dispatchEvent(new Event("change", { bubbles: true })))
     expect(row("5.c").querySelector(".dr-files")!.textContent).toContain("note.txt")
 
-    await act(async () => type(group.querySelector<HTMLInputElement>("input.dr-refine")!, "Align"))
+    await act(async () =>
+      type(group.querySelector<HTMLTextAreaElement>("textarea.dr-refine")!, "Align")
+    )
     await act(async () => save.click())
     const ops = opCalls().map((c) => c.body as { op: { kind: string }; assets: { name: string }[] })
     expect(ops.map((o) => o.op.kind)).toEqual(["refine", "addPin", "attach"])
