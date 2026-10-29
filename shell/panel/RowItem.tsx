@@ -7,6 +7,7 @@ import type { Asset } from "../api.ts"
 import { bytesToBase64, pinAssets } from "../drawer/draft.ts"
 import type { DraftFile } from "../drawer/draft.ts"
 import type { CapturedPin } from "../pick/capture.ts"
+import { isSaveKey } from "../useShortcut.ts"
 import { Flyout } from "./Flyout.tsx"
 import { ActionButton, ActionGroup } from "./icons.tsx"
 import { historyByRound, oneLine, singleLine } from "./listModel.ts"
@@ -243,7 +244,7 @@ export function RowItem({
               onFocus={(e) => e.currentTarget.select()}
               onChange={(e) => setRefining(oneLine(e.target.value))}
               onKeyDown={(e) => {
-                if (e.key === "Enter") {
+                if (e.key === "Enter" || isSaveKey(e)) {
                   e.preventDefault()
                   void submitRefine()
                 } else if (e.key === "Escape") {

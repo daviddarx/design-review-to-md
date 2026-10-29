@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { isSaveKey } from "../useShortcut.ts"
 import { oneLine, suggestReviewName } from "./listModel.ts"
 
 const NEW = "\u0000new"
@@ -44,7 +45,7 @@ export function ReviewSelect({ reviews, review, onChange, onCreate, onOpen }: Re
         onChange={(e) => setDraft(oneLine(e.target.value))}
         onBlur={() => !busy && setDraft(null)}
         onKeyDown={(e) => {
-          if (e.key === "Enter") {
+          if (e.key === "Enter" || isSaveKey(e)) {
             e.preventDefault()
             void submit()
           } else if (e.key === "Escape") {

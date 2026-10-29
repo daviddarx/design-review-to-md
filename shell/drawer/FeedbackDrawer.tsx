@@ -31,6 +31,7 @@ import {
 import type { CapturedPin, DraftNode, PinKey } from "./draft.ts"
 import type { Marker } from "../pick/PinMarkers.tsx"
 import { ActionButton, ActionGroup } from "../panel/icons.tsx"
+import { isSaveKey } from "../useShortcut.ts"
 
 export type FeedbackDrawerProps = {
   review: string
@@ -69,7 +70,7 @@ function addedId(before: DraftNode, after: DraftNode): string | null {
 }
 
 // One feedback, over the panel's list at full panel width. The title row is
-// the root; Enter / Tab / Shift+Tab / ⌘Enter / Esc drive it like an outliner.
+// the root; Enter / Tab / Shift+Tab / ⌘Enter (or ⌘S) / Esc drive it like an outliner.
 export function FeedbackDrawer({
   review,
   feedbackNumber,
@@ -415,7 +416,7 @@ export function FeedbackDrawer({
       e.stopPropagation()
       if (confirmDiscard || confirmDelete) keepEditing()
       else requestClose()
-    } else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+    } else if ((e.key === "Enter" && (e.metaKey || e.ctrlKey)) || isSaveKey(e)) {
       e.preventDefault()
       void save()
     }
@@ -477,7 +478,7 @@ export function FeedbackDrawer({
               className="dr-button dr-button-primary"
               onClick={() => void save()}
               disabled={saving || loading || loadFailed}
-              title="Save (⌘Enter)"
+              title="Save (⌘Enter or ⌘S)"
             >
               {saving ? "Saving…" : "Save"}
             </button>
@@ -539,7 +540,7 @@ export function FeedbackDrawer({
         )}
       </div>
       <footer className="dr-panel-foot dr-drawer-foot">
-        Enter new row · Tab / ⇧Tab indent · ⌘Enter save · Esc close
+        Enter new row · Tab / ⇧Tab indent · ⌘Enter / ⌘S save · Esc close
       </footer>
 
       <input

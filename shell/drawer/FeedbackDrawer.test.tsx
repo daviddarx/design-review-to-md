@@ -120,6 +120,21 @@ describe("FeedbackDrawer", () => {
     expect(onClose).toHaveBeenCalled()
   })
 
+  it("⌘S saves like ⌘Enter, never the browser's Save page", async () => {
+    const { onClose } = await render()
+    await type(fields()[0], "Main nav")
+    const e = new KeyboardEvent("keydown", {
+      key: "s",
+      metaKey: true,
+      bubbles: true,
+      cancelable: true,
+    })
+    await act(async () => fields()[0].dispatchEvent(e))
+    expect(e.defaultPrevented).toBe(true)
+    expect(posts()).toHaveLength(1)
+    expect(onClose).toHaveBeenCalled()
+  })
+
   it("Esc on a draft with content asks inline before discarding", async () => {
     const { onClose } = await render()
     await act(async () => key(fields()[0], "Escape"))

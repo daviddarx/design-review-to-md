@@ -1,6 +1,12 @@
 import { useEffect, useRef } from "react"
 import { watchDocuments } from "./pick/frames.ts"
 
+// ⌘S (⌃S off a Mac) in one of the tool's fields saves it, like its Enter or
+// Save button — never the browser's "Save page".
+export function isSaveKey(e: { key: string; metaKey: boolean; ctrlKey: boolean; altKey: boolean }) {
+  return (e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === "s"
+}
+
 // A tool shortcut caught in every document — the shell's window, the
 // frame's and every same-origin iframe's inside it (a Storybook story's),
 // each as it appears, since a key pressed in a nested frame never reaches

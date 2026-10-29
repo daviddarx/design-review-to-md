@@ -19,7 +19,7 @@ const GROUPS: { title: string; keys: [string, string][] }[] = [
     keys: [
       ["Enter", "New sibling"],
       ["Tab / ⇧Tab", "Indent / outdent"],
-      ["⌘Enter", "Save"],
+      ["⌘Enter / ⌘S", "Save"],
       ["Esc", "Close"],
     ],
   },

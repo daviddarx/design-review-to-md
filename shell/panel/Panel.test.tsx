@@ -206,6 +206,18 @@ describe("Panel", () => {
     expect(calls.filter((c) => c.url === "/__review/api/reviews/08.4").length).toBe(before + 1)
   })
 
+  it("⌘S in the Refine field sends it like Enter", async () => {
+    await render()
+    await act(async () => action("5.c", "Refine")!.click())
+    const field = row("5.c").querySelector<HTMLTextAreaElement>("textarea.dr-refine")!
+    await act(async () => type(field, "Align it"))
+    await act(async () => key(field, "s", { metaKey: true }))
+    expect(opCalls()[0].body).toEqual({
+      op: { kind: "refine", rowId: "5.c", text: "Align it" },
+      assets: [],
+    })
+  })
+
   it("Refine opens the field; Enter sends one line", async () => {
     await render()
     await act(async () => action("5.c", "Refine")!.click())
