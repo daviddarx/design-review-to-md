@@ -15,6 +15,7 @@ type FeedbackListProps = {
   onOp(rowId: string, op: Op, assets?: Asset[]): Promise<boolean>
   reopenStatus(rowId: string): Status // where Devalidate puts a done row
   onDeleteFeedback(n: number): Promise<boolean>
+  onEditFeedback?: (n: number) => void
   startPick?: () => Promise<CapturedPin | null>
   onTogglePins(rowId: string, target: PinTarget): void
   onOpenSource(rowId: string, target: PinTarget): void

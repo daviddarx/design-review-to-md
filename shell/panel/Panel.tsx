@@ -26,6 +26,7 @@ export type PanelProps = {
   review: string | null
   onReviewChange(t: string | null): void // null: the remembered review is not one of this repo's
   onNewFeedback(): void
+  onEditFeedback?: (n: number) => void // an open feedback, in the drawer
   onPinAndAdd?: () => void // pick first, then a new feedback carrying the pin; no button without it
   startPick?: () => Promise<CapturedPin | null> // Refine's Pin; no 📍 without it
   // Show pins / Restore state may answer with a notice for the panel to show
@@ -78,6 +79,7 @@ export function Panel({
   onReviewChange,
   onNewFeedback,
   onPinAndAdd,
+  onEditFeedback,
   startPick,
   onTogglePins,
   onOpenSource,
@@ -480,6 +482,7 @@ export function Panel({
             onOp={onOp}
             reopenStatus={reopenStatus}
             onDeleteFeedback={onDeleteFeedback}
+            onEditFeedback={onEditFeedback}
             startPick={startPick}
             onTogglePins={withNotice(onTogglePins)}
             onOpenSource={withNotice(onOpenSource)}

@@ -525,7 +525,7 @@ select.dr-review-select {
   column-gap: 6px;
 }
 
-/* The group, then Delete on its own. */
+/* Edit (an open feedback's own row), the group, then Delete, each on its own. */
 .dr-row-side {
   display: flex;
   gap: 8px;

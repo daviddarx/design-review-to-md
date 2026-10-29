@@ -613,3 +613,17 @@ plan beside it.
   through the CLI (its map does list the bare `Button.tsx`): the lookup,
   run in Node with a stack built from the served module, recorded
   `src/components/actions/Button/Button.tsx`. Not driven in a browser.
+
+## Edit is back, for open feedbacks (2026-10-29)
+
+- **Why.** A feedback just created could not be corrected: Refine only
+  shows on a row to review, and the drawer was reached only through New
+  feedback.
+- **Edit feedback** sits on an open feedback's own row (an untagged older
+  title counts as open), before the group, with the 8px gap; never on its
+  rows, nor on a feedback to review or done. It opens the same drawer as
+  New feedback, in its edit mode (`feedbackNumber`), with every row.
+- **Validate only on a row to review**, beside Refine: an open row has
+  nothing of Claude's to validate. Devalidate therefore always has a
+  `review` row behind it in practice; its memory of the earlier status
+  stays.

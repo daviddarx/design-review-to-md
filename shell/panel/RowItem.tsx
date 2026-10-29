@@ -24,6 +24,7 @@ export type RowItemProps = {
   onOp(op: Op, assets?: Asset[]): Promise<boolean>
   reopenTo: Status // the status Devalidate gives a done row back
   onDeleteFeedback(n: number): Promise<boolean>
+  onEditFeedback?: (n: number) => void // the drawer, on an open feedback's own row
   startPick?: () => Promise<CapturedPin | null> // Refine's Pin; none without it
   onTogglePins(rowId: string, target: PinTarget): void
   onOpenSource(rowId: string, target: PinTarget): void
@@ -43,6 +44,7 @@ export function RowItem({
   onOp,
   reopenTo,
   onDeleteFeedback,
+  onEditFeedback,
   startPick,
   onTogglePins,
   onOpenSource,
@@ -75,11 +77,11 @@ export function RowItem({
     }
   }
 
-  // Any row not done can be validated; Refine answers Claude's work, so only
-  // a row waiting for review offers it. History only shows on a row that
-  // has some.
+  // Validate and Refine answer Claude's work, so only a row waiting for
+  // review offers them. History only shows on a row that has some. An open
+  // feedback (untagged: an older one) is edited in the drawer, rows and all.
   const reviewing = row.status === "review"
-  const validatable = reviewing || row.status === "open"
+  const editable = row.depth === 0 && (row.status === "open" || row.status === undefined)
   // A row waiting for review shows Claude's latest note under its text;
   // History keeps the rest.
   const last = row.history.at(-1)
@@ -351,11 +353,20 @@ export function RowItem({
         )}
       </div>
 
-      {/* The group, then Delete on its own, the last action of every row. */}
+      {/* Edit on its own, the group, then Delete, the last action of every row. */}
       {refining === null && (
         <div className="dr-row-side">
+          {editable && onEditFeedback && (
+            <ActionButton
+              icon="edit"
+              label="Edit feedback"
+              tip={`Edit feedback ${feedbackNumber}`}
+              disabled={busy}
+              onClick={() => onEditFeedback(feedbackNumber)}
+            />
+          )}
           <ActionGroup>
-            {validatable && <ActionButton icon="validate" label="Validate" onClick={validate} />}
+            {reviewing && <ActionButton icon="validate" label="Validate" onClick={validate} />}
             {row.status === "done" && (
               <ActionButton
                 icon="devalidate"

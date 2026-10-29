@@ -279,12 +279,12 @@ describe("Panel", () => {
     expect(owners.at(-1)).toEqual(["7"])
   })
 
-  it("a row not done offers Validate, only one to review Refine; only one with history History", async () => {
+  it("only a row to review offers Validate and Refine; only one with history History", async () => {
     await render()
     const labels = (id: string) =>
       [...row(id).querySelectorAll(".dr-action")].map((b) => b.getAttribute("aria-label"))
     expect(labels("5.a")).toEqual(["Devalidate", "Screenshot", "Delete row"])
-    expect(labels("5.b")).toEqual(["Validate", "History", "Screenshot", "Delete row"])
+    expect(labels("5.b")).toEqual(["History", "Screenshot", "Delete row"])
     expect(labels("5.c")).toEqual(["Validate", "Refine", "Show pins", "Screenshot", "Delete row"])
   })
 
@@ -296,24 +296,52 @@ describe("Panel", () => {
       op: { kind: "setStatus", rowId: "5.a", status: "review" },
       assets: [],
     })
-    await act(async () => action("5.b", "Validate")!.click())
+    await act(async () => action("5.c", "Validate")!.click())
     expect(opCalls().at(-1)!.body).toMatchObject({
-      op: { kind: "setStatus", rowId: "5.b", status: "done" },
+      op: { kind: "setStatus", rowId: "5.c", status: "done" },
     })
-    // The reload now reads 5.b as done.
+    // The reload now reads 5.c as done.
     held.set(
       "/__review/api/reviews/08.4",
       Promise.resolve(
         json({
           meta: { nextFeedback: 6 },
-          feedbacks: [parseFeedback(SPEC.replace("100% `open`", "100% `done`"))],
+          feedbacks: [parseFeedback(SPEC.replace("misaligned `review`", "misaligned `done`"))],
         })
       )
     )
     await act(async () =>
       FakeEventSource.last!.onmessage!({ data: JSON.stringify({ review: "08.4" }) })
     )
-    expect(action("5.b", "Devalidate")!.getAttribute("data-tip")).toBe("Devalidate: back to open")
+    expect(action("5.c", "Devalidate")!.getAttribute("data-tip")).toBe("Devalidate: back to review")
+  })
+
+  it("an open feedback's own row has Edit, before its group; its rows and others do not", async () => {
+    const edited: number[] = []
+    const spec = `# 7. Header \`open\`
+
+- a. Logo \`open\`
+`
+    held.set(
+      "/__review/api/reviews/08.4",
+      Promise.resolve(
+        json({
+          meta: { nextFeedback: 8 },
+          feedbacks: [
+            parseFeedback(spec),
+            parseFeedback(SPEC.replace("# 5. Main navigation", "# 5. Main navigation `review`")),
+          ],
+        })
+      )
+    )
+    await render({ onEditFeedback: (n) => edited.push(n) })
+    const edit = action("7", "Edit feedback")!
+    expect(edit.parentElement!.classList.contains("dr-row-side")).toBe(true)
+    expect(edit.nextElementSibling!.classList.contains("dr-row-actions")).toBe(true)
+    expect(action("7.a", "Edit feedback")).toBeNull()
+    expect(action("5", "Edit feedback")).toBeNull()
+    await act(async () => edit.click())
+    expect(edited).toEqual([7])
   })
 
   it("loads every listed row's pin records without a hover, done rows too", async () => {

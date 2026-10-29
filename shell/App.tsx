@@ -240,6 +240,7 @@ export function App() {
             onReviewChange={setReview}
             onNewFeedback={() => openDrawer()}
             onPinAndAdd={pinAndAdd}
+            onEditFeedback={(n) => openDrawer({ feedbackNumber: n })}
             startPick={() => picker.startPick()}
             onTogglePins={onTogglePins}
             onOpenSource={onOpenSource}

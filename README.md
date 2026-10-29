@@ -74,9 +74,9 @@ Without it, the first other stable `data-*` attribute is used.
   searches the repo for it and records its path, or keeps the name with
   every match as `candidates` when several files share it.
 - **Status.** Every row is `open` (yours to hand over), `review` (the agent
-  has done it) or `done` (you validated it). From the panel you can validate
-  a row, refine its text (the old wording is kept as `Before:`), devalidate
-  it or delete it.
+  has done it) or `done` (you validated it). From the panel you can edit an
+  open feedback in the drawer, validate or refine a row to review (the old
+  wording is kept as `Before:`), devalidate a done row, or delete any row.
 - **Handing over.** _Copy prompt_ puts a one-line instruction on the
   clipboard. Paste it into the agent, which follows [AGENTS.md](AGENTS.md):
   it first reads every `open` row and asks you, one question at a time,
