@@ -87,6 +87,15 @@ describe("styleOverview", () => {
     ).toEqual([])
   })
 
+  it("shows min sizes, and the computed value when it reads differently", () => {
+    document.head.innerHTML = `<style>#t { min-height: calc(10px + 6px); min-width: 20px; color: var(--ink) } :root { --ink: red }</style>`
+    document.body.innerHTML = `<p id="t">x</p>`
+    const lines = styleOverview(document.getElementById("t")!)
+    expect(lines.map((l) => l.prop)).toEqual(["min-width", "min-height", "color"])
+    expect(lines[0].computed).toBeUndefined()
+    expect(lines[2]).toMatchObject({ value: "var(--ink)", computed: "red" })
+  })
+
   it("follows a matching media query", () => {
     expect(
       overview(`@media (min-width: 1px) { #t { background: var(--surface) } }`, `<p id="t">x</p>`)

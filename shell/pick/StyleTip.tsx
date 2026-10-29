@@ -6,7 +6,8 @@ type Box = { x: number; y: number; width: number; height: number }
 const INSET = 12
 
 // The hovered element's style overview, in the app's bottom-right corner:
-// its rendered size first, then what its stylesheets set.
+// its rendered size first, then what its stylesheets set, beside what the
+// browser computed from it.
 export function StyleTip({ box, area, lines }: { box: Box; area: Box; lines: StyleLine[] }) {
   return (
     <div
@@ -25,6 +26,7 @@ export function StyleTip({ box, area, lines }: { box: Box; area: Box; lines: Sty
             )}
             {line.value}
           </span>
+          <span className="dr-style-computed">{line.computed}</span>
         </div>
       ))}
     </div>

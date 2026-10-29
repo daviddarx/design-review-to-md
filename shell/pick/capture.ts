@@ -144,8 +144,8 @@ export async function grabPng(
 }
 
 // The style overview's box (see .dr-style-tip), in CSS pixels times `scale`:
-// a two-column grid, long values wrapped, its corner `TIP.inset` from the
-// picture's bottom-right one.
+// a three-column grid (property, written value, computed value), long values
+// wrapped, its corner `TIP.inset` from the picture's bottom-right one.
 const TIP = {
   inset: 12,
   padX: 10,
@@ -153,7 +153,7 @@ const TIP = {
   gap: 12,
   rowGap: 3,
   line: 16,
-  maxWidth: 420,
+  maxWidth: 560,
   swatch: 10,
   font: "12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
 }
@@ -183,19 +183,29 @@ function drawTip(
   ctx.scale(scale, scale)
   ctx.font = TIP.font
   ctx.textBaseline = "middle"
-  const propW = Math.max(...lines.map((l) => ctx.measureText(l.prop).width))
+  const widest = (texts: string[]) => Math.max(0, ...texts.map((t) => ctx.measureText(t).width))
+  const propW = widest(lines.map((l) => l.prop))
   const swatchW = (l: StyleLine) => (l.swatch ? TIP.swatch + 6 : 0)
-  const maxValueW = Math.min(
-    TIP.maxWidth - 2 * TIP.padX - propW - TIP.gap,
-    width - 2 * TIP.inset - 2 * TIP.padX - propW - TIP.gap
+  const hasComputed = lines.some((l) => l.computed)
+  const room = Math.max(
+    80,
+    Math.min(TIP.maxWidth, width - 2 * TIP.inset) - 2 * TIP.padX - propW - TIP.gap
   )
-  const valueW = Math.max(40, maxValueW)
-  const rows = lines.map((l) => ({ l, parts: wrap(ctx, l.value, valueW - swatchW(l)) }))
-  const usedValueW = Math.max(
-    ...rows.map((r) => swatchW(r.l) + Math.max(...r.parts.map((p) => ctx.measureText(p).width)))
-  )
-  const boxW = 2 * TIP.padX + propW + TIP.gap + usedValueW
-  const lineCount = rows.reduce((n, r) => n + r.parts.length, 0)
+  // The computed column takes what it needs, up to half; the written one the rest.
+  const computedW = hasComputed
+    ? Math.min(widest(lines.map((l) => l.computed ?? "")), (room - TIP.gap) / 2)
+    : 0
+  const valueRoom = Math.max(40, room - (hasComputed ? computedW + TIP.gap : 0))
+  const rows = lines.map((l) => ({
+    l,
+    value: wrap(ctx, l.value, valueRoom - swatchW(l)),
+    computed: l.computed ? wrap(ctx, l.computed, computedW) : [],
+  }))
+  const valueW = Math.max(...rows.map((r) => swatchW(r.l) + widest(r.value)))
+  const usedComputedW = Math.max(0, ...rows.map((r) => widest(r.computed)))
+  const boxW = 2 * TIP.padX + propW + TIP.gap + valueW + (hasComputed ? TIP.gap + usedComputedW : 0)
+  const span = (r: (typeof rows)[number]) => Math.max(r.value.length, r.computed.length)
+  const lineCount = rows.reduce((n, r) => n + span(r), 0)
   const boxH = 2 * TIP.padY + lineCount * TIP.line + (rows.length - 1) * TIP.rowGap
   const x = width - TIP.inset - boxW
   const y = height - TIP.inset - boxH
@@ -211,10 +221,13 @@ function drawTip(
 
   let top = y + TIP.padY
   const valueX = x + TIP.padX + propW + TIP.gap
-  for (const { l, parts } of rows) {
+  const computedX = valueX + valueW + TIP.gap
+  for (const r of rows) {
+    const { l } = r
     const mid = top + TIP.line / 2
     ctx.fillStyle = "#94a3b8"
     ctx.fillText(l.prop, x + TIP.padX, mid)
+    r.computed.forEach((part, i) => ctx.fillText(part, computedX, mid + i * TIP.line))
     if (l.swatch) {
       ctx.fillStyle = l.swatch
       ctx.fillRect(valueX, mid - TIP.swatch / 2, TIP.swatch, TIP.swatch)
@@ -223,8 +236,8 @@ function drawTip(
       ctx.strokeRect(valueX + 0.5, mid - TIP.swatch / 2 + 0.5, TIP.swatch - 1, TIP.swatch - 1)
     }
     ctx.fillStyle = "#f1f5f9"
-    parts.forEach((part, i) => ctx.fillText(part, valueX + swatchW(l), mid + i * TIP.line))
-    top += parts.length * TIP.line + TIP.rowGap
+    r.value.forEach((part, i) => ctx.fillText(part, valueX + swatchW(l), mid + i * TIP.line))
+    top += span(r) * TIP.line + TIP.rowGap
   }
   ctx.restore()
 }

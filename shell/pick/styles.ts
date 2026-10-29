@@ -5,7 +5,8 @@
 // defaults. A light cascade picks the winner: importance, layers,
 // specificity, then source order.
 
-export type StyleLine = { prop: string; value: string; swatch?: string }
+// `computed` is what the browser resolved it to, when that reads differently.
+export type StyleLine = { prop: string; value: string; swatch?: string; computed?: string }
 
 type Spec = [number, number, number]
 
@@ -14,6 +15,7 @@ type Group = {
   props: [string, string[]][] // broadest first: a rule's shorthand claims its slots before its longhands
   swatch?: Record<string, string> // slot → the computed property its color shows
   shown?: (cs: CSSStyleDeclaration) => boolean
+  computed?: Record<string, string> // prop → the computed property shown for it, when not itself
 }
 
 const T = "top"
@@ -44,8 +46,20 @@ const GROUPS: Group[] = [
   },
   {
     props: [
+      ["min-width", ["w"]],
+      ["min-inline-size", ["w"]],
+    ],
+  },
+  {
+    props: [
       ["height", ["h"]],
       ["block-size", ["h"]],
+    ],
+  },
+  {
+    props: [
+      ["min-height", ["h"]],
+      ["min-block-size", ["h"]],
     ],
   },
   { props: sides("margin") },
@@ -56,6 +70,7 @@ const GROUPS: Group[] = [
       ["background-color", ["bg"]],
     ],
     swatch: { bg: "background-color" },
+    computed: { background: "background-color" },
   },
   { props: [["color", ["fg"]]], swatch: { fg: "color" } },
   {
@@ -76,6 +91,7 @@ const GROUPS: Group[] = [
       ["font", ["size"]],
       ["font-size", ["size"]],
     ],
+    computed: { font: "font-size" },
   },
 ]
 
@@ -390,9 +406,15 @@ export function styleOverview(el: Element): StyleLine[] {
   return GROUPS.flatMap((group) => {
     if (group.shown && !group.shown(cs)) return []
     return resolveGroup(group, rules).map((c) => {
+      const line: StyleLine = {
+        prop: c.prop,
+        value: c.important ? `${c.value} !important` : c.value,
+      }
       const swatch = swatchOf(group, c, cs)
-      const value = c.important ? `${c.value} !important` : c.value
-      return swatch ? { prop: c.prop, value, swatch } : { prop: c.prop, value }
+      if (swatch) line.swatch = swatch
+      const computed = cs.getPropertyValue(group.computed?.[c.prop] ?? c.prop).trim()
+      if (computed && computed !== c.value) line.computed = computed
+      return line
     })
   })
 }

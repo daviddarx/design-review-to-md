@@ -88,10 +88,11 @@ describe("componentName", () => {
 })
 
 describe("describe", () => {
-  it("names the tag and size when no component is known", () => {
+  it("names the tag and every class when no component is known", () => {
     const el = document.createElement("button")
-    el.getBoundingClientRect = () => ({ width: 120.4, height: 32 }) as DOMRect
-    expect(describeEl(el)).toBe("button 120×32")
+    el.className = "icfm-button icfm-button--primary icfm-button--m"
+    expect(describeEl(el)).toBe("button.icfm-button.icfm-button--primary.icfm-button--m")
+    expect(describeEl(document.createElement("p"))).toBe("p")
   })
 })
 
