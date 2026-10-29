@@ -520,14 +520,19 @@ select.dr-review-select {
   padding-top: 4px;
   padding-bottom: 4px;
   display: grid;
-  grid-template-columns: minmax(5ch, max-content) minmax(0, 1fr) auto;
+  /* The actions' column is as wide on every row as the most a row can
+     carry (a row to review: six in the group, then Delete), so a row's text
+     keeps its width, and its lines, when its status changes what it shows. */
+  grid-template-columns: minmax(5ch, max-content) minmax(0, 1fr) calc(7 * 28px + 8px);
   align-items: start;
   column-gap: 6px;
 }
 
-/* Edit (an open feedback's own row), the group, then Delete, each on its own. */
+/* Edit (an open feedback's own row), the group, then Delete, each on its own,
+   at the right of their column. */
 .dr-row-side {
   display: flex;
+  justify-content: flex-end;
   gap: 8px;
   margin-top: 8px;
 }
