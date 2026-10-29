@@ -18,7 +18,8 @@ export type RowItemProps = {
   review: string
   owner: { rowId: string; pins: PinRef[] } | undefined // the pins this row uses, own or inherited
   recordPaths: string[] // one per pin of `owner`
-  records: (PinRecord | null | undefined)[] // undefined: not fetched yet
+  records: (PinRecord | null | undefined)[] // undefined: not fetched yet, or stale
+  shownRecords: (PinRecord | null | undefined)[] // stale ones included, until refetched
   pinsShown: boolean // Show pins is on for `owner`
   onLoadRecords(): Promise<(PinRecord | null)[]>
   onOp(op: Op, assets?: Asset[]): Promise<boolean>
@@ -39,6 +40,7 @@ export function RowItem({
   owner,
   recordPaths,
   records,
+  shownRecords,
   pinsShown,
   onLoadRecords,
   onOp,
@@ -65,7 +67,7 @@ export function RowItem({
 
   const feedbackNumber = Number(row.rowId.split(".")[0])
   const fetched = records.every((r) => r !== undefined)
-  const source = records.map((r) => r?.steps.at(-1)?.element.source).find(Boolean)
+  const source = shownRecords.map((r) => r?.steps.at(-1)?.element.source).find(Boolean)
 
   const run = async (op: Op) => {
     if (busy) return false

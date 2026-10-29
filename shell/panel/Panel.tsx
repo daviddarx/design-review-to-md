@@ -17,7 +17,7 @@ import type { CapturedPin } from "../pick/capture.ts"
 import { readKey, writeKey } from "../prefs.ts"
 import { ActionButton, Icon } from "./icons.tsx"
 import { counts, flattenRows, pinRecordPath } from "./listModel.ts"
-import type { Filter, PinTarget } from "./listModel.ts"
+import type { CachedRecord, Filter, PinTarget } from "./listModel.ts"
 import { FeedbackList } from "./FeedbackList.tsx"
 import { ShortcutHelp } from "./ShortcutHelp.tsx"
 import { ReviewSelect } from "./ReviewSelect.tsx"
@@ -98,10 +98,13 @@ export function Panel({
   const [error, setError] = useState<string | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null) // cleared by the next good load
   const [copied, setCopied] = useState(false)
-  const [records, setRecords] = useState<Record<string, PinRecord | null>>({})
+  // Each pin record with the cache generation it was fetched in: one from an
+  // older generation is stale, but still shown until its refetch lands.
+  const [records, setRecords] = useState<Record<string, CachedRecord>>({})
   const inflight = useRef(new Map<string, Promise<PinRecord | null>>())
   const loadSeq = useRef(0)
   const cacheGen = useRef(0) // bumped whenever the pin-record cache is dropped
+  const [recordGen, setRecordGen] = useState(0)
   const drag = useRef(false)
 
   const setPreferredWidth = (w: number) => {
@@ -145,7 +148,9 @@ export function Panel({
   }, [])
 
   // A sequence number drops responses that a newer load has overtaken. Each
-  // load also drops the cached pin records, since a re-pin rewrites them.
+  // load also makes the cached pin records stale, since a re-pin rewrites
+  // them; they stay on screen until refetched, so a row's actions (Open in
+  // VS Code reads the record) do not blink out and back on every reload.
   const load = useCallback(() => {
     if (!review) return
     const seq = ++loadSeq.current
@@ -155,8 +160,7 @@ export function Panel({
         setFeedbacks(data.feedbacks)
         setLoaded(true)
         setLoadError(null)
-        cacheGen.current++
-        setRecords({})
+        setRecordGen(++cacheGen.current)
         inflight.current.clear()
       },
       (err) => {
@@ -168,6 +172,7 @@ export function Panel({
   // A new review starts from nothing.
   useEffect(() => {
     setFeedbacks([])
+    setRecords({})
     setLoaded(false)
     setError(null)
     setLoadError(null)
@@ -213,7 +218,7 @@ export function Panel({
         .then((res) => (res.ok ? (res.json() as Promise<PinRecord>) : null))
         .catch(() => null)
         .then((record) => {
-          if (gen === cacheGen.current) setRecords((r) => ({ ...r, [path]: record }))
+          if (gen === cacheGen.current) setRecords((r) => ({ ...r, [path]: { record, gen } }))
           return record
         })
       inflight.current.set(path, promise)
@@ -478,6 +483,7 @@ export function Panel({
             rows={rows}
             review={review}
             records={records}
+            recordGen={recordGen}
             onLoadRecord={loadRecord}
             onOp={onOp}
             reopenStatus={reopenStatus}

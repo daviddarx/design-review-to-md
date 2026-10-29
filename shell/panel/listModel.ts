@@ -44,6 +44,9 @@ export type PinSpot = { pin: PinRef; recordPath: string; record: PinRecord | nul
 // inherits from — and its pins in order.
 export type PinTarget = { ownerRowId: string; pins: PinSpot[] }
 
+// A fetched pin record and the cache generation it was fetched in.
+export type CachedRecord = { record: PinRecord | null; gen: number }
+
 const STATUSES: Status[] = ["open", "review", "done"]
 
 type Node = { row: FlatRow; children: Node[] }

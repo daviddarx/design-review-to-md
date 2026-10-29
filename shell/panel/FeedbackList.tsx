@@ -3,13 +3,15 @@ import type { Asset } from "../api.ts"
 import type { CapturedPin } from "../pick/capture.ts"
 import type { PinRecord, Status } from "../../model/types.ts"
 import type { FlatRow, PinTarget } from "./listModel.ts"
+import type { CachedRecord } from "./listModel.ts"
 import { pinRecordPath } from "./listModel.ts"
 import { RowItem } from "./RowItem.tsx"
 
 type FeedbackListProps = {
   rows: FlatRow[]
   review: string
-  records: Record<string, PinRecord | null>
+  records: Record<string, CachedRecord>
+  recordGen: number // the cache's generation: a record from an older one is stale
   shownPinsOwner: string | null // the row whose pins Show pins keeps on screen
   onLoadRecord(path: string): Promise<PinRecord | null>
   onOp(rowId: string, op: Op, assets?: Asset[]): Promise<boolean>
@@ -26,6 +28,7 @@ type FeedbackListProps = {
 export function FeedbackList({
   rows,
   records,
+  recordGen,
   shownPinsOwner,
   onLoadRecord,
   onOp,
@@ -48,7 +51,10 @@ export function FeedbackList({
             row={row}
             owner={owner}
             recordPaths={paths}
-            records={paths.map((path) => records[path])}
+            records={paths.map((path) =>
+              records[path]?.gen === recordGen ? records[path].record : undefined
+            )}
+            shownRecords={paths.map((path) => records[path]?.record)}
             pinsShown={Boolean(owner && owner.rowId === shownPinsOwner)}
             onLoadRecords={() => Promise.all(paths.map(onLoadRecord))}
             onOp={(op, assets) => onOp(row.rowId, op, assets)}

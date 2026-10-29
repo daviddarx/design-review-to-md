@@ -575,6 +575,23 @@ describe("Panel", () => {
     expect(row("5.c").querySelector('[aria-label="Open in VS Code"]')).toBeNull()
   })
 
+  it("a reload keeps Open in VS Code on screen while the record is fetched again", async () => {
+    const path = "/__review/files/08.4/05-main-navigation/5.c-pin.json"
+    const step = { element: { source: { file: "src/x.tsx", line: 3 } } }
+    const record = () => json({ version: 1, at: "", steps: [step] })
+    held.set(path, Promise.resolve(record()))
+    await render()
+    const vscode = () => row("5.c").querySelector('[aria-label="Open in VS Code"]')
+    expect(vscode()).not.toBeNull()
+    const refetch = deferred()
+    held.set(path, refetch.promise)
+    await act(async () => FakeEventSource.last!.onmessage!({ data: '{"review":"08.4"}' }))
+    expect(calls.filter((c) => c.url === path)).toHaveLength(2)
+    expect(vscode()).not.toBeNull()
+    await act(async () => refetch.resolve(record()))
+    expect(vscode()).not.toBeNull()
+  })
+
   it("a successful load clears an earlier load error", async () => {
     reviewStatus = 500
     await render()
