@@ -115,6 +115,30 @@ describe("generated ids", () => {
   })
 })
 
+describe("random ids and classes", () => {
+  it("never anchors on an id with a random token (4+ letters and digits mixed)", () => {
+    document.body.innerHTML = `
+      <header class="toolbar"><button id="select-8e8vzsijnvl" class="css-1x9k2 tool">Light</button><button class="tool">Dark</button></header>`
+    const sel = roundTrips(document.getElementById("select-8e8vzsijnvl")!)
+    expect(sel).not.toContain("8e8vzsijnvl")
+    expect(sel).not.toContain("css-")
+    expect(sel).toBe("header.toolbar > button.tool:nth-of-type(1)")
+  })
+
+  it("keeps readable ids", () => {
+    document.body.innerHTML = `<div id="heading-2"><b id="main-nav">x</b></div>`
+    expect(roundTrips(document.getElementById("main-nav")!)).toBe("#main-nav")
+    expect(roundTrips(document.getElementById("heading-2")!)).toBe("#heading-2")
+  })
+
+  it("anchors on a class step unique in the document, adding nth-of-type only for look-alike siblings", () => {
+    document.body.innerHTML = `
+      <section class="card"><p class="label">a</p><p class="value">b</p></section>
+      <section class="card other"><p class="label">c</p><p class="value">d</p></section>`
+    expect(roundTrips(document.querySelectorAll(".value")[1])).toBe("section.other > p.value")
+  })
+})
+
 describe("openersOf", () => {
   it("names the triggers of the open popups an element sits in, outermost first", () => {
     document.body.innerHTML = `

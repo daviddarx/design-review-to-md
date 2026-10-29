@@ -25,7 +25,22 @@ const quoted = (v: string) => `"${v.replace(/["\\]/g, "\\$&")}"`
 // is named differently once the work panel mounted first — never anchored on,
 // except a popup's own id, which Go to pin and the markers put right through
 // its trigger's `aria-controls`.
-const GENERATED_ID = /[:«»]|(^|-)_[rR]_[0-9a-zA-Z]*_$/
+const REACT_ID = /[:«»]|(^|-)_[rR]_[0-9a-zA-Z]*_$/
+
+// A random token minted per load: a run of 4 or more characters mixing
+// letters and digits (`select-8e8vzsijnvl`, Storybook's toolbar; `css-1x9k2`,
+// a CSS-in-JS hash). A hand-written `step2` counts too — the path below
+// still finds it.
+const RANDOM_TOKEN = /(?=[a-z]*\d)(?=\d*[a-z])^[a-z0-9]{4,}$/i
+const hasRandomToken = (name: string) =>
+  name.split(/[^a-zA-Z0-9]+/).some((t) => RANDOM_TOKEN.test(t))
+
+const isGeneratedId = (id: string) => REACT_ID.test(id) || hasRandomToken(id)
+
+// Classes worth a selector: not a per-load or per-build hash.
+const HASHED_CLASS = /^(css|sc|jsx|svelte|emotion)-/
+const stableClasses = (el: Element) =>
+  Array.from(el.classList).filter((c) => !HASHED_CLASS.test(c) && !hasRandomToken(c))
 
 function markerOf(el: Element): string | null {
   for (const name of markers) {
@@ -48,6 +63,16 @@ function finds(doc: Document, sel: string, el: Element): boolean {
   }
 }
 
+// `sel` matches `el` and nothing else.
+function only(doc: Document, sel: string, el: Element): boolean {
+  try {
+    const all = doc.querySelectorAll(sel)
+    return all.length === 1 && all[0] === el
+  } catch {
+    return false
+  }
+}
+
 function nthOfType(el: Element): string {
   const parent = el.parentElement
   if (!parent) return ""
@@ -55,15 +80,39 @@ function nthOfType(el: Element): string {
   return same.length > 1 ? `:nth-of-type(${same.indexOf(el) + 1})` : ""
 }
 
-// Prefers `#id`, then a marker attribute, then a `tag:nth-of-type` path —
-// anchored on the nearest ancestor that is itself unique. Always satisfies
-// `el.ownerDocument.querySelector(selector) === el`. A generated id is used
-// only when it is in `popupIds`.
+// `tag.class`: the element's rarest stable class in the document (and the
+// next rarest, unless the first is unique), then `:nth-of-type` only when a
+// sibling would match as well. `base` is the step without it.
+function classStep(el: Element): { step: string; base: string } {
+  const doc = el.ownerDocument
+  const count = (c: string) => doc.getElementsByClassName(c).length
+  const rarest = stableClasses(el)
+    .map((c) => ({ c, n: count(c) }))
+    .sort((a, b) => a.n - b.n)
+  const picked = rarest[0]?.n === 1 ? rarest.slice(0, 1) : rarest.slice(0, 2)
+  const base = el.tagName.toLowerCase() + picked.map(({ c }) => `.${escapeIdent(c)}`).join("")
+  const siblings = Array.from(el.parentElement?.children ?? [])
+  const twins = siblings.filter((s) => {
+    try {
+      return s.matches(base)
+    } catch {
+      return false
+    }
+  })
+  return { step: twins.length > 1 ? base + nthOfType(el) : base, base }
+}
+
+// Prefers `#id`, then a marker attribute, then a path of `tag.class` steps
+// (`:nth-of-type` where siblings look alike) — anchored on the nearest
+// ancestor that is itself unique: an id, a marker, or a step that matches
+// nothing else in the document. Always satisfies
+// `el.ownerDocument.querySelector(selector) === el`. A generated id (React's,
+// or one with a random token) is used only when it is in `popupIds`.
 export function uniqueSelector(el: Element, popupIds: ReadonlySet<string> = new Set()): string {
   const doc = el.ownerDocument
   const tag = (n: Element) => n.tagName.toLowerCase()
   const idOf = (n: Element) =>
-    n.id && (popupIds.has(n.id) || !GENERATED_ID.test(n.id)) ? `#${escapeIdent(n.id)}` : null
+    n.id && (popupIds.has(n.id) || !isGeneratedId(n.id)) ? `#${escapeIdent(n.id)}` : null
 
   const own = idOf(el)
   if (own && finds(doc, own, el)) return own
@@ -74,7 +123,8 @@ export function uniqueSelector(el: Element, popupIds: ReadonlySet<string> = new 
   }
 
   // A bare `b` may be unique today and match something else tomorrow: the
-  // path only stops once it holds an id or a marker (or reaches the root).
+  // path only stops once it holds an id, a marker, a class step unique in the
+  // document (or reaches the root).
   const parts: string[] = []
   let anchored = false
   for (let node: Element | null = el; node; node = node.parentElement) {
@@ -87,8 +137,14 @@ export function uniqueSelector(el: Element, popupIds: ReadonlySet<string> = new 
       anchored = true
     } else {
       const m = node === el ? marker : markerOf(node)
-      if (m) anchored = true
-      parts.unshift(tag(node) + (m ?? "") + nthOfType(node))
+      if (m) {
+        anchored = true
+        parts.unshift(tag(node) + m + nthOfType(node))
+      } else {
+        const { step, base } = classStep(node)
+        if (base.includes(".") && only(doc, base, node)) anchored = true
+        parts.unshift(step)
+      }
     }
     const sel = parts.join(" > ")
     if (anchored && finds(doc, sel, el)) return sel
