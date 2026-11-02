@@ -3,6 +3,7 @@
 import { domToCanvas } from "modern-screenshot"
 import type { PinRecord, PinRef } from "../../model/types.ts"
 import { docOf, frameOffset } from "./frames.ts"
+import { tipCorner } from "./styles.ts"
 import type { StyleLine } from "./styles.ts"
 
 // What a pick hands back. No `png` when the render failed or timed out: the
@@ -82,8 +83,8 @@ async function renderViewport(
 // app's render laid over the frame's box (the library cannot see into it on
 // its own terms). Cropped to `crop` with `outline` stroked in red and a dot
 // where the click landed; all three are in the shell window's CSS pixels.
-// `tip`, when given, is the picker's style overview, drawn in the bottom-right
-// corner as it showed on screen.
+// `tip`, when given, is the picker's style overview, drawn in the corner
+// it showed in on screen: bottom-right unless that covers the element.
 export async function grabPng(
   frame: HTMLIFrameElement | null,
   withShell: boolean,
@@ -139,12 +140,16 @@ export async function grabPng(
   ctx.fill()
   ctx.strokeStyle = "#fff"
   ctx.stroke()
-  if (tip?.length) drawTip(ctx, tip, scale, crop.width, crop.height)
+  if (tip?.length) {
+    const { width, height } = outline
+    const box = { x: outline.x - crop.x, y: outline.y - crop.y, width, height }
+    drawTip(ctx, tip, scale, crop.width, crop.height, box)
+  }
   return canvas.toDataURL("image/png").split(",")[1] ?? ""
 }
 
 // The style overview's box (see .dr-style-tip), in CSS pixels times `scale`:
-// a three-column grid (property, written value, computed value), long values
+// a two-column grid, the computed value below the one written, long values
 // wrapped, its corner `TIP.inset` from the picture's bottom-right one.
 const TIP = {
   inset: 12,
@@ -153,7 +158,7 @@ const TIP = {
   gap: 12,
   rowGap: 3,
   line: 16,
-  maxWidth: 560,
+  maxWidth: 420,
   swatch: 10,
   font: "12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
 }
@@ -177,7 +182,8 @@ function drawTip(
   lines: StyleLine[],
   scale: number,
   width: number,
-  height: number
+  height: number,
+  outline: { x: number; y: number; width: number; height: number }
 ) {
   ctx.save()
   ctx.scale(scale, scale)
@@ -186,29 +192,24 @@ function drawTip(
   const widest = (texts: string[]) => Math.max(0, ...texts.map((t) => ctx.measureText(t).width))
   const propW = widest(lines.map((l) => l.prop))
   const swatchW = (l: StyleLine) => (l.swatch ? TIP.swatch + 6 : 0)
-  const hasComputed = lines.some((l) => l.computed)
-  const room = Math.max(
-    80,
+  const valueRoom = Math.max(
+    40,
     Math.min(TIP.maxWidth, width - 2 * TIP.inset) - 2 * TIP.padX - propW - TIP.gap
   )
-  // The computed column takes what it needs, up to half; the written one the rest.
-  const computedW = hasComputed
-    ? Math.min(widest(lines.map((l) => l.computed ?? "")), (room - TIP.gap) / 2)
-    : 0
-  const valueRoom = Math.max(40, room - (hasComputed ? computedW + TIP.gap : 0))
   const rows = lines.map((l) => ({
     l,
     value: wrap(ctx, l.value, valueRoom - swatchW(l)),
-    computed: l.computed ? wrap(ctx, l.computed, computedW) : [],
+    computed: l.computed ? wrap(ctx, l.computed, valueRoom) : [],
   }))
-  const valueW = Math.max(...rows.map((r) => swatchW(r.l) + widest(r.value)))
-  const usedComputedW = Math.max(0, ...rows.map((r) => widest(r.computed)))
-  const boxW = 2 * TIP.padX + propW + TIP.gap + valueW + (hasComputed ? TIP.gap + usedComputedW : 0)
-  const span = (r: (typeof rows)[number]) => Math.max(r.value.length, r.computed.length)
+  const valueW = Math.max(
+    ...rows.map((r) => Math.max(swatchW(r.l) + widest(r.value), widest(r.computed)))
+  )
+  const boxW = 2 * TIP.padX + propW + TIP.gap + valueW
+  const span = (r: (typeof rows)[number]) => r.value.length + r.computed.length
   const lineCount = rows.reduce((n, r) => n + span(r), 0)
   const boxH = 2 * TIP.padY + lineCount * TIP.line + (rows.length - 1) * TIP.rowGap
-  const x = width - TIP.inset - boxW
-  const y = height - TIP.inset - boxH
+  const area = { x: 0, y: 0, width, height }
+  const { x, y } = tipCorner({ width: boxW, height: boxH }, area, outline, TIP.inset)
 
   ctx.shadowColor = "rgb(15 23 42 / 0.3)"
   ctx.shadowBlur = 20
@@ -221,13 +222,13 @@ function drawTip(
 
   let top = y + TIP.padY
   const valueX = x + TIP.padX + propW + TIP.gap
-  const computedX = valueX + valueW + TIP.gap
   for (const r of rows) {
     const { l } = r
     const mid = top + TIP.line / 2
     ctx.fillStyle = "#94a3b8"
     ctx.fillText(l.prop, x + TIP.padX, mid)
-    r.computed.forEach((part, i) => ctx.fillText(part, computedX, mid + i * TIP.line))
+    const below = mid + r.value.length * TIP.line
+    r.computed.forEach((part, i) => ctx.fillText(part, valueX, below + i * TIP.line))
     if (l.swatch) {
       ctx.fillStyle = l.swatch
       ctx.fillRect(valueX, mid - TIP.swatch / 2, TIP.swatch, TIP.swatch)

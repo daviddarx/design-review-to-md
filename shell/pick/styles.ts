@@ -426,3 +426,32 @@ export const sizeLine = (box: { width: number; height: number }): StyleLine => (
   prop: "size",
   value: `${px(box.width)} × ${px(box.height)}`,
 })
+
+type Rect = { x: number; y: number; width: number; height: number }
+
+const overlap = (a: Rect, b: Rect) =>
+  Math.max(0, Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x)) *
+  Math.max(0, Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y))
+
+// Where the overview goes in `area`, `inset` from a corner: the bottom-right
+// one, else across on the x axis, then the y axis, the first that leaves
+// the element (`box`) uncovered — or covers the least of it.
+export function tipCorner(
+  tip: { width: number; height: number },
+  area: Rect,
+  box: Rect,
+  inset: number
+): { x: number; y: number } {
+  const left = area.x + inset
+  const right = area.x + area.width - inset - tip.width
+  const top = area.y + inset
+  const bottom = area.y + area.height - inset - tip.height
+  const corners = [
+    { x: right, y: bottom },
+    { x: left, y: bottom },
+    { x: right, y: top },
+    { x: left, y: top },
+  ]
+  const covered = corners.map((c) => overlap({ ...c, ...tip }, box))
+  return corners[covered.indexOf(Math.min(...covered))]
+}

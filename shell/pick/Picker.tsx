@@ -353,10 +353,10 @@ export function usePicker(frame: HTMLIFrameElement | null): Picker {
         {picking && box("dr-picker-box")}
         {shown?.label && (
           <div
-            className={`dr-picker-label${shown.box.y > 26 ? " dr-picker-label-above" : ""}`}
+            className="dr-picker-label"
             style={{
               left: Math.max(4, shown.box.x),
-              top: shown.box.y > 26 ? shown.box.y - 4 : shown.box.y + shown.box.height + 4,
+              top: shown.box.y > 26 ? shown.box.y - 24 : shown.box.y + shown.box.height + 4,
             }}
           >
             {shown.label}

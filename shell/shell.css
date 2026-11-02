@@ -1187,13 +1187,7 @@ select.dr-review-select {
     "Segoe UI",
     Roboto,
     sans-serif;
-  max-width: 480px;
-  overflow-wrap: anywhere;
-}
-
-/* Above the element, grown upwards when the classes wrap. */
-.dr-picker-label-above {
-  transform: translateY(-100%);
+  white-space: nowrap;
 }
 
 .dr-picker-hint {
@@ -1221,9 +1215,11 @@ select.dr-review-select {
 .dr-style-tip {
   position: absolute;
   display: grid;
-  grid-template-columns: auto minmax(0, max-content) minmax(0, max-content);
+  grid-template-columns: auto minmax(0, 1fr);
   gap: 3px 12px;
-  max-width: 560px;
+  /* Its own size wherever it is placed, so it can be measured to place it. */
+  width: max-content;
+  max-width: 420px;
   padding: 8px 10px;
   border-radius: 6px;
   background: #1e293b;
@@ -1246,12 +1242,13 @@ select.dr-review-select {
   white-space: nowrap;
 }
 
-.dr-style-value,
-.dr-style-computed {
+.dr-style-value {
   overflow-wrap: anywhere;
 }
 
+/* Below the value as written. */
 .dr-style-computed {
+  display: block;
   color: #94a3b8;
 }
 

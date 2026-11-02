@@ -1,6 +1,6 @@
 // @vitest-environment dr-happy-dom
 import { afterEach, describe, expect, it } from "vitest"
-import { resolveNested, specificity, splitList, styleOverview } from "./styles.ts"
+import { resolveNested, specificity, splitList, styleOverview, tipCorner } from "./styles.ts"
 
 afterEach(() => {
   document.head.innerHTML = ""
@@ -100,5 +100,26 @@ describe("styleOverview", () => {
     expect(
       overview(`@media (min-width: 1px) { #t { background: var(--surface) } }`, `<p id="t">x</p>`)
     ).toEqual(["background: var(--surface)"])
+  })
+})
+
+describe("tipCorner", () => {
+  const area = { x: 0, y: 0, width: 1000, height: 800 }
+  const tip = { width: 200, height: 100 }
+  const at = (x: number, y: number) => ({ x, y, width: 50, height: 50 })
+
+  it("takes the bottom-right corner when the element is elsewhere", () => {
+    expect(tipCorner(tip, area, at(100, 100), 12)).toEqual({ x: 788, y: 688 })
+  })
+
+  it("moves across on x, then on y, to leave the element uncovered", () => {
+    expect(tipCorner(tip, area, at(900, 720), 12)).toEqual({ x: 12, y: 688 })
+    const wide = { x: 0, y: 700, width: 1000, height: 50 }
+    expect(tipCorner(tip, area, wide, 12)).toEqual({ x: 788, y: 12 })
+  })
+
+  it("covers the least when every corner covers some", () => {
+    const most = { x: 0, y: 0, width: 1000, height: 750 }
+    expect(tipCorner(tip, area, most, 12)).toEqual({ x: 788, y: 688 })
   })
 })

@@ -181,12 +181,11 @@ export function componentName(el: Element): string | undefined {
   return undefined
 }
 
-// "Button · button.icfm-button.icfm-button--primary", or just the tag and
-// its classes outside a component. The size is in the style overview.
+// "NavItem 120×32", or "button 120×32" outside a component.
 export function describe(el: Element): string {
-  const tag = el.tagName.toLowerCase() + Array.from(el.classList, (c) => `.${c}`).join("")
-  const name = componentName(el)
-  return name ? `${name} · ${tag}` : tag
+  const { width, height } = el.getBoundingClientRect()
+  const name = componentName(el) ?? el.tagName.toLowerCase()
+  return `${name} ${Math.round(width)}×${Math.round(height)}`
 }
 
 // The open popups `el` sits in, found by their trigger: an element marked
