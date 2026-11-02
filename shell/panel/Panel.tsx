@@ -68,7 +68,7 @@ const FILTERS: { value: Filter; label: string }[] = [
 ]
 
 export const copyPromptText = (review: string, paths: Omit<RepoPaths, "root">) =>
-  `Commit review folder (${paths.reviews}/${review}) and work through its open feedbacks — follow ${paths.agents}.`
+  `Commit review folder (${paths.reviews}/${review}) and work through every row tagged \`open\` in it, refined ones included — follow ${paths.agents}.`
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err))
 

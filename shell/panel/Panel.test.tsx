@@ -174,7 +174,7 @@ describe("Panel", () => {
       b.querySelector("[data-reserve='Copy prompt']")
     )!
     expect(copy.title).toBe(
-      "Commit review folder (docs/review/08.4) and work through its open feedbacks — follow ../tool/AGENTS.md."
+      "Commit review folder (docs/review/08.4) and work through every row tagged `open` in it, refined ones included — follow ../tool/AGENTS.md."
     )
   })
 

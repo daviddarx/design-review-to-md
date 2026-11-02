@@ -6,13 +6,15 @@ Be strict and terse. No chattiness in the files.
 ## Before you start
 
 1. Read every `open` row of the review first — its `briefing.md`, pin screenshots and `pin.json`, attachments, and the code they point to. Change nothing yet.
+   - Open every `briefing.md` and scan every row. An `open` row can sit in any feedback, whatever its title's tag: a title tagged `review` or `done`, an older folder, a feedback you already worked on. Never pick feedbacks by their title or by which folders are new.
+   - A **refined** row is an `open` row with a `- Before:` line under it (a feedback without rows: an `open` title with `- Before:` lines at the left margin below it). He changed his request after your work: its text is the new request, the newest `Before:` what he asked for until now, and a `Claude:` note what you answered. Rework what you built for it to the new text; do not start from scratch or build it twice.
 2. Note what is unclear: a row that reads two ways, rows that contradict each other, a design decision he has not made, a pin you cannot find in the code, a request that would break something else.
 3. Nothing unclear: go ahead. Otherwise ask in the terminal before touching any code — one question at a time, naming the row (`5.c`), multiple choice when you can, your recommendation first. Wait for his answer before the next question.
 4. Ask only what changes what you build; a sensible default is not a question. Questions and answers stay in the terminal, never in the files. If he leaves it to you, decide.
 
 ## Rules
 
-- Work only on rows tagged `open`, in the review you were given.
+- Work only on rows tagged `open`, in the review you were given — new and refined alike.
 - After implementing a row, change its tag to `review`. Touch nothing else on that line.
 - Add a `- Claude: …` line under a row **only** if the result differs from what he asked, something was not possible, or he must decide something. One line, as short as possible.
 - **Never** write "done", "fixed", "implemented", or a restatement of the request. A row with nothing to report changes status silently.
@@ -52,7 +54,7 @@ A row with no pin of its own belongs to the pin of its nearest parent.
 ```
 
 - Row line: ``- <label>. <text> `open|review|done` ``. Sub-rows nest two spaces deeper.
-- The title line carries a tag too (``# 6. Font weights `open` ``): it is the feedback as a whole. With no rows, treat it as a row. With rows, set it to `review` once none of them is left `open`. An older title without a tag has nothing to set.
+- The title line carries a tag too (``# 6. Font weights `open` ``): it is the feedback as a whole. With no rows, treat it as a row. With rows, set it to `review` once none of them is left `open`. An older title without a tag has nothing to set. A refined row does not reopen its title: a title tagged `review` or `done` can still hold `open` rows.
 - Pin line: `📍 <path> — ![](<rowId>-pin.png)`, or just `📍 <path>` when there is no screenshot. A pin on the review tool itself has the path `(review tool)`.
 - `📎 [<file>](<file>)` lines are attachments.
 - `Before:` is his earlier wording, `Claude:` is yours. Oldest first, under the row.
