@@ -7,6 +7,7 @@ import { App } from "./App.tsx"
 // The test frame shows this very document, which a real render would walk
 // into again through the frame; the pin goes without a picture.
 vi.mock("modern-screenshot", () => ({
+  createContext: async (_node: Node, options: object) => ({ ...options }),
   domToCanvas: async () => {
     throw new Error("no render in tests")
   },

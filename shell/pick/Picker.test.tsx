@@ -9,6 +9,7 @@ import { usePicker, type Picker } from "./Picker.tsx"
 // once the test calls `failRender`.
 let failRender = () => {}
 vi.mock("modern-screenshot", () => ({
+  createContext: async (_node: Node, options: object) => ({ ...options }),
   domToCanvas: () =>
     new Promise((_, reject) => {
       failRender = () => reject(new Error("render failed"))

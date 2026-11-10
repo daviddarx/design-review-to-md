@@ -1,6 +1,6 @@
 // A picture of what is on screen, rendered from the DOM, and the app's
 // localStorage.
-import { domToCanvas } from "modern-screenshot"
+import { createContext, domToCanvas } from "modern-screenshot"
 import type { PinRecord, PinRef } from "../../model/types.ts"
 import { docOf, frameOffset } from "./frames.ts"
 import { tipCorner } from "./styles.ts"
@@ -32,6 +32,48 @@ function withTimeout<T>(promise: Promise<T>, ms: number, what: string): Promise<
   return Promise.race([promise, timeout]).finally(() => clearTimeout(id))
 }
 
+// The render clones the page on the main thread, an element at a time; left
+// alone, a page of a few thousand elements froze the tool for seconds (the
+// drawer's fields took no typing). It hands the thread back this often.
+const SLICE_MS = 12
+
+const nextTask = () =>
+  new Promise<void>((resolve) => {
+    const channel = new MessageChannel()
+    channel.port1.onmessage = () => resolve()
+    channel.port2.postMessage(null)
+  })
+
+function yieldEvery(ms: number): () => Promise<void> {
+  let since = performance.now()
+  return async () => {
+    if (performance.now() - since < ms) return
+    await nextTask()
+    since = performance.now()
+  }
+}
+
+// The library reads each tag's default styles from a sandbox iframe. Its own
+// loads from `srcdoc`, which lands later and empties the sandbox mid-render
+// once the render yields; this one is written at once, in standards mode.
+function sandboxIn(doc: Document): HTMLIFrameElement | undefined {
+  const frame = doc.createElement("iframe")
+  frame.width = "0"
+  frame.height = "0"
+  frame.style.visibility = "hidden"
+  frame.style.position = "fixed"
+  doc.body.append(frame)
+  const inner = frame.contentDocument
+  if (!inner) {
+    frame.remove()
+    return undefined
+  }
+  inner.open()
+  inner.write('<!DOCTYPE html><meta charset="UTF-8"><title></title><body>')
+  inner.close()
+  return frame
+}
+
 const isIframe = (node: Node): node is HTMLIFrameElement =>
   (node as Element).tagName === "IFRAME" || (node as Element).tagName === "FRAME"
 
@@ -53,14 +95,30 @@ async function renderViewport(
   const nested = Array.from(doc.querySelectorAll("iframe, frame")).filter(
     (f): f is HTMLIFrameElement => isIframe(f) && f !== skip && Boolean(docOf(f))
   )
-  const canvas = await domToCanvas(doc.documentElement, {
+  const context = await createContext(doc.documentElement, {
     width: win.innerWidth,
     height: win.innerHeight,
     scale,
     timeout: CAPTURE_MS,
     features: { restoreScrollPosition: true },
     filter: (node) => node !== skip && !nested.includes(node as HTMLIFrameElement),
+    // Every property but the custom ones: their values are already resolved
+    // in the others, and copying them (Tailwind registers hundreds, inherited
+    // by every element) took most of the render's time and size.
+    includeStyleProperties: Array.from(win.getComputedStyle(doc.documentElement)).filter(
+      (name) => !name.startsWith("--")
+    ),
+    onCloneEachNode: yieldEvery(SLICE_MS),
+    autoDestruct: true,
   })
+  const sandbox = sandboxIn(doc)
+  if (sandbox) context.sandbox = sandbox
+  let canvas: HTMLCanvasElement
+  try {
+    canvas = await domToCanvas(context)
+  } finally {
+    sandbox?.remove() // already gone after a render that finished
+  }
   const ctx = canvas.getContext("2d")
   for (const frame of nested) {
     const inner = docOf(frame)
