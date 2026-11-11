@@ -1,9 +1,15 @@
 // Usage: node <this package>/server/cli.ts [--port <n>] [--target <n>] [--markers <a,b>]
 //          --root docs/review -- <app command…, {target} for the app's port>
+//        node <this package>/server/cli.ts --remote [--url <url>] [--markers <a,b>]
 import { spawn } from "node:child_process"
 import { mkdirSync } from "node:fs"
 import net from "node:net"
 import path from "node:path"
+import readline from "node:readline/promises"
+import { loadChromeCookies } from "./remote/chromeCookies.ts"
+import { CookieJar } from "./remote/cookieJar.ts"
+import type { RemoteTarget } from "./remote/remoteProxy.ts"
+import { chooseRound, REMOTE_BASE, remotePort, urlKey } from "./remote/rounds.ts"
 import { createReviewServer } from "./server.ts"
 import { createShellBuild } from "./shellBuild.ts"
 import { Storage } from "./storage.ts"
@@ -12,8 +18,35 @@ import { Storage } from "./storage.ts"
 // --markers: comma-separated attributes the picker anchors on first, e.g.
 // `data-testid,data-tour-id`.
 type Args = { port?: number; target?: number; root: string; markers: string[]; command: string[] }
+// --remote: review a deployed site at --url (asked for when missing).
+type RemoteArgs = { remote: true; url?: string; markers: string[] }
 
-export function parseArgs(argv: string[]): Args {
+function parseMarkers(value: string | undefined): string[] {
+  return (value ?? "")
+    .split(",")
+    .map((m) => m.trim())
+    .filter(Boolean)
+}
+
+function parseRemoteArgs(argv: string[]): RemoteArgs {
+  const values: Record<string, string> = {}
+  for (let i = 0; i < argv.length; i += 2) {
+    const name = argv[i]
+    const value = argv[i + 1]
+    if (!["--url", "--markers"].includes(name) || value === undefined) {
+      throw new Error("Usage: cli.ts --remote [--url <url>] [--markers <a,b>]")
+    }
+    values[name.slice(2)] = value
+  }
+  const markers = parseMarkers(values.markers)
+  return values.url === undefined
+    ? { remote: true, markers }
+    : { remote: true, url: values.url, markers }
+}
+
+export function parseArgs(argv: string[]): Args | RemoteArgs {
+  const remote = argv.indexOf("--remote")
+  if (remote !== -1) return parseRemoteArgs(argv.toSpliced(remote, 1))
   const sep = argv.indexOf("--")
   const flags = sep === -1 ? argv : argv.slice(0, sep)
   const command = sep === -1 ? [] : argv.slice(sep + 1)
@@ -34,10 +67,7 @@ export function parseArgs(argv: string[]): Args {
       "Usage: cli.ts [--port <n>] [--target <n>] [--markers <a,b>] --root <dir> -- <app command…>"
     )
   }
-  const markers = (values.markers ?? "")
-    .split(",")
-    .map((m) => m.trim())
-    .filter(Boolean)
+  const markers = parseMarkers(values.markers)
   return { port, target, root: values.root, markers, command }
 }
 
@@ -92,13 +122,14 @@ export function isReadyOutput(text: string): boolean {
 }
 
 async function main() {
-  let parsed: Args
+  let parsed: Args | RemoteArgs
   try {
     parsed = parseArgs(process.argv.slice(2))
   } catch (err) {
     console.error((err as Error).message)
     process.exit(2)
   }
+  if ("remote" in parsed) return remoteMain(parsed)
   const ports = await pickPorts(parsed).catch((err: Error) => {
     console.error(`[design-review] ${err.message}`)
     process.exit(1)
@@ -166,6 +197,80 @@ async function main() {
     })
   }
   process.on("exit", () => killChild())
+}
+
+function fail(message: string): never {
+  console.error(`[design-review] ${message}`)
+  process.exit(1)
+}
+
+// Reviews a deployed site: no app to start, the proxy's target is the remote
+// origin, with the cookies of his Chrome login. Reviews go to rounds on the
+// Desktop (server/remote/rounds.ts).
+async function remoteMain(args: RemoteArgs) {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
+  const ask = (q: string) => rl.question(q)
+
+  const raw = args.url ?? (await ask("URL to review: ")).trim()
+  const url = URL.parse(raw)
+  if (!url || !["https:", "http:"].includes(url.protocol)) {
+    rl.close()
+    fail(`Not an http(s) URL: ${raw}`)
+  }
+  const host = url.hostname
+
+  console.log(
+    '[design-review] macOS may ask to let node read "Chrome Safe Storage" — choose Always Allow.'
+  )
+  let profile: string | undefined
+  const pickProfile = async (names: string[]) => {
+    const list = names.map((n, i) => `${i + 1}) ${n}`).join(" ")
+    const answer = await ask(
+      `Several Chrome profiles have cookies for ${host}: ${list} Which one? `
+    )
+    profile = names[Number(answer.trim()) - 1] ?? answer.trim()
+    return profile
+  }
+  let cookies
+  try {
+    cookies = await loadChromeCookies(host, pickProfile)
+  } catch (err) {
+    rl.close()
+    fail((err as Error).message)
+  }
+
+  const key = urlKey(url.href)
+  const round = await chooseRound(REMOTE_BASE, key, ask)
+  // Closed before listening: an open interface would swallow Ctrl+C.
+  rl.close()
+
+  const port = remotePort(key)
+  if (!(await isFree(port))) fail(`Port ${port} for ${host} is taken — close what holds it`)
+
+  const jar = new CookieJar(cookies)
+  const target: RemoteTarget = {
+    origin: new URL(url.origin),
+    jar,
+    // The profile chosen at startup, without asking again.
+    refresh: async () => {
+      jar.replace(await loadChromeCookies(host, async (names) => profile ?? names[0]))
+    },
+    stale: false,
+  }
+  const shell = createShellBuild()
+  const server = createReviewServer({
+    targetPort: 0,
+    storage: new Storage(REMOTE_BASE, { stateRoot: path.join(REMOTE_BASE, ".state") }),
+    shellAssets: () => shell.assets(),
+    markers: args.markers,
+    remote: { target, url: url.href, round },
+  })
+  server.on("error", (err) => fail(err.message))
+  server.listen(port, "localhost", () => {
+    console.log(`[design-review] Open http://localhost:${port}${url.pathname}${url.search}`)
+    console.log(`[design-review] Round ${round} in ${REMOTE_BASE}`)
+  })
+  for (const signal of ["SIGINT", "SIGTERM"] as const) process.on(signal, () => process.exit(0))
 }
 
 if (import.meta.main) void main()

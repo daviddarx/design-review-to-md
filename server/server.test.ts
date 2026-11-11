@@ -10,6 +10,7 @@ import { resolveEditorTarget } from "./openEditor.ts"
 import { createShellBuild } from "./shellBuild.ts"
 import { reviewOf } from "./events.ts"
 import { parseArgs } from "./cli.ts"
+import { CookieJar } from "./remote/cookieJar.ts"
 import { pinAssets } from "../shell/drawer/draft.ts"
 import { resolveSource, sourceFromStack } from "../shell/source/sourceLookup.ts"
 import type { PinRecord } from "../model/types.ts"
@@ -521,5 +522,70 @@ describe("cli", () => {
     expect(() => parseArgs(["--port", "3000", "--target", "3001", "--root", "r"])).toThrow()
     expect(() => parseArgs(["--port", "x", "--root", "r", "--", "y"])).toThrow()
     expect(() => parseArgs(["--bogus", "1", "--", "x"])).toThrow()
+  })
+})
+
+describe("remote", () => {
+  let remote: http.Server
+  let remoteUpstream: http.Server
+
+  beforeEach(async () => {
+    remoteUpstream = http.createServer((req, res) => {
+      res.writeHead(200, { "content-type": "text/plain" })
+      res.end(`remote ${req.url} ${req.headers.cookie ?? ""}`)
+    })
+    const upstreamPort = await listen(remoteUpstream)
+    remote = createReviewServer({
+      targetPort: 1, // ignored in remote mode
+      storage: new Storage(root),
+      shellAssets: async () => ({ js: "", css: "" }),
+      markers: [],
+      remote: {
+        target: {
+          origin: new URL(`http://localhost:${upstreamPort}`),
+          jar: new CookieJar([
+            {
+              name: "sid",
+              value: "s1",
+              domain: "localhost",
+              path: "/",
+              secure: false,
+              hostOnly: true,
+            },
+          ]),
+          refresh: async () => {},
+          stale: false,
+        },
+        url: "https://x.ch/a",
+        round: "x.ch_a-0",
+      },
+    })
+    base = `http://localhost:${await listen(remote)}`
+  })
+
+  afterEach(async () => {
+    await close(remote)
+    await close(remoteUpstream)
+  })
+
+  it("proxies to the remote origin with the jar's cookies", async () => {
+    const res = await request("GET", "/api/x")
+    expect(res.status).toBe(200)
+    expect(res.body).toBe("remote /api/x sid=s1")
+  })
+
+  it("serves the shell with the remote url and round in its config", async () => {
+    const res = await request("GET", "/a", { headers: { "sec-fetch-dest": "document" } })
+    expect(res.body).toContain('"remote":{"url":"https://x.ch/a","round":"x.ch_a-0"}')
+  })
+
+  it("has no editor or source lookup, and no repo paths for the prompt", async () => {
+    const open = await request("POST", "/__review/api/open-editor", {
+      json: { file: "a.ts", line: 1 },
+    })
+    expect(open.status).toBe(404)
+    expect((await request("GET", "/__review/api/resolve-source?name=a.ts")).status).toBe(404)
+    const repo = JSON.parse((await request("GET", "/__review/api/repo-root")).body)
+    expect(repo).toEqual({ root: path.resolve(root), reviews: "", agents: "" })
   })
 })

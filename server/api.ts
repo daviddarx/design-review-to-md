@@ -21,6 +21,7 @@ export type ApiContext = {
   storage: Storage
   repoRoot: string
   resolveSource: (name: string, from?: string) => Promise<ResolvedSource>
+  remote?: boolean // a deployed site: no repo to open, search or point the prompt at
 }
 
 function sendJson(res: http.ServerResponse, status: number, body: unknown) {
@@ -111,6 +112,9 @@ export async function handleApi(
   // record a pin's source repo-relative. `reviews` and `agents` go into the
   // copied prompt, relative to the repo the agent runs in.
   if (head === "repo-root" && parts.length === 1 && method === "GET") {
+    if (ctx.remote) {
+      return sendJson(res, 200, { root: ctx.storage.root, reviews: "", agents: "" })
+    }
     const root = path.resolve(ctx.repoRoot)
     return sendJson(res, 200, {
       root,
@@ -121,6 +125,9 @@ export async function handleApi(
   // A source map that gave only a file's basename (Vite, for a
   // workspace-linked package): the shell asks which file of the repo it is.
   // `from` is the script URL the stack frame was in.
+  if (ctx.remote && (head === "resolve-source" || head === "open-editor")) {
+    throw new HttpError(404, "Not found")
+  }
   if (head === "resolve-source" && parts.length === 1 && method === "GET") {
     const query = new URL(req.url ?? "/", "http://localhost").searchParams
     const name = query.get("name") ?? ""

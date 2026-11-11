@@ -5,6 +5,7 @@ import { handleApi, handleFile, HttpError, sendError } from "./api.ts"
 import { createChangeFeed } from "./events.ts"
 import { createSourceResolver } from "./findFiles.ts"
 import { proxyRequest, proxyUpgrade } from "./proxy.ts"
+import { proxyRemoteRequest, proxyRemoteUpgrade, type RemoteTarget } from "./remote/remoteProxy.ts"
 import type { Storage } from "./storage.ts"
 
 export type ReviewServerOptions = {
@@ -13,6 +14,9 @@ export type ReviewServerOptions = {
   shellAssets: () => Promise<{ js: string; css: string }>
   repoRoot?: string // open-editor confinement and source search; defaults to process.cwd()
   markers: string[] // attributes the picker anchors on first (--markers)
+  // Review a deployed site: everything not ours goes to `target` (targetPort
+  // is ignored), and there is no local source to open or search.
+  remote?: { target: RemoteTarget; url: string; round: string }
 }
 
 const TOOL_PREFIX = "/__review/"
@@ -33,8 +37,8 @@ export function isLocalHost(host: string | undefined): boolean {
 // The shell's settings ride in the document itself (shell/config.ts reads
 // them), so they are there before the first pick. `<` is escaped so a value
 // cannot close the script element.
-export function shellHtml(markers: string[]): string {
-  const config = JSON.stringify({ markers }).replace(/</g, "\\u003c")
+export function shellHtml(markers: string[], remote?: { url: string; round: string }): string {
+  const config = JSON.stringify({ markers, remote }).replace(/</g, "\\u003c")
   return SHELL_HTML.replace(
     "<body>\n",
     `<body>\n<script id="dr-config" type="application/json">${config}</script>\n`
@@ -59,8 +63,14 @@ const SHELL_HTML = `<!doctype html>
 export function createReviewServer(opts: ReviewServerOptions): http.Server {
   const { targetPort, storage, shellAssets } = opts
   const repoRoot = opts.repoRoot ?? process.cwd()
-  const ctx = { storage, repoRoot, resolveSource: createSourceResolver(repoRoot) }
-  const html = shellHtml(opts.markers)
+  const { remote } = opts
+  const ctx = {
+    storage,
+    repoRoot,
+    resolveSource: createSourceResolver(repoRoot),
+    remote: Boolean(remote),
+  }
+  const html = shellHtml(opts.markers, remote && { url: remote.url, round: remote.round })
   mkdirSync(storage.root, { recursive: true })
   const feed = createChangeFeed(storage.root)
   const tunnels = new Set<Duplex>()
@@ -103,7 +113,8 @@ export function createReviewServer(opts: ReviewServerOptions): http.Server {
       res.end(html)
       return
     }
-    proxyRequest(targetPort, req, res)
+    if (remote) proxyRemoteRequest(remote.target, req, res)
+    else proxyRequest(targetPort, req, res)
   })
 
   server.on("upgrade", (req, socket, head) => {
@@ -115,10 +126,12 @@ export function createReviewServer(opts: ReviewServerOptions): http.Server {
       }
       return
     }
-    proxyUpgrade(targetPort, req, socket, head, (s) => {
+    const track = (s: Duplex) => {
       tunnels.add(s)
       s.on("close", () => tunnels.delete(s))
-    })
+    }
+    if (remote) proxyRemoteUpgrade(remote.target, req, socket, head, track)
+    else proxyUpgrade(targetPort, req, socket, head, track)
   })
 
   // Close the watcher, the SSE streams and any websocket tunnel with the

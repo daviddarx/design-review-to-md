@@ -61,3 +61,21 @@ describe("parseArgs", () => {
     ).toEqual(["data-slot", "data-tour-id"])
   })
 })
+
+describe("parseArgs --remote", () => {
+  it("needs no root or command, the url is optional", () => {
+    expect(parseArgs(["--remote"])).toEqual({ remote: true, markers: [] })
+    expect(parseArgs(["--remote", "--url", "https://x.ch/a"])).toEqual({
+      remote: true,
+      url: "https://x.ch/a",
+      markers: [],
+    })
+    expect(parseArgs(["--remote", "--markers", "data-slot"]).markers).toEqual(["data-slot"])
+    expect(parseArgs(["--url", "https://x.ch", "--remote"])).toMatchObject({ remote: true })
+  })
+
+  it("leaves local usage as it was", () => {
+    expect(() => parseArgs(["--", "npx", "next", "dev"])).toThrow(/Usage/)
+    expect(() => parseArgs(["--url", "https://x.ch", "--root", "r", "--", "x"])).toThrow()
+  })
+})
