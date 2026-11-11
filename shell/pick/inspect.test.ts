@@ -5,6 +5,7 @@ import {
   componentName,
   describe as describeEl,
   openersOf,
+  resolvePickTarget,
   setMarkers,
   uniqueSelector,
 } from "./inspect.ts"
@@ -152,5 +153,38 @@ describe("openersOf", () => {
       { selector: '[data-slot="inner"]', controls: "p2" },
     ])
     expect(openersOf(document.querySelector("i")!)).toEqual([])
+  })
+})
+
+describe("resolvePickTarget", () => {
+  const stub = (stack: Element[]) => {
+    document.elementsFromPoint = () => stack
+  }
+  const setup = (overlayHtml: string, withCanvas = true) => {
+    document.body.innerHTML = `${withCanvas ? "<canvas></canvas>" : ""}${overlayHtml}`
+    const canvas = document.querySelector("canvas")
+    const overlay = document.querySelector("div")!
+    stub([overlay, ...(canvas ? [canvas] : []), document.body])
+    return { canvas, overlay }
+  }
+
+  it("an empty overlay over a canvas is the canvas", () => {
+    const { canvas, overlay } = setup("<div></div>")
+    expect(resolvePickTarget(document, overlay, 5, 5)).toBe(canvas)
+  })
+
+  it("an overlay with text is kept", () => {
+    const { overlay } = setup("<div>hello</div>")
+    expect(resolvePickTarget(document, overlay, 5, 5)).toBe(overlay)
+  })
+
+  it("an overlay with children is kept", () => {
+    const { overlay } = setup("<div><span></span></div>")
+    expect(resolvePickTarget(document, overlay, 5, 5)).toBe(overlay)
+  })
+
+  it("an empty div with no canvas below is kept", () => {
+    const { overlay } = setup("<div></div>", false)
+    expect(resolvePickTarget(document, overlay, 5, 5)).toBe(overlay)
   })
 })

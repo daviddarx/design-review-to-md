@@ -4,7 +4,14 @@ import type { PinRecord, PinStep } from "../../model/types.ts"
 import { grabPng, snapshotLocalStorage } from "./capture.ts"
 import type { CapturedPin } from "./capture.ts"
 import { docOf, frameChainOf, framesTo, offsetWithin, watchDocuments } from "./frames.ts"
-import { componentName, describe, openersOf, uniqueSelector } from "./inspect.ts"
+import {
+  componentName,
+  describe,
+  isCanvasTag,
+  openersOf,
+  resolvePickTarget,
+  uniqueSelector,
+} from "./inspect.ts"
 import { clearSourceCache, sourceOf } from "../source/sourceLookup.ts"
 import { isSpot } from "./PinMarkers.tsx"
 import { StyleTip } from "./StyleTip.tsx"
@@ -77,7 +84,7 @@ function shellBox(el: Element, frame: HTMLIFrameElement | null): Box {
   return { x: r.left + off.x, y: r.top + off.y, width: r.width, height: r.height }
 }
 
-const isCanvas = (el: Element) => el.tagName.toLowerCase() === "canvas"
+const isCanvas = (el: Element) => isCanvasTag(el.tagName)
 
 const rect = (b: Box) => new DOMRect(b.x, b.y, b.width, b.height)
 
@@ -190,7 +197,7 @@ export function usePicker(frame: HTMLIFrameElement | null): Picker {
       new Promise<Picked | null>((resolve) => {
         const inLayer = (el: Element) => Boolean(layerRef.current?.contains(el))
         const toPicked = (el: Element, e?: MouseEvent): Picked => ({
-          el,
+          el: e ? resolvePickTarget(el.ownerDocument, el, e.clientX, e.clientY) : el,
           mouse: e ? { x: e.clientX, y: e.clientY } : (hovered.current?.mouse ?? { x: 0, y: 0 }),
         })
         // Only the app is pinned — its own document or a same-origin iframe

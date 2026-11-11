@@ -220,3 +220,16 @@ export function openersOf(el: Element): PinOpener[] {
     }
   })
 }
+
+export const isCanvasTag = (tag: string): boolean => tag.toLowerCase() === "canvas"
+
+// Canvas apps (Avalonia WASM) lay an empty sibling div over the <canvas>;
+// the pointer lands on it. An element with no children and no text that
+// has a canvas beneath it stands for that canvas. (x, y) are in `el`'s own
+// document, like the event's.
+export function resolvePickTarget(doc: Document, el: Element, x: number, y: number): Element {
+  if (isCanvasTag(el.tagName) || el.children.length || el.textContent?.trim()) return el
+  const stack = doc.elementsFromPoint?.(x, y) ?? []
+  const below = stack.slice(stack.indexOf(el) + 1)
+  return below.find((e) => isCanvasTag(e.tagName)) ?? el
+}

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import type { PinStep } from "../../model/types.ts"
 import { resolveFrames } from "./frames.ts"
+import { isCanvasTag } from "./inspect.ts"
 import { followOpeners } from "./goToPin.ts"
 import { replayHover } from "./replayHover.ts"
 
@@ -11,7 +12,7 @@ export type Marker = { key: string; label: string; step: PinStep; onRemove?: () 
 
 // A pin on a <canvas> marks a spot in a surface the app draws itself: there
 // is no element to style or hover, only the click's place.
-export const isSpot = (step: PinStep): boolean => step.element.tag.toLowerCase() === "canvas"
+export const isSpot = (step: PinStep): boolean => isCanvasTag(step.element.tag)
 
 type Spot = { x: number; y: number; exact: boolean }
 type Placed = { key: string; label: string } & Spot

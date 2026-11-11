@@ -186,6 +186,34 @@ describe("usePicker", () => {
     })
   }, 5000)
 
+  it("an empty overlay over a canvas is picked as the canvas spot", async () => {
+    vi.mocked(grabPng).mockClear()
+    await act(async () => root.render(<Harness />))
+    host.insertAdjacentHTML("beforeend", `<canvas id="map"></canvas><div id="overlay"></div>`)
+    const canvas = host.querySelector("canvas")!
+    const overlay = host.querySelector("#overlay")!
+    document.elementsFromPoint = () => [overlay, canvas]
+    let pending!: Promise<CapturedPin | null>
+    await act(async () => {
+      pending = picker.startPick()
+    })
+    await act(async () => {
+      overlay.dispatchEvent(new PointerEvent("pointermove", { bubbles: true }))
+    })
+    expect(document.querySelector(".dr-style-tip")).toBeNull()
+    await act(async () => {
+      overlay.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }))
+    })
+    let result: CapturedPin | null = null
+    await act(async () => {
+      result = await pending
+    })
+    expect(result!.record.steps[0].element.tag).toBe("canvas")
+    const args = vi.mocked(grabPng).mock.calls[0]
+    expect(args[5]).toBeUndefined()
+    expect(args[6]).toBe(true)
+  }, 5000)
+
   it("does not pick the tool's own UI", async () => {
     frameDoc = document.implementation.createHTMLDocument("app") // the app is elsewhere
     await act(async () => root.render(<Harness />))
