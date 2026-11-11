@@ -611,6 +611,23 @@ describe("remote", () => {
     expect(status).toBe(403)
   })
 
+  it("refuses an upgrade with a non-loopback Host", async () => {
+    const { hostname, port } = new URL(base)
+    const status = await new Promise<number>((resolve, reject) => {
+      const req = http.request({
+        hostname,
+        port,
+        path: "/ws",
+        headers: { connection: "Upgrade", upgrade: "websocket", host: "evil.example" },
+      })
+      req.on("response", (res) => resolve(res.statusCode!))
+      req.on("upgrade", () => resolve(101))
+      req.on("error", reject)
+      req.end()
+    })
+    expect(status).toBe(403)
+  })
+
   it("serves the shell with the remote url and round in its config", async () => {
     const res = await request("GET", "/a", { headers: { "sec-fetch-dest": "document" } })
     expect(res.body).toContain('"remote":{"url":"https://x.ch/a","round":"x.ch_a-0"}')
