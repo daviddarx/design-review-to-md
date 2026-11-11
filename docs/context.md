@@ -627,3 +627,63 @@ plan beside it.
   nothing of Claude's to validate. Devalidate therefore always has a
   `review` row behind it in practice; its memory of the earlier status
   stays.
+
+## Remote review (2026-11-11)
+
+- **Why.** Reviewing a colleague's deployed branch behind SSO. Code is not on
+  this machine, so the review goes to the Desktop and he zips it. Design:
+  `docs/superpowers/specs/2026-11-11-remote-review-design.md`.
+- **Not an extension, not injected.** Injecting the panel into the remote page
+  would make the site's media queries see the full window instead of the
+  frame. The shell and frame stay as in local mode; the proxy points at the
+  remote origin.
+- **Cookies from Chrome's profile, server-side, in memory.** The session is an
+  HttpOnly cookie, so the page cannot hand it over. The CLI copies the Cookies
+  SQLite (with `-wal`), decrypts the `v10` values with the Keychain's "Chrome
+  Safe Storage" key, and keeps a jar in memory: never on disk. No new
+  dependency (`node:sqlite`, `node:crypto`). macOS and Chrome only.
+- **Refresh reuses the profile chosen at startup.** A re-read after a login
+  redirect must not ask again, and must not land on another profile's session.
+- **Jar wins in the cookie merge.** For names the jar holds, its value
+  replaces the browser's: the browser's localhost copy can predate a refresh,
+  and a stale one would defeat the refreshed session.
+- **CSP dropped on responses.** `upgrade-insecure-requests` would send every
+  request to `https://localhost`, and `connect-src` refuses the localhost
+  origin. `Set-Cookie` goes to the jar and on to the browser without `Domain`,
+  so page scripts reading their own cookies keep working.
+- **Remote proxy guard.** The proxy adds real session cookies server-side, so
+  any website could otherwise drive authenticated requests through it (CSRF,
+  DNS rebinding). In remote mode it refuses a non-loopback `Host`,
+  cross-site and same-site requests (by `Sec-Fetch-Site`) and websocket
+  upgrades from a foreign origin. Only its own localhost pages get through.
+- **Session expiry.** A document answered by a redirect to another host is a
+  login redirect: not followed, the frame shows a small page, and the next
+  document request re-reads Chrome's cookies. API calls on the same redirect
+  just fail in the app.
+- **Rounds reuse `review`.** Starting round n+1 copies the feedback folders
+  and sets `open` rows and titles to `review`: "the colleague was asked, you
+  have not checked". Validate, Refine and the _To review_ filter work as is;
+  no new status. Nothing comes back from the colleague, so their agent never
+  sets tags.
+- **Finalized = `index.html` exists.** No extra marker file. The next round
+  never copies `index.html`, `readme.md` or `PROTOCOL.md`, or it would read as
+  finalized at once.
+- **State snapshots in `.state/`, outside the round.** He zips the round
+  as is, and the snapshots are his machine's (as the gitignored
+  `*-state.json` locally). Go to pin reads them there.
+- **One port per site, refuse if taken.** The key (host + path, query and hash
+  dropped) hashes to a port in 4900–5699, so a site always has the same
+  localhost origin. The proxied app's localStorage belongs to that origin; a
+  fallback port would mix two sites' storage.
+- **Hand-over.** `done` rows are left out, and a feedback with nothing left is
+  too. A `done` row kept only because it has open sub-rows renders as a plain
+  heading. `review` rows show as still open from last round, refined ones show
+  their last `Before:` as "was". Finalize appears only for the served round,
+  and never zips or locks. `PROTOCOL.md` comes from `templates/PROTOCOL.md`:
+  the colleague's agent reads `open` and `review` rows and never edits the
+  files, sets tags or writes `Claude:` notes.
+- **Spots reuse `mouse`/`rect`, no new field.** A pin whose element is a
+  `<canvas>` already has the click point and the box; the spot is the mouse
+  relative to the rect, so the record format is untouched. No style tip (it describes the canvas, not
+  the spot), no hover replay (nothing to hover in a canvas), a ring mark in
+  the screenshot and in Show pins and Go to pin. Local mode records spots too.

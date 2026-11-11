@@ -42,6 +42,44 @@ elements to identify them, best first. A pin's selector uses them before
 anything else, so it still finds the element after the layout changes.
 Without it, the first other stable `data-*` attribute is used.
 
+## Reviewing a deployed site
+
+For a site you cannot run locally, such as a colleague's deployed branch
+behind SSO. Needs macOS and Chrome, with you logged in to the site there.
+
+```
+npm run review:remote
+npm run review:remote -- --url https://stage.example.com/app/page
+```
+
+Without `--url` it asks for the URL. Then open the address it prints
+(`http://localhost:<port>/<the page you typed>`, port in 4900–5699, one per
+site).
+
+- **Login.** The tool reads the site's cookies from Chrome's profile and
+  keeps them in memory only; nothing is written to disk. macOS asks once to
+  let `node` read "Chrome Safe Storage" from the Keychain: choose _Always
+  Allow_. With several Chrome profiles holding cookies for the site, it asks
+  which one.
+- **Session expired.** The frame shows "Session expired: log in to <host> in
+  Chrome, then reload." Log in again in Chrome and reload; no restart.
+- **Files.** Feedback goes to `~/Desktop/design-review-to-md/<site>-<n>/`, one
+  folder per round, in the usual format. State snapshots stay outside, in
+  `~/Desktop/design-review-to-md/.state/`.
+- **Rounds.** Run it again after the colleague redeploys. If the latest round
+  is finalized, it asks `Continue round <n> or start round <n+1>? [C/n]`.
+  A new round carries the previous feedback over with every `open` row set
+  to `review` (asked of the colleague, not checked by you yet): validate it
+  or refine it as usual.
+- **Canvas spots.** Pinning a `<canvas>` (a map, a WebGL app) also records
+  where you clicked in it, as a fraction of its size. The screenshot carries a
+  ring there; Show pins and Go to pin place it again.
+- **Finalize review** replaces _Copy prompt_. It writes `index.html` (what is
+  still to do, with screenshots), `readme.md` (the instruction to paste into
+  the colleague's agent) and `PROTOCOL.md` into the round and opens the
+  folder. Check it, then zip the folder yourself and send it. Press it again
+  after an edit: it overwrites the three files.
+
 ## Core concepts
 
 - **Shell and frame.** The tool serves a page that shows your app in a
