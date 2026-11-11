@@ -192,6 +192,8 @@ describe("usePicker", () => {
     host.insertAdjacentHTML("beforeend", `<canvas id="map"></canvas><div id="overlay"></div>`)
     const canvas = host.querySelector("canvas")!
     const overlay = host.querySelector("#overlay")!
+    // happy-dom has no layout: the overlay covers the canvas, as Avalonia's does.
+    for (const el of [canvas, overlay]) el.getBoundingClientRect = () => new DOMRect(0, 0, 400, 300)
     document.elementsFromPoint = () => [overlay, canvas]
     let pending!: Promise<CapturedPin | null>
     await act(async () => {

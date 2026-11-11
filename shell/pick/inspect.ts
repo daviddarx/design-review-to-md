@@ -223,13 +223,32 @@ export function openersOf(el: Element): PinOpener[] {
 
 export const isCanvasTag = (tag: string): boolean => tag.toLowerCase() === "canvas"
 
+// Replaced or interactive: pinned as themselves even when empty over a canvas.
+const KEEP_TAGS = new Set(
+  "input textarea select button img video audio svg a iframe object embed canvas".split(" ")
+)
+
 // Canvas apps (Avalonia WASM) lay an empty sibling div over the <canvas>;
-// the pointer lands on it. An element with no children and no text that
-// has a canvas beneath it stands for that canvas. (x, y) are in `el`'s own
-// document, like the event's.
+// the pointer lands on it. A plain element with no children and no text that
+// covers at least 90% of a canvas beneath it stands for that canvas. (x, y)
+// are in `el`'s own document, like the event's.
 export function resolvePickTarget(doc: Document, el: Element, x: number, y: number): Element {
-  if (isCanvasTag(el.tagName) || el.children.length || el.textContent?.trim()) return el
+  if (KEEP_TAGS.has(el.tagName.toLowerCase())) return el
+  if (/^(button|link)$/i.test(el.getAttribute("role") ?? "")) return el
+  if (el.children.length || el.textContent?.trim()) return el
   const stack = doc.elementsFromPoint?.(x, y) ?? []
   const below = stack.slice(stack.indexOf(el) + 1)
-  return below.find((e) => isCanvasTag(e.tagName)) ?? el
+  const canvas = below.find((e) => isCanvasTag(e.tagName))
+  return canvas && coverage(el, canvas) >= 0.9 ? canvas : el
+}
+
+// The share of `canvas`'s box that `el`'s box covers.
+function coverage(el: Element, canvas: Element) {
+  const a = el.getBoundingClientRect()
+  const c = canvas.getBoundingClientRect()
+  const area = c.width * c.height
+  if (area <= 0) return 0
+  const w = Math.min(a.right, c.right) - Math.max(a.left, c.left)
+  const h = Math.min(a.bottom, c.bottom) - Math.max(a.top, c.top)
+  return w > 0 && h > 0 ? (w * h) / area : 0
 }

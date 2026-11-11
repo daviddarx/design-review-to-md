@@ -157,14 +157,18 @@ describe("openersOf", () => {
 })
 
 describe("resolvePickTarget", () => {
-  const stub = (stack: Element[]) => {
-    document.elementsFromPoint = () => stack
+  const box = (el: Element, width: number, height: number, x = 0, y = 0) => {
+    el.getBoundingClientRect = () => new DOMRect(x, y, width, height)
   }
-  const setup = (overlayHtml: string, withCanvas = true) => {
+  // happy-dom has no layout: the canvas is 800×600 and the overlay covers it
+  // unless a size is given.
+  const setup = (overlayHtml: string, withCanvas = true, size: [number, number] = [800, 600]) => {
     document.body.innerHTML = `${withCanvas ? "<canvas></canvas>" : ""}${overlayHtml}`
     const canvas = document.querySelector("canvas")
-    const overlay = document.querySelector("div")!
-    stub([overlay, ...(canvas ? [canvas] : []), document.body])
+    const overlay = document.body.lastElementChild!
+    if (canvas) box(canvas, 800, 600)
+    box(overlay, ...size)
+    document.elementsFromPoint = () => [overlay, ...(canvas ? [canvas] : []), document.body]
     return { canvas, overlay }
   }
 
@@ -186,5 +190,26 @@ describe("resolvePickTarget", () => {
   it("an empty div with no canvas below is kept", () => {
     const { overlay } = setup("<div></div>", false)
     expect(resolvePickTarget(document, overlay, 5, 5)).toBe(overlay)
+  })
+
+  it.each([
+    ["an input", "<input>"],
+    ["an img", "<img>"],
+    ["an empty icon button", "<button></button>"],
+    ["an empty link", "<a></a>"],
+    ['a role="button"', '<div role="button"></div>'],
+  ])("%s over a canvas is kept", (_, html) => {
+    const { overlay } = setup(html)
+    expect(resolvePickTarget(document, overlay, 5, 5)).toBe(overlay)
+  })
+
+  it("a small empty div over a large canvas is kept", () => {
+    const { overlay } = setup("<div></div>", true, [20, 20])
+    expect(resolvePickTarget(document, overlay, 5, 5)).toBe(overlay)
+  })
+
+  it("an empty div covering most of the canvas is the canvas", () => {
+    const { canvas, overlay } = setup("<div></div>", true, [800, 560])
+    expect(resolvePickTarget(document, overlay, 5, 5)).toBe(canvas)
   })
 })
