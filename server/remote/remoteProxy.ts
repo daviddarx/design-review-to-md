@@ -192,7 +192,10 @@ function responseHeaders(target: RemoteTarget, upRes: http.IncomingMessage) {
       value = url.pathname + url.search + url.hash
     }
     // The browser keeps it for localhost; Secure stays (Chrome allows it there).
+    // HttpOnly ones stay in the jar only: page scripts can't read them anyway,
+    // and real session tokens don't land in Chrome's localhost cookies.
     if (lower === "set-cookie") {
+      if (value.split(";").some((part) => /^\s*httponly\s*$/i.test(part))) continue
       value = value
         .split(";")
         .filter((part) => !/^\s*domain\s*=/i.test(part))
