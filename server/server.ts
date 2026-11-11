@@ -60,6 +60,26 @@ const SHELL_HTML = `<!doctype html>
 </html>
 `
 
+// The remote proxy adds his real session cookies, so in remote mode another
+// site (or a DNS-rebound name) must not reach the remote through it.
+function remoteRequestRefused(req: http.IncomingMessage): boolean {
+  const site = req.headers["sec-fetch-site"]
+  return (
+    !isLocalHost(req.headers.host) ||
+    (site !== undefined && site !== "same-origin" && site !== "none")
+  )
+}
+
+function remoteUpgradeRefused(req: http.IncomingMessage): boolean {
+  const origin = req.headers.origin
+  return (
+    !isLocalHost(req.headers.host) ||
+    (origin !== undefined && origin !== `http://${req.headers.host}`)
+  )
+}
+
+const FORBIDDEN_UPGRADE = "HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n"
+
 export function createReviewServer(opts: ReviewServerOptions): http.Server {
   const { targetPort, storage, shellAssets } = opts
   const repoRoot = opts.repoRoot ?? process.cwd()
@@ -113,14 +133,19 @@ export function createReviewServer(opts: ReviewServerOptions): http.Server {
       res.end(html)
       return
     }
-    if (remote) proxyRemoteRequest(remote.target, req, res)
-    else proxyRequest(targetPort, req, res)
+    if (!remote) return proxyRequest(targetPort, req, res)
+    if (remoteRequestRefused(req)) {
+      res.writeHead(403, { "content-type": "text/plain; charset=utf-8" })
+      res.end("Refused: the remote review only answers its own localhost pages\n")
+      return
+    }
+    proxyRemoteRequest(remote.target, req, res)
   })
 
   server.on("upgrade", (req, socket, head) => {
     if ((req.url ?? "").startsWith(TOOL_PREFIX)) {
       if (!isLocalHost(req.headers.host)) {
-        socket.end("HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n")
+        socket.end(FORBIDDEN_UPGRADE)
       } else {
         socket.destroy()
       }
@@ -130,8 +155,12 @@ export function createReviewServer(opts: ReviewServerOptions): http.Server {
       tunnels.add(s)
       s.on("close", () => tunnels.delete(s))
     }
-    if (remote) proxyRemoteUpgrade(remote.target, req, socket, head, track)
-    else proxyUpgrade(targetPort, req, socket, head, track)
+    if (!remote) return proxyUpgrade(targetPort, req, socket, head, track)
+    if (remoteUpgradeRefused(req)) {
+      socket.end(FORBIDDEN_UPGRADE)
+      return
+    }
+    proxyRemoteUpgrade(remote.target, req, socket, head, track)
   })
 
   // Close the watcher, the SSE streams and any websocket tunnel with the

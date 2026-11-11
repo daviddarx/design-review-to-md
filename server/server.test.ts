@@ -574,6 +574,40 @@ describe("remote", () => {
     expect(res.body).toBe("remote /api/x sid=s1")
   })
 
+  it("refuses a non-loopback Host, since the proxy adds his session cookies", async () => {
+    const res = await request("GET", "/api/x", { headers: { host: "evil.example" } })
+    expect(res.status).toBe(403)
+  })
+
+  it("refuses cross-site and same-site requests, proxies same-origin and unmarked ones", async () => {
+    for (const site of ["cross-site", "same-site"]) {
+      const res = await request("GET", "/api/x", { headers: { "sec-fetch-site": site } })
+      expect(res.status).toBe(403)
+    }
+    const same = await request("GET", "/api/x", { headers: { "sec-fetch-site": "same-origin" } })
+    expect(same.body).toBe("remote /api/x sid=s1")
+    const none = await request("GET", "/api/x", { headers: { "sec-fetch-site": "none" } })
+    expect(none.status).toBe(200)
+    expect((await request("GET", "/api/x")).status).toBe(200)
+  })
+
+  it("refuses an upgrade from a foreign Origin", async () => {
+    const { hostname, port } = new URL(base)
+    const status = await new Promise<number>((resolve, reject) => {
+      const req = http.request({
+        hostname,
+        port,
+        path: "/ws",
+        headers: { connection: "Upgrade", upgrade: "websocket", origin: "https://evil.example" },
+      })
+      req.on("response", (res) => resolve(res.statusCode!))
+      req.on("upgrade", () => resolve(101))
+      req.on("error", reject)
+      req.end()
+    })
+    expect(status).toBe(403)
+  })
+
   it("serves the shell with the remote url and round in its config", async () => {
     const res = await request("GET", "/a", { headers: { "sec-fetch-dest": "document" } })
     expect(res.body).toContain('"remote":{"url":"https://x.ch/a","round":"x.ch_a-0"}')
