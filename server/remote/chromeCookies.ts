@@ -141,9 +141,12 @@ export function keychainPassword(): string {
   }
 }
 
+// `onProfile` learns the profile used, picked or the only one, so a refresh
+// can read the same one again without asking.
 export async function loadChromeCookies(
   host: string,
-  pickProfile: (names: string[]) => Promise<string>
+  pickProfile: (names: string[]) => Promise<string>,
+  onProfile?: (name: string) => void
 ): Promise<StoredCookie[]> {
   if (process.platform !== "darwin") {
     throw new Error("Remote review reads Chrome's cookies on macOS only")
@@ -154,10 +157,21 @@ export async function loadChromeCookies(
     const cookies = readCookiesFromDb(p.cookiesFile, host, key)
     if (cookies.length) found.set(p.name, cookies)
   }
+  return chooseProfile(found, host, pickProfile, onProfile)
+}
+
+// The cookies of one profile among those that have some for `host`.
+export async function chooseProfile(
+  found: Map<string, StoredCookie[]>,
+  host: string,
+  pickProfile: (names: string[]) => Promise<string>,
+  onProfile?: (name: string) => void
+): Promise<StoredCookie[]> {
   if (found.size === 0) throw new Error(`Log in to ${host} in Chrome first`)
   const names = [...found.keys()]
   const chosen = names.length === 1 ? names[0] : await pickProfile(names)
   const cookies = found.get(chosen)
   if (!cookies) throw new Error(`No Chrome profile named ${chosen} has cookies for ${host}`)
+  onProfile?.(chosen)
   return cookies
 }

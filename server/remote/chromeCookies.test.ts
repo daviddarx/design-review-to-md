@@ -4,7 +4,14 @@ import os from "node:os"
 import path from "node:path"
 import { DatabaseSync } from "node:sqlite"
 import { afterEach, describe, expect, it } from "vitest"
-import { decryptValue, deriveKey, hostKeysFor, readCookiesFromDb } from "./chromeCookies.ts"
+import {
+  chooseProfile,
+  decryptValue,
+  deriveKey,
+  hostKeysFor,
+  readCookiesFromDb,
+  type StoredCookie,
+} from "./chromeCookies.ts"
 
 const key = deriveKey("peanuts")
 
@@ -86,5 +93,48 @@ describe("readCookiesFromDb", () => {
     ])
     expect(cookies.find((c) => c.name === "session")?.expires).toBeUndefined()
     expect(cookies.find((c) => c.name === "pref")?.expires).toBeGreaterThan(Date.now() / 1000)
+  })
+})
+
+describe("chooseProfile", () => {
+  const cookie = (value: string): StoredCookie => ({
+    name: "sid",
+    value,
+    domain: "x.ch",
+    path: "/",
+    secure: true,
+    hostOnly: true,
+  })
+
+  it("reports the only profile without asking", async () => {
+    const seen: string[] = []
+    const ask = async () => {
+      throw new Error("asked")
+    }
+    const found = new Map([["Profile 2", [cookie("a")]]])
+    expect(await chooseProfile(found, "x.ch", ask, (n) => seen.push(n))).toEqual([cookie("a")])
+    expect(seen).toEqual(["Profile 2"])
+  })
+
+  it("reports the picked profile", async () => {
+    const seen: string[] = []
+    const found = new Map([
+      ["Default", [cookie("a")]],
+      ["Profile 1", [cookie("b")]],
+    ])
+    const cookies = await chooseProfile(
+      found,
+      "x.ch",
+      async () => "Profile 1",
+      (n) => seen.push(n)
+    )
+    expect(cookies).toEqual([cookie("b")])
+    expect(seen).toEqual(["Profile 1"])
+  })
+
+  it("asks to log in when no profile has cookies", async () => {
+    await expect(chooseProfile(new Map(), "x.ch", async () => "")).rejects.toThrow(
+      "Log in to x.ch in Chrome first"
+    )
   })
 })
