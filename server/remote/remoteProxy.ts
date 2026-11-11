@@ -46,6 +46,8 @@ export function proxyRemoteRequest(
           (URL.parse(location, origin)?.host ?? origin.host) !== origin.host
         ) {
           // A login redirect: following it in the frame would leave the proxy.
+          const setCookie = upRes.headers["set-cookie"]
+          if (setCookie) target.jar.store(origin.hostname, setCookie)
           upRes.resume()
           target.stale = true
           res.writeHead(200, { "content-type": "text/html; charset=utf-8" })
@@ -75,17 +77,31 @@ export function proxyRemoteRequest(
   }
   if (isDocument && target.stale) {
     // He has logged in again in Chrome (or not): pick up its cookies first.
-    target
-      .refresh()
-      .then(() => (target.stale = false))
-      // Still stale on failure: the next document tries again.
-      .catch(() => {})
-      .finally(() => {
-        if (!res.destroyed) send()
-      })
+    refreshOnce(target).finally(() => {
+      if (!res.destroyed) send()
+    })
   } else {
     send()
   }
+}
+
+const refreshing = new WeakMap<RemoteTarget, Promise<void>>()
+
+// Documents that arrive together while stale share one refresh.
+function refreshOnce(target: RemoteTarget) {
+  let pending = refreshing.get(target)
+  if (!pending) {
+    pending = target
+      .refresh()
+      .then(() => {
+        target.stale = false
+      })
+      // Still stale on failure: the next document tries again.
+      .catch(() => {})
+      .finally(() => refreshing.delete(target))
+    refreshing.set(target, pending)
+  }
+  return pending
 }
 
 // Pipes an upgrade (websocket) to the remote origin: the request head is
@@ -146,18 +162,16 @@ function requestHeaders(target: RemoteTarget, req: http.IncomingMessage) {
   return headers
 }
 
-// The jar's cookies plus the browser's; the browser's win on the same name.
+// The jar's cookies plus the browser's; the jar wins on the same name, since
+// the browser's localhost copy may predate a refresh from Chrome.
 function mergeCookies(jar: string, browser: string) {
   const nameOf = (pair: string) => pair.split("=")[0].trim()
+  const fromJar = jar.split("; ").filter(Boolean)
+  const names = new Set(fromJar.map(nameOf))
   const fromBrowser = browser
     .split(";")
     .map((p) => p.trim())
-    .filter(Boolean)
-  const names = new Set(fromBrowser.map(nameOf))
-  const fromJar = jar
-    .split("; ")
-    .filter(Boolean)
-    .filter((p) => !names.has(nameOf(p)))
+    .filter((p) => p && !names.has(nameOf(p)))
   return [...fromJar, ...fromBrowser].join("; ")
 }
 

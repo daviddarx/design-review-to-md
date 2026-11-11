@@ -36,6 +36,8 @@ beforeEach(async () => {
       res.writeHead(302, { location: `${origin}/next?q=1` })
     } else if (req.url === "/login") {
       res.writeHead(302, { location: LOGIN })
+    } else if (req.url === "/login-cookie") {
+      res.writeHead(302, { location: LOGIN, "set-cookie": "nonce=n1; Path=/" })
     } else if (req.url === "/set") {
       res.writeHead(200, { "set-cookie": "a=1; Domain=127.0.0.1; Path=/" })
     } else {
@@ -102,7 +104,7 @@ describe("proxyRemoteRequest", () => {
     expect(seen.origin).toBe(target.origin.origin)
     expect(seen.referer).toBe(`${target.origin.origin}/page?a=1`)
     const sent = seen.cookie!.split("; ").sort()
-    expect(sent).toEqual(["both=fromBrowser", "jar=j", "mine=m"])
+    expect(sent).toEqual(["both=fromJar", "jar=j", "mine=m"])
   })
 
   it("drops the CSP headers", async () => {
@@ -133,6 +135,35 @@ describe("proxyRemoteRequest", () => {
     expect(target.stale).toBe(false)
     await get("/ok", { "sec-fetch-dest": "document" })
     expect(refreshes).toBe(1)
+  })
+
+  it("lets the jar's value win over the browser's stale copy", async () => {
+    target.jar.replace([
+      { name: "sid", value: "fresh", domain: "127.0.0.1", path: "/", secure: true, hostOnly: true },
+    ])
+    await get("/x", { cookie: "sid=stale; other=1" })
+    expect(seen.cookie!.split("; ").sort()).toEqual(["other=1", "sid=fresh"])
+  })
+
+  it("keeps the login redirect's set-cookie in the jar", async () => {
+    const res = await get("/login-cookie", { "sec-fetch-dest": "iframe" })
+    expect(res.body).toBe(SESSION_EXPIRED_HTML(target.origin.host))
+    expect(target.jar.header("127.0.0.1", "/")).toContain("nonce=n1")
+  })
+
+  it("shares one refresh between concurrent documents while stale", async () => {
+    target.stale = true
+    target.refresh = async () => {
+      refreshes++
+      await new Promise((r) => setTimeout(r, 50))
+    }
+    const results = await Promise.all([
+      get("/ok", { "sec-fetch-dest": "iframe" }),
+      get("/ok", { "sec-fetch-dest": "document" }),
+    ])
+    expect(results.map((r) => r.status)).toEqual([200, 200])
+    expect(refreshes).toBe(1)
+    expect(target.stale).toBe(false)
   })
 
   it("passes the same redirect through for a fetch", async () => {
