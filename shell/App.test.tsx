@@ -214,3 +214,25 @@ describe("Pin & add", () => {
     expect(host.querySelector(".dr-picker-hint")).toBeNull()
   })
 })
+
+describe("App remote mode", () => {
+  afterEach(() => document.getElementById("dr-config")?.remove())
+
+  it("loads the served round, ignoring the remembered review", async () => {
+    const config = document.createElement("script")
+    config.id = "dr-config"
+    config.type = "application/json"
+    config.textContent = JSON.stringify({
+      markers: [],
+      remote: { url: "https://app.example.com", round: "app.example.com-1" },
+    })
+    document.head.append(config)
+    const fetchMock = vi.mocked(fetch)
+    await act(async () => root.render(<App />))
+    const urls = fetchMock.mock.calls.map((c) => String(c[0]))
+    expect(urls).toContain("/__review/api/reviews/app.example.com-1")
+    expect(urls).not.toContain("/__review/api/reviews/08.4")
+    expect(host.querySelector(".dr-round")?.textContent).toBe("app.example.com-1")
+    expect(localStorage.getItem("design-review:review")).toBe("08.4")
+  })
+})

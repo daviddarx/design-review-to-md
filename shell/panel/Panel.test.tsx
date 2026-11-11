@@ -38,6 +38,7 @@ let host: HTMLDivElement
 let calls: Call[]
 let opStatus: number
 let reviewStatus: number
+let finalizeStatus: number
 // One-shot: the next request to a URL answers with this promise instead.
 let held: Map<string, Promise<Response>>
 
@@ -58,6 +59,7 @@ beforeEach(() => {
   calls = []
   opStatus = 200
   reviewStatus = 200
+  finalizeStatus = 200
   held = new Map()
   localStorage.clear()
   vi.stubGlobal("EventSource", FakeEventSource)
@@ -78,6 +80,16 @@ beforeEach(() => {
       if (url === "/__review/api/reviews/08.4") {
         if (reviewStatus !== 200) return json({ error: "cannot read review" }, reviewStatus)
         return json({ meta: { nextFeedback: 6 }, feedbacks: [parseFeedback(SPEC)] })
+      }
+      if (url.endsWith("/finalize")) {
+        return url.includes("app.example.com-1")
+          ? finalizeStatus === 200
+            ? json({ ok: true, dir: "/d" })
+            : json({ error: "cannot finalize" }, finalizeStatus)
+          : json({ error: "no such review" }, 404)
+      }
+      if (url === "/__review/api/reviews/app.example.com-1") {
+        return json({ meta: { nextFeedback: 1 }, feedbacks: [] })
       }
       if (method === "DELETE") return json({ ok: true })
       if (url.endsWith("/ops")) {
@@ -676,5 +688,59 @@ describe("Panel", () => {
       pointer("pointerup", window.innerWidth - 500)
     })
     expect(localStorage.getItem("design-review:panel-width")).toBe("500")
+  })
+})
+
+describe("Panel remote mode", () => {
+  const remote = { url: "https://app.example.com", round: "app.example.com-1" }
+  const buttonLabelled = (text: string) =>
+    [...host.querySelectorAll<HTMLButtonElement>(".dr-panel-head button")].find((b) =>
+      b.textContent?.includes(text)
+    )
+
+  it("shows the round instead of the review select, and keeps it", async () => {
+    const changes: (string | null)[] = []
+    await render({ review: remote.round, remote, onReviewChange: (r) => changes.push(r) })
+    expect(host.querySelector("select")).toBeNull()
+    expect(host.querySelector(".dr-round")?.textContent).toBe(remote.round)
+    expect(changes).toEqual([])
+  })
+
+  it("Finalize review posts to the round's finalize route and shows Finalized each time", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
+    try {
+      await render({ review: remote.round, remote })
+      expect(buttonLabelled("Copy prompt")).toBeUndefined()
+      for (let i = 0; i < 2; i++) {
+        const btn = buttonLabelled("Finalize review")!
+        expect(btn.disabled).toBe(false)
+        await act(async () => btn.click())
+        expect(buttonLabelled("Finalized")).toBeDefined()
+        await act(async () => {
+          vi.advanceTimersByTime(1500)
+        })
+        expect(buttonLabelled("Finalize review")).toBeDefined()
+      }
+      const posts = calls.filter((c) => c.method === "POST" && c.url.endsWith("/finalize"))
+      expect(posts.map((c) => c.url)).toEqual([
+        `/__review/api/reviews/${remote.round}/finalize`,
+        `/__review/api/reviews/${remote.round}/finalize`,
+      ])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("shows a failed finalize on the error line", async () => {
+    finalizeStatus = 500
+    await render({ review: remote.round, remote })
+    await act(async () => buttonLabelled("Finalize review")!.click())
+    expect(host.textContent).toContain("cannot finalize")
+  })
+
+  it("keeps Copy prompt without remote", async () => {
+    await render()
+    expect(buttonLabelled("Copy prompt")).toBeDefined()
+    expect(buttonLabelled("Finalize review")).toBeUndefined()
   })
 })

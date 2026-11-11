@@ -65,6 +65,11 @@ export function deleteFeedback(review: string, feedback: number): Promise<{ ok: 
   return request("DELETE", `${reviewPath(review)}/feedbacks/${feedback}`)
 }
 
+// Remote mode: writes the round's index.html, readme.md and PROTOCOL.md.
+export function finalizeReview(review: string): Promise<{ ok: true; dir: string }> {
+  return request("POST", `${reviewPath(review)}/finalize`, {})
+}
+
 export function openEditor(file: string, line: number): Promise<{ ok: true }> {
   return request("POST", "/open-editor", { file, line })
 }

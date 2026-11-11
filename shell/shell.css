@@ -159,6 +159,13 @@ body {
   min-width: 0;
 }
 
+.dr-round {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Our own chevron: the native one sits flush against the border. */
 select.dr-review-select {
   appearance: none;

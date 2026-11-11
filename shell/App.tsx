@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { PinRecord } from "../model/types.ts"
+import { readConfig } from "./config.ts"
 import { applyOp, fileUrl, openEditor } from "./api.ts"
 import { FeedbackDrawer } from "./drawer/FeedbackDrawer.tsx"
 import type { CapturedPin } from "./drawer/draft.ts"
@@ -51,7 +52,10 @@ export function App() {
   const [frame, setFrame] = useState<HTMLIFrameElement | null>(null)
   const [src] = useState(initialFrameSrc)
   const [reviewMode, setReviewMode] = useReviewMode(frame)
-  const [review, setReview] = useState(() => readKey("review") ?? readKey("topic")) // "topic": the key before the rename
+  const [remote] = useState(() => readConfig().remote)
+  const [remembered, setReview] = useState(() => readKey("review") ?? readKey("topic")) // "topic": the key before the rename
+  // Remote: the round the server serves, whatever was remembered.
+  const review = remote ? remote.round : remembered
   const [drawer, setDrawer] = useState<DrawerState | null>(null)
   const [reloadSignal, setReloadSignal] = useState(0)
   const [drawerFocus, setDrawerFocus] = useState(0)
@@ -227,8 +231,8 @@ export function App() {
   }
 
   useEffect(() => {
-    if (review) writeKey("review", review)
-  }, [review])
+    if (!remote && review) writeKey("review", review)
+  }, [remote, review])
 
   return (
     <div className={reviewMode ? "dr-root dr-review" : "dr-root"}>
@@ -248,6 +252,7 @@ export function App() {
             shownPinsOwner={shown?.owner ?? null}
             onAllPins={onAllPins}
             reloadSignal={reloadSignal}
+            remote={remote}
             drawer={
               drawer &&
               review && (

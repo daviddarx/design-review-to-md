@@ -7,6 +7,7 @@ import {
   createReview,
   deleteFeedback,
   fileUrl,
+  finalizeReview,
   listReviews,
   readReview,
   repoRoot,
@@ -38,6 +39,7 @@ export type PanelProps = {
   onAllPins(groups: { owner: string; records: PinRecord[] }[]): void // the filter's pins, after each load and filter change
   drawer?: ReactNode // the feedback drawer, laid over everything but the resize edge
   reloadSignal?: number // a change refetches the review (after a drawer save)
+  remote?: { url: string; round: string } // reviewing a deployed site: `review` is the round, fixed
 }
 
 type PinAction = void | Promise<string | null | void>
@@ -88,6 +90,7 @@ export function Panel({
   onAllPins,
   drawer,
   reloadSignal,
+  remote,
 }: PanelProps) {
   const preferred = useRef(readPreferredWidth())
   const [width, setWidth] = useState(() => clampWidth(preferred.current))
@@ -98,6 +101,7 @@ export function Panel({
   const [error, setError] = useState<string | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null) // cleared by the next good load
   const [copied, setCopied] = useState(false)
+  const [finalized, setFinalized] = useState(false)
   // Each pin record with the cache generation it was fetched in: one from an
   // older generation is stale, but still shown until its refetch lands.
   const [records, setRecords] = useState<Record<string, CachedRecord>>({})
@@ -139,8 +143,8 @@ export function Panel({
   // port shares it: one that is not among this repo's folders is let go, so
   // the select asks for one instead of showing a stranger's name.
   useEffect(() => {
-    if (listed && review && !reviews.includes(review)) onReviewChange(null)
-  }, [listed, review, reviews, onReviewChange])
+    if (!remote && listed && review && !reviews.includes(review)) onReviewChange(null)
+  }, [remote, listed, review, reviews, onReviewChange])
   // Where the reviews and AGENTS.md are, for the copied prompt.
   const [paths, setPaths] = useState<RepoPaths | null>(null)
   useEffect(() => {
@@ -342,6 +346,21 @@ export function Panel({
       setError(`Could not copy: ${message(err)}`)
     }
   }
+  const finalize = async () => {
+    if (!review) return
+    try {
+      await finalizeReview(review)
+      setError(null)
+      setFinalized(true)
+    } catch (err) {
+      setError(message(err))
+    }
+  }
+  useEffect(() => {
+    if (!finalized) return
+    const id = setTimeout(() => setFinalized(false), 1500)
+    return () => clearTimeout(id)
+  }, [finalized])
   useEffect(() => {
     if (!copied) return
     const id = setTimeout(() => setCopied(false), 1500)
@@ -383,23 +402,38 @@ export function Panel({
       />
 
       <header className="dr-panel-head" inert={covered}>
-        <ReviewSelect
-          reviews={reviews}
-          review={review}
-          onChange={onReviewChange}
-          onCreate={onCreateReview}
-          onOpen={refreshReviews}
-        />
+        {remote ? (
+          <span className="dr-round dr-review-select" title={remote.url}>
+            {review}
+          </span>
+        ) : (
+          <ReviewSelect
+            reviews={reviews}
+            review={review}
+            onChange={onReviewChange}
+            onCreate={onCreateReview}
+            onOpen={refreshReviews}
+          />
+        )}
         <button
           type="button"
           className="dr-button"
-          onClick={copyPrompt}
-          disabled={!review || !paths}
-          title={review && paths ? copyPromptText(review, paths) : undefined}
+          onClick={remote ? finalize : copyPrompt}
+          disabled={remote ? !review : !review || !paths}
+          title={!remote && review && paths ? copyPromptText(review, paths) : undefined}
         >
-          {/* Keeps the button as wide as "Copy prompt" while it reads "Copied". */}
-          <span className="dr-swap" data-reserve="Copy prompt">
-            {copied ? (
+          {/* Keeps the button as wide as its resting label while it reads "Copied". */}
+          <span className="dr-swap" data-reserve={remote ? "Finalize review" : "Copy prompt"}>
+            {remote ? (
+              finalized ? (
+                <span className="dr-copied">
+                  <Icon name="validate" />
+                  Finalized
+                </span>
+              ) : (
+                <span>Finalize review</span>
+              )
+            ) : copied ? (
               <span className="dr-copied">
                 <Icon name="validate" />
                 Copied
