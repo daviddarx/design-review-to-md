@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process"
 import http from "node:http"
 import { mkdirSync } from "node:fs"
 import type { Duplex } from "node:stream"
@@ -17,6 +18,12 @@ export type ReviewServerOptions = {
   // Review a deployed site: everything not ours goes to `target` (targetPort
   // is ignored), and there is no local source to open or search.
   remote?: { target: RemoteTarget; url: string; round: string }
+  openFolder?: (dir: string) => void // shows a finalized round; tests stub it
+}
+
+// Finder, so he can check the hand-over and zip it.
+function openInFinder(dir: string) {
+  spawn("open", [dir], { detached: true, stdio: "ignore" }).unref()
 }
 
 const TOOL_PREFIX = "/__review/"
@@ -88,7 +95,11 @@ export function createReviewServer(opts: ReviewServerOptions): http.Server {
     storage,
     repoRoot,
     resolveSource: createSourceResolver(repoRoot),
-    remote: Boolean(remote),
+    remote: remote && {
+      url: remote.url,
+      round: remote.round,
+      openFolder: opts.openFolder ?? openInFinder,
+    },
   }
   const html = shellHtml(opts.markers, remote && { url: remote.url, round: remote.round })
   mkdirSync(storage.root, { recursive: true })

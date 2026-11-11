@@ -4,6 +4,7 @@ import path from "node:path"
 import { Storage, StorageError } from "./storage.ts"
 import { EditorTargetError, openEditor } from "./openEditor.ts"
 import { isBareName, type ResolvedSource } from "./findFiles.ts"
+import { finalizeRound } from "./remote/finalize.ts"
 
 const BODY_LIMIT = 50 * 1024 * 1024
 // Wherever this package is installed: the app's repo names it in the prompt.
@@ -21,7 +22,9 @@ export type ApiContext = {
   storage: Storage
   repoRoot: string
   resolveSource: (name: string, from?: string) => Promise<ResolvedSource>
-  remote?: boolean // a deployed site: no repo to open, search or point the prompt at
+  // A deployed site: no repo to open, search or point the prompt at, and a
+  // round to finalize for a colleague.
+  remote?: { url: string; round: string; openFolder: (dir: string) => void }
 }
 
 function sendJson(res: http.ServerResponse, status: number, body: unknown) {
@@ -158,6 +161,15 @@ export async function handleApi(
     return sendJson(res, 200, {
       meta,
       feedbacks: feedbacks.map((p) => ({ ...p.feedback, folder: p.folder })),
+    })
+  }
+  // Only the round being served: its hand-over names the site it reviews.
+  if (sub === "finalize" && parts.length === 3 && method === "POST" && ctx.remote) {
+    if (review !== ctx.remote.round) throw new HttpError(404, "Not the current round")
+    await finalizeRound(storage, review, ctx.remote.url, ctx.remote.openFolder)
+    return sendJson(res, 200, {
+      ok: true,
+      dir: path.dirname(storage.assetPath(review, "index.html")),
     })
   }
   if (sub === "feedbacks") {

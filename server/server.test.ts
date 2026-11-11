@@ -528,6 +528,7 @@ describe("cli", () => {
 describe("remote", () => {
   let remote: http.Server
   let remoteUpstream: http.Server
+  let opened: string[]
 
   beforeEach(async () => {
     remoteUpstream = http.createServer((req, res) => {
@@ -535,6 +536,7 @@ describe("remote", () => {
       res.end(`remote ${req.url} ${req.headers.cookie ?? ""}`)
     })
     const upstreamPort = await listen(remoteUpstream)
+    opened = []
     remote = createReviewServer({
       targetPort: 1, // ignored in remote mode
       storage: new Storage(root),
@@ -559,6 +561,7 @@ describe("remote", () => {
         url: "https://x.ch/a",
         round: "x.ch_a-0",
       },
+      openFolder: (dir) => opened.push(dir),
     })
     base = `http://localhost:${await listen(remote)}`
   })
@@ -621,5 +624,34 @@ describe("remote", () => {
     expect((await request("GET", "/__review/api/resolve-source?name=a.ts")).status).toBe(404)
     const repo = JSON.parse((await request("GET", "/__review/api/repo-root")).body)
     expect(repo).toEqual({ root: path.resolve(root), reviews: "", agents: "" })
+  })
+
+  it("finalizes the current round into its folder, and opens it", async () => {
+    const dir = path.join(root, "x.ch_a-0")
+    await fs.mkdir(path.join(dir, "01-nav"), { recursive: true })
+    await fs.writeFile(path.join(dir, "01-nav", "briefing.md"), "# 1. Nav `open`\n")
+    const res = await request("POST", "/__review/api/reviews/x.ch_a-0/finalize", { json: {} })
+    expect(res.status).toBe(200)
+    expect(JSON.parse(res.body)).toEqual({ ok: true, dir })
+    for (const file of ["index.html", "readme.md", "PROTOCOL.md"]) {
+      await fs.access(path.join(dir, file))
+    }
+    expect(opened).toEqual([dir])
+  })
+
+  it("finalizes only the current round", async () => {
+    await fs.mkdir(path.join(root, "x.ch_a-1"))
+    const res = await request("POST", "/__review/api/reviews/x.ch_a-1/finalize", { json: {} })
+    expect(res.status).toBe(404)
+    expect(opened).toEqual([])
+  })
+})
+
+describe("finalize in local mode", () => {
+  it("does not exist", async () => {
+    await fs.mkdir(path.join(root, "r"))
+    const res = await request("POST", "/__review/api/reviews/r/finalize", { json: {} })
+    expect(res.status).toBe(404)
+    await expect(fs.access(path.join(root, "r", "index.html"))).rejects.toThrow()
   })
 })
