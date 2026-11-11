@@ -48,9 +48,14 @@ export function parseArgs(argv: string[]): Args {
 export const PORT_BASE = 4100
 export const PORT_PAIRS = 400
 
+export function fnv1a(text: string): number {
+  let hash = 0x811c9dc5
+  for (const ch of text) hash = Math.imul(hash ^ ch.charCodeAt(0), 0x01000193) >>> 0
+  return hash
+}
+
 export function portsFor(dir: string, step = 0): { port: number; target: number } {
-  let hash = 0x811c9dc5 // FNV-1a
-  for (const ch of dir) hash = Math.imul(hash ^ ch.charCodeAt(0), 0x01000193) >>> 0
+  const hash = fnv1a(dir)
   const port = PORT_BASE + ((hash + step) % PORT_PAIRS) * 2
   return { port, target: port + 1 }
 }
