@@ -151,12 +151,35 @@ export function toBriefing(feedback: Feedback, folder: string): Feedback {
   return relink(feedback, (link) => (isRelative(link) ? path.posix.relative(folder, link) : link))
 }
 
+// `<rowId>-state.json`, `<rowId>-state-2.json`, … (row ids hold no dash).
+const isStateFile = (file: string) =>
+  parsePinAssetName(file.slice(file.indexOf("-") + 1))?.file === "state"
+
 export class Storage {
   readonly root: string
+  // Where the per-pin localStorage snapshots live when they must stay out of
+  // the review folder (a remote round is zipped as-is and sent on).
+  private readonly stateRoot?: string
   private queue: Promise<unknown> = Promise.resolve()
 
-  constructor(root: string) {
+  constructor(root: string, opts: { stateRoot?: string } = {}) {
     this.root = path.resolve(root)
+    if (opts.stateRoot) this.stateRoot = path.resolve(opts.stateRoot)
+  }
+
+  // The folder a file of the feedback lives in: state files follow `stateRoot`.
+  private assetDirFor(dir: string, folder: string, file: string): string {
+    if (this.stateRoot && isStateFile(file)) {
+      return path.join(this.stateRoot, path.basename(dir), folder)
+    }
+    return path.join(dir, folder)
+  }
+
+  // Every folder a feedback's files can be in.
+  private assetDirs(dir: string, folder: string): string[] {
+    const dirs = [path.join(dir, folder)]
+    if (this.stateRoot) dirs.push(path.join(this.stateRoot, path.basename(dir), folder))
+    return dirs
   }
 
   // Serialises mutations so two requests cannot interleave read-modify-write.
@@ -234,48 +257,47 @@ export class Storage {
     folder: string,
     assets: { rowId: string; name: string; dataBase64: string }[]
   ) {
-    if (!assets.length) return
-    const assetDir = path.join(dir, folder)
-    await fs.mkdir(assetDir, { recursive: true })
     for (const a of assets) {
-      await this.atomicWrite(
-        path.join(assetDir, `${a.rowId}-${a.name}`),
-        Buffer.from(a.dataBase64, "base64")
-      )
+      const file = `${a.rowId}-${a.name}`
+      const assetDir = this.assetDirFor(dir, folder, file)
+      await fs.mkdir(assetDir, { recursive: true })
+      await this.atomicWrite(path.join(assetDir, file), Buffer.from(a.dataBase64, "base64"))
     }
   }
 
   // A moved row's files follow its new id: `<old>-x` becomes `<new>-x`.
   private async renameAssets(dir: string, folder: string, pairs: [string, string][]) {
-    const assetDir = path.join(dir, folder)
-    let names: string[]
-    try {
-      names = await fs.readdir(assetDir)
-    } catch {
-      return
-    }
-    for (const [from, to] of pairs) {
-      for (const name of names) {
-        if (!name.startsWith(`${from}-`)) continue
-        await fs.rename(
-          path.join(assetDir, name),
-          path.join(assetDir, `${to}-${name.slice(from.length + 1)}`)
-        )
+    for (const assetDir of this.assetDirs(dir, folder)) {
+      let names: string[]
+      try {
+        names = await fs.readdir(assetDir)
+      } catch {
+        continue
+      }
+      for (const [from, to] of pairs) {
+        for (const name of names) {
+          if (!name.startsWith(`${from}-`)) continue
+          await fs.rename(
+            path.join(assetDir, name),
+            path.join(assetDir, `${to}-${name.slice(from.length + 1)}`)
+          )
+        }
       }
     }
   }
 
   private async removeAssets(dir: string, folder: string, prefixes: string[]) {
-    const assetDir = path.join(dir, folder)
-    let names: string[]
-    try {
-      names = await fs.readdir(assetDir)
-    } catch {
-      return
-    }
-    for (const name of names) {
-      if (prefixes.some((p) => name.startsWith(p))) {
-        await fs.rm(path.join(assetDir, name), { force: true })
+    for (const assetDir of this.assetDirs(dir, folder)) {
+      let names: string[]
+      try {
+        names = await fs.readdir(assetDir)
+      } catch {
+        continue
+      }
+      for (const name of names) {
+        if (prefixes.some((p) => name.startsWith(p))) {
+          await fs.rm(path.join(assetDir, name), { force: true })
+        }
       }
     }
   }
@@ -302,19 +324,19 @@ export class Storage {
     index: number,
     pins: PinRef[]
   ) {
-    const assetDir = path.join(dir, folder)
     const files = ["png", "json", "state"] as const
+    const at = (i: number, file: (typeof files)[number]) => {
+      const name = `${rowId}-${pinAssetName(i, file)}`
+      return path.join(this.assetDirFor(dir, folder, name), name)
+    }
     for (const file of files) {
-      await fs.rm(path.join(assetDir, `${rowId}-${pinAssetName(index, file)}`), { force: true })
+      await fs.rm(at(index, file), { force: true })
     }
     for (let i = index; i < pins.length; i++) {
       for (const file of files) {
-        const from = path.join(assetDir, `${rowId}-${pinAssetName(i + 1, file)}`)
-        await fs
-          .rename(from, path.join(assetDir, `${rowId}-${pinAssetName(i, file)}`))
-          .catch((err: NodeJS.ErrnoException) => {
-            if (err.code !== "ENOENT") throw err
-          })
+        await fs.rename(at(i + 1, file), at(i, file)).catch((err: NodeJS.ErrnoException) => {
+          if (err.code !== "ENOENT") throw err
+        })
       }
       if (pins[i].screenshot) {
         pins[i] = { ...pins[i], screenshot: `${folder}/${rowId}-${pinAssetName(i, "png")}` }
@@ -459,7 +481,7 @@ export class Storage {
         // Only a file of that row: the name the server wrote it under.
         const name = safeAssetName(op.file)
         if (name.startsWith(`${op.rowId}-`)) {
-          await fs.rm(path.join(dir, folder, name), { force: true })
+          await fs.rm(path.join(this.assetDirFor(dir, folder, name), name), { force: true })
         }
       }
       if (result.movedRowIds.length) {
@@ -481,12 +503,19 @@ export class Storage {
     const dir = this.reviewDir(review)
     return this.serial(async () => {
       const folder = await this.findFeedback(dir, feedbackNumber)
-      await fs.rm(path.join(dir, folder), { recursive: true, force: true })
+      for (const assetDir of this.assetDirs(dir, folder)) {
+        await fs.rm(assetDir, { recursive: true, force: true })
+      }
     })
   }
 
   assetPath(review: string, relative: string): string {
-    const dir = this.reviewDir(review)
+    const reviewDir = this.reviewDir(review)
+    // A state file is looked up in the state root, which has its own review folder.
+    const dir =
+      this.stateRoot && isStateFile(path.basename(relative))
+        ? path.join(this.stateRoot, path.basename(reviewDir))
+        : reviewDir
     const resolved = path.resolve(dir, relative)
     if (resolved !== dir && !resolved.startsWith(dir + path.sep)) {
       throw new StorageError(400, "Path escapes the review folder")

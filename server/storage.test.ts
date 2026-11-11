@@ -429,3 +429,86 @@ describe("assetPath", () => {
     expect(() => storage.assetPath("t", "../../etc/passwd")).toThrow(StorageError)
   })
 })
+
+describe("stateRoot", () => {
+  let stateRoot: string
+  let dir: string
+  let stateDir: string
+  beforeEach(async () => {
+    stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), "review-state-"))
+    storage = new Storage(root, { stateRoot })
+    dir = path.join(root, "t", "01-nav")
+    stateDir = path.join(stateRoot, "t", "01-nav")
+  })
+  afterEach(async () => {
+    await fs.rm(stateRoot, { recursive: true, force: true })
+  })
+
+  const create = (assets: string[] = ["pin.png", "state.json"]) =>
+    storage.createFeedback(
+      "t",
+      "Nav",
+      [],
+      [{ path: "/a" }],
+      assets.map((name) => ({ rowId: "$feedback", name, dataBase64: PNG }))
+    )
+
+  it("writes a state file under the state root and everything else in the review", async () => {
+    await create()
+    expect(existsSync(path.join(dir, "1-pin.png"))).toBe(true)
+    expect(existsSync(path.join(dir, "1-state.json"))).toBe(false)
+    expect(existsSync(path.join(stateDir, "1-state.json"))).toBe(true)
+    expect(existsSync(path.join(stateDir, "1-pin.png"))).toBe(false)
+  })
+
+  it("assetPath resolves a state file into the state root and keeps the escape check", async () => {
+    expect(storage.assetPath("t", "01-nav/1-state.json")).toBe(path.join(stateDir, "1-state.json"))
+    expect(storage.assetPath("t", "01-nav/1-pin.png")).toBe(path.join(dir, "1-pin.png"))
+    expect(() => storage.assetPath("t", "../../etc/1-state.json")).toThrow(StorageError)
+    expect(() => storage.assetPath("t", "../../etc/passwd")).toThrow(StorageError)
+  })
+
+  it("removePin shifts the later state files inside the state root", async () => {
+    await create()
+    await storage.applyOp("t", 1, { kind: "addPin", rowId: "1", pin: { path: "/b" } }, [
+      { rowId: "1", name: "state.json", dataBase64: Buffer.from("b").toString("base64") },
+    ])
+    expect(existsSync(path.join(stateDir, "1-state-2.json"))).toBe(true)
+    await storage.applyOp("t", 1, { kind: "removePin", rowId: "1", index: 0 }, [])
+    expect(await fs.readFile(path.join(stateDir, "1-state.json"), "utf8")).toBe("b")
+    expect(existsSync(path.join(stateDir, "1-state-2.json"))).toBe(false)
+  })
+
+  it("a moved or deleted row takes its state file along", async () => {
+    await storage.createReview("t")
+    await storage.createFeedback(
+      "t",
+      "Nav",
+      [
+        { text: "a", children: [] },
+        { text: "b", children: [] },
+      ],
+      [],
+      [{ rowId: "$0", name: "state.json", dataBase64: PNG }]
+    )
+    expect(existsSync(path.join(stateDir, "1.a-state.json"))).toBe(true)
+    await storage.applyOp("t", 1, { kind: "moveRow", rowId: "1.a", parentId: "1.b" }, [])
+    expect(existsSync(path.join(stateDir, "1.b.1-state.json"))).toBe(true)
+    expect(existsSync(path.join(stateDir, "1.a-state.json"))).toBe(false)
+    await storage.applyOp("t", 1, { kind: "deleteRow", rowId: "1.b" }, [])
+    expect(existsSync(path.join(stateDir, "1.b.1-state.json"))).toBe(false)
+  })
+
+  it("deleteFeedback removes the state folder too", async () => {
+    await create()
+    await storage.deleteFeedback("t", 1)
+    expect(existsSync(dir)).toBe(false)
+    expect(existsSync(stateDir)).toBe(false)
+  })
+
+  it("listReviews ignores a dot folder such as .state in the root", async () => {
+    await storage.createReview("t")
+    await fs.mkdir(path.join(root, ".state", "t"), { recursive: true })
+    expect(await storage.listReviews()).toEqual(["t"])
+  })
+})
