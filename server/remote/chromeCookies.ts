@@ -88,10 +88,17 @@ export function readCookiesFromDb(dbFile: string, host: string, key: Buffer): St
           r.has_expires !== 0n ? Number(r.expires_utc / 1000n) / 1e3 - EPOCH_DELTA_S : undefined
         if (expires !== undefined && expires <= now) continue
         const encrypted = Buffer.from(r.encrypted_value ?? [])
+        let value = r.value
+        try {
+          if (encrypted.length) value = decryptValue(encrypted, key, r.host_key, version)
+        } catch {
+          // One bad row must not break startup or a refresh: skip it.
+          continue
+        }
         const hostOnly = !r.host_key.startsWith(".")
         cookies.push({
           name: r.name,
-          value: encrypted.length ? decryptValue(encrypted, key, r.host_key, version) : r.value,
+          value,
           domain: hostOnly ? r.host_key : r.host_key.slice(1),
           path: r.path,
           secure: !!r.is_secure,

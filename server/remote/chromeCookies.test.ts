@@ -94,6 +94,27 @@ describe("readCookiesFromDb", () => {
     expect(cookies.find((c) => c.name === "session")?.expires).toBeUndefined()
     expect(cookies.find((c) => c.name === "pref")?.expires).toBeGreaterThan(Date.now() / 1000)
   })
+
+  it("skips a cookie that does not decrypt and keeps the others", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "chrome-fixture-"))
+    dirs.push(dir)
+    const file = path.join(dir, "Cookies")
+    const db = new DatabaseSync(file)
+    db.exec(`CREATE TABLE meta(key TEXT, value TEXT);
+      INSERT INTO meta VALUES ('version', '24');
+      CREATE TABLE cookies(host_key TEXT, name TEXT, value TEXT, encrypted_value BLOB,
+        path TEXT, is_secure INTEGER, has_expires INTEGER, expires_utc INTEGER)`)
+    const ins = db.prepare("INSERT INTO cookies VALUES (?, ?, '', ?, '/', 1, 0, 0)")
+    const hash = crypto.createHash("sha256").update("a.ch").digest()
+    ins.run("a.ch", "good", encrypt(Buffer.concat([hash, Buffer.from("g")])))
+    // Bad padding, and a value encrypted under another key.
+    ins.run("a.ch", "garbled", Buffer.concat([Buffer.from("v10"), Buffer.alloc(16, 7)]))
+    ins.run("a.ch", "wrongKey", encrypt(Buffer.from("w"), deriveKey("other")))
+    db.close()
+
+    const cookies = readCookiesFromDb(file, "a.ch", key)
+    expect(cookies.map((c) => [c.name, c.value])).toEqual([["good", "g"]])
+  })
 })
 
 describe("chooseProfile", () => {
