@@ -99,6 +99,17 @@ describe("CookieJar.store", () => {
     expect(jar.header("a.ch", "/")).toBe("c=1")
   })
 
+  it("defaults a cookie without Path to the request's directory", () => {
+    const jar = new CookieJar([])
+    jar.store("a.ch", ["dir=1"], "/app/login")
+    jar.store("a.ch", ["top=1"], "/login")
+    jar.store("a.ch", ["bad=1; Path=rel"], "/x/y/z")
+    jar.store("a.ch", ["none=1"])
+    expect(jar.header("a.ch", "/app/home")).toBe("dir=1; top=1; none=1")
+    expect(jar.header("a.ch", "/other")).toBe("top=1; none=1")
+    expect(jar.header("a.ch", "/x/y/q")).toBe("bad=1; top=1; none=1")
+  })
+
   it("Max-Age wins over Expires", () => {
     const jar = new CookieJar([])
     jar.store("a.ch", ["a=1; Max-Age=60; Expires=Thu, 01 Jan 1970 00:00:00 GMT"])

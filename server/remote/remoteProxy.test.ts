@@ -40,6 +40,8 @@ beforeEach(async () => {
       res.writeHead(302, { location: LOGIN, "set-cookie": "nonce=n1; Path=/" })
     } else if (req.url === "/set") {
       res.writeHead(200, { "set-cookie": "a=1; Domain=127.0.0.1; Path=/" })
+    } else if (req.url === "/app/set-nopath") {
+      res.writeHead(200, { "set-cookie": "p=1" })
     } else if (req.url === "/set-httponly") {
       res.writeHead(200, {
         "set-cookie": ["sid=secret; Path=/; httponly; Secure", "ui=dark; Domain=127.0.0.1; Path=/"],
@@ -189,6 +191,12 @@ describe("proxyRemoteRequest", () => {
     const jar = target.jar.header("127.0.0.1", "/")
     expect(jar).toContain("sid=secret")
     expect(jar).toContain("ui=dark")
+  })
+
+  it("stores a set-cookie without Path under the request's directory", async () => {
+    await get("/app/set-nopath")
+    expect(target.jar.header("127.0.0.1", "/app/x")).toContain("p=1")
+    expect(target.jar.header("127.0.0.1", "/other")).not.toContain("p=1")
   })
 
   it("answers 502 when the upstream is down", async () => {

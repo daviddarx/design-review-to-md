@@ -28,6 +28,7 @@ export function proxyRemoteRequest(
   const isDocument = ["iframe", "document"].includes(String(req.headers["sec-fetch-dest"]))
   const send = () => {
     const { origin } = target
+    const { pathname } = new URL(req.url ?? "/", origin)
     const upstream = (origin.protocol === "https:" ? https : http).request(
       {
         host: origin.hostname,
@@ -47,7 +48,7 @@ export function proxyRemoteRequest(
         ) {
           // A login redirect: following it in the frame would leave the proxy.
           const setCookie = upRes.headers["set-cookie"]
-          if (setCookie) target.jar.store(origin.hostname, setCookie)
+          if (setCookie) target.jar.store(origin.hostname, setCookie, pathname)
           upRes.resume()
           target.stale = true
           res.writeHead(200, { "content-type": "text/html; charset=utf-8" })
@@ -55,7 +56,7 @@ export function proxyRemoteRequest(
           return
         }
         const setCookie = upRes.headers["set-cookie"]
-        if (setCookie) target.jar.store(origin.hostname, setCookie)
+        if (setCookie) target.jar.store(origin.hostname, setCookie, pathname)
         res.writeHead(upRes.statusCode ?? 502, upRes.statusMessage, responseHeaders(target, upRes))
         upRes.pipe(res)
         upRes.on("error", () => res.destroy())

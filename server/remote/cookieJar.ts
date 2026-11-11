@@ -29,9 +29,11 @@ export class CookieJar {
       .join("; ")
   }
 
-  store(host: string, setCookie: string[]) {
+  // `requestPath` is the pathname the Set-Cookie answered: a cookie without
+  // its own Path is scoped to that path's directory.
+  store(host: string, setCookie: string[], requestPath = "/") {
     for (const line of setCookie) {
-      const parsed = parseSetCookie(host, line)
+      const parsed = parseSetCookie(host, line, defaultPath(requestPath))
       if (!parsed) continue
       this.cookies = this.cookies.filter(
         (c) => !(c.name === parsed.name && c.domain === parsed.domain && c.path === parsed.path)
@@ -55,7 +57,14 @@ function pathMatches(reqPath: string, cookiePath: string) {
   return cookiePath.endsWith("/") || reqPath[cookiePath.length] === "/"
 }
 
-function parseSetCookie(host: string, line: string): StoredCookie | null {
+// RFC 6265 default-path: up to, not including, the last "/"; "/" at the top.
+function defaultPath(requestPath: string) {
+  if (!requestPath.startsWith("/")) return "/"
+  const i = requestPath.lastIndexOf("/")
+  return i === 0 ? "/" : requestPath.slice(0, i)
+}
+
+function parseSetCookie(host: string, line: string, path: string): StoredCookie | null {
   const [pair, ...attrs] = line.split(";")
   const eq = pair.indexOf("=")
   if (eq < 1) return null
@@ -63,7 +72,7 @@ function parseSetCookie(host: string, line: string): StoredCookie | null {
     name: pair.slice(0, eq).trim(),
     value: pair.slice(eq + 1).trim(),
     domain: host,
-    path: "/",
+    path,
     secure: false,
     hostOnly: true,
   }
