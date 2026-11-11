@@ -45,9 +45,12 @@ function parseRemoteArgs(argv: string[]): RemoteArgs {
 }
 
 export function parseArgs(argv: string[]): Args | RemoteArgs {
-  const remote = argv.indexOf("--remote")
-  if (remote !== -1) return parseRemoteArgs(argv.toSpliced(remote, 1))
   const sep = argv.indexOf("--")
+  // Only a flag of ours: an app command after `--` may take its own --remote.
+  const remote = argv.indexOf("--remote")
+  if (remote !== -1 && (sep === -1 || remote < sep)) {
+    return parseRemoteArgs(argv.toSpliced(remote, 1))
+  }
   const flags = sep === -1 ? argv : argv.slice(0, sep)
   const command = sep === -1 ? [] : argv.slice(sep + 1)
   const values: Record<string, string> = {}
@@ -210,6 +213,8 @@ function fail(message: string): never {
 async function remoteMain(args: RemoteArgs) {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
   const ask = (q: string) => rl.question(q)
+  // Ctrl+C at a prompt: readline would otherwise just close the interface.
+  rl.on("SIGINT", () => process.exit(130))
 
   const raw = args.url ?? (await ask("URL to review: ")).trim()
   const url = URL.parse(raw)
@@ -222,25 +227,24 @@ async function remoteMain(args: RemoteArgs) {
   console.log(
     '[design-review] macOS may ask to let node read "Chrome Safe Storage" — choose Always Allow.'
   )
-  let profile: string | undefined
+  let profile = ""
   const pickProfile = async (names: string[]) => {
     const list = names.map((n, i) => `${i + 1}) ${n}`).join(" ")
     const answer = await ask(
       `Several Chrome profiles have cookies for ${host}: ${list} Which one? `
     )
-    profile = names[Number(answer.trim()) - 1] ?? answer.trim()
-    return profile
+    return names[Number(answer.trim()) - 1] ?? answer.trim()
   }
+  const key = urlKey(url.href)
   let cookies
+  let round
   try {
-    cookies = await loadChromeCookies(host, pickProfile)
+    cookies = await loadChromeCookies(host, pickProfile, (name) => (profile = name))
+    round = await chooseRound(REMOTE_BASE, key, ask)
   } catch (err) {
     rl.close()
     fail((err as Error).message)
   }
-
-  const key = urlKey(url.href)
-  const round = await chooseRound(REMOTE_BASE, key, ask)
   // Closed before listening: an open interface would swallow Ctrl+C.
   rl.close()
 
@@ -253,7 +257,7 @@ async function remoteMain(args: RemoteArgs) {
     jar,
     // The profile chosen at startup, without asking again.
     refresh: async () => {
-      jar.replace(await loadChromeCookies(host, async (names) => profile ?? names[0]))
+      jar.replace(await loadChromeCookies(host, async () => profile))
     },
     stale: false,
   }

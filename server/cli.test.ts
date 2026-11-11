@@ -74,6 +74,16 @@ describe("parseArgs --remote", () => {
     expect(parseArgs(["--url", "https://x.ch", "--remote"])).toMatchObject({ remote: true })
   })
 
+  it("leaves a --remote in the app command to the app", () => {
+    expect(parseArgs(["--root", "r", "--", "some-cli", "--remote"])).toEqual({
+      port: undefined,
+      target: undefined,
+      root: "r",
+      markers: [],
+      command: ["some-cli", "--remote"],
+    })
+  })
+
   it("leaves local usage as it was", () => {
     expect(() => parseArgs(["--", "npx", "next", "dev"])).toThrow(/Usage/)
     expect(() => parseArgs(["--url", "https://x.ch", "--root", "r", "--", "x"])).toThrow()

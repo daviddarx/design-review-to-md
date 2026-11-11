@@ -122,12 +122,12 @@ export async function handleApi(
       agents: path.relative(root, AGENTS_FILE),
     })
   }
-  // A source map that gave only a file's basename (Vite, for a
-  // workspace-linked package): the shell asks which file of the repo it is.
-  // `from` is the script URL the stack frame was in.
   if (ctx.remote && (head === "resolve-source" || head === "open-editor")) {
     throw new HttpError(404, "Not found")
   }
+  // A source map that gave only a file's basename (Vite, for a
+  // workspace-linked package): the shell asks which file of the repo it is.
+  // `from` is the script URL the stack frame was in.
   if (head === "resolve-source" && parts.length === 1 && method === "GET") {
     const query = new URL(req.url ?? "/", "http://localhost").searchParams
     const name = query.get("name") ?? ""
