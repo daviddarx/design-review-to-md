@@ -32,6 +32,7 @@ Be strict and terse. No chattiness in the files.
 - `<rowId>-state.json` — localStorage snapshot of what he saw. Gitignored, so it may be missing on another machine.
 - A row can have several pins, one `📍` line each. The files above belong to its first; the k-th pin's are `<rowId>-pin-k.png`, `<rowId>-pin-k.json` and `<rowId>-state-k.json`.
 - `<rowId>-<name>` — attachments he added.
+- A pin on a <canvas> (element.tag) marks a spot in a drawn surface: mouse relative to rect is the spot; the screenshot's red mark shows it.
 
 A row with no pin of its own belongs to the pin of its nearest parent.
 

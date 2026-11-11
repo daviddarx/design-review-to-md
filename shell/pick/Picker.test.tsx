@@ -2,11 +2,15 @@
 import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import type { CapturedPin } from "./capture.ts"
+import { grabPng, type CapturedPin } from "./capture.ts"
 import { usePicker, type Picker } from "./Picker.tsx"
 
 // A render that fails — a stalled font or image fetch ends the same way —
 // once the test calls `failRender`.
+vi.mock("./capture.ts", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./capture.ts")>()
+  return { ...actual, grabPng: vi.fn(actual.grabPng) }
+})
 let failRender = () => {}
 vi.mock("modern-screenshot", () => ({
   createContext: async (_node: Node, options: object) => ({ ...options }),
@@ -146,6 +150,36 @@ describe("usePicker", () => {
     const loader = host.querySelector<HTMLElement>(".dr-pin-loader")!
     expect(loader.style.left).toBe("30px")
     expect(loader.style.top).toBe("42px")
+    await act(async () => {
+      failRender()
+      await result!.finishing
+    })
+  }, 5000)
+
+  it("a pick on a canvas is a spot: no style tip, a ringed mark", async () => {
+    vi.mocked(grabPng).mockClear()
+    await act(async () => root.render(<Harness />))
+    host.insertAdjacentHTML("beforeend", `<canvas id="map"></canvas>`)
+    let pending!: Promise<CapturedPin | null>
+    await act(async () => {
+      pending = picker.startPick()
+    })
+    const canvas = host.querySelector("canvas")!
+    await act(async () => {
+      canvas.dispatchEvent(new PointerEvent("pointermove", { bubbles: true }))
+    })
+    expect(document.querySelector(".dr-style-tip")).toBeNull()
+    await act(async () => {
+      canvas.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }))
+    })
+    let result: CapturedPin | null = null
+    await act(async () => {
+      result = await pending
+    })
+    expect(result!.record.steps[0].element.tag).toBe("canvas")
+    const args = vi.mocked(grabPng).mock.calls[0]
+    expect(args[5]).toBeUndefined() // tip
+    expect(args[6]).toBe(true) // spot
     await act(async () => {
       failRender()
       await result!.finishing

@@ -1,7 +1,13 @@
 // @vitest-environment dr-happy-dom
-import { afterEach, describe, expect, it } from "vitest"
+import { act, createElement } from "react"
+import { createRoot } from "react-dom/client"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import type { PinStep } from "../../model/types.ts"
-import { markerPoint } from "./PinMarkers.tsx"
+import { isSpot, markerPoint, PinMarkers } from "./PinMarkers.tsx"
+import { replayHover } from "./replayHover.ts"
+
+vi.mock("./replayHover.ts", () => ({ replayHover: vi.fn(() => () => {}) }))
+;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 const step = (over: Partial<PinStep> = {}): PinStep => ({
   url: "http://localhost:3000/tickets",
@@ -138,5 +144,52 @@ describe("markerPoint", () => {
     document.body.innerHTML = `<div id="target"></div>`
     document.querySelector("#target")!.getBoundingClientRect = box(100, 200, 100, 40)
     expect(markerPoint(tool, null)).toEqual({ x: 130, y: 220, exact: true })
+  })
+})
+
+describe("spots", () => {
+  const canvasStep = (tag = "CANVAS") =>
+    step({ element: { ...step().element, selector: "canvas", tag } })
+
+  it("a pin on a canvas is a spot, any other is not", () => {
+    expect(isSpot(canvasStep("CANVAS"))).toBe(true)
+    expect(isSpot(canvasStep("canvas"))).toBe(true)
+    expect(isSpot(canvasStep("div"))).toBe(false)
+  })
+
+  it("sits at the same fraction of a canvas that is now twice as wide", () => {
+    const doc = document.implementation.createHTMLDocument("app")
+    doc.body.innerHTML = `<canvas></canvas>`
+    doc.querySelector("canvas")!.getBoundingClientRect = box(0, 100, 200, 40)
+    expect(markerPoint(canvasStep(), fakeFrame("/tickets", doc))).toEqual({
+      x: 500 + 60,
+      y: 10 + 120,
+      exact: true,
+    })
+  })
+
+  it("hovering a spot's marker replays no hover into the canvas", async () => {
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root = createRoot(host)
+    const doc = document.implementation.createHTMLDocument("app")
+    doc.body.innerHTML = `<canvas></canvas><button id="target"></button>`
+    const frame = fakeFrame("/tickets", doc)
+    const markers = [
+      { key: "a", label: "1", step: canvasStep() },
+      { key: "b", label: "2", step: step() },
+    ]
+    await act(async () => root.render(createElement(PinMarkers, { frame, markers, hidden: false })))
+    const [spot, plain] = Array.from(host.querySelectorAll(".dr-marker"))
+    await act(async () => {
+      spot.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }))
+    })
+    expect(replayHover).not.toHaveBeenCalled()
+    await act(async () => {
+      plain.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }))
+    })
+    expect(replayHover).toHaveBeenCalledTimes(1)
+    await act(async () => root.unmount())
+    host.remove()
   })
 })

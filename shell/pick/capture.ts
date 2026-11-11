@@ -140,7 +140,8 @@ async function renderViewport(
 // The app's viewport, or with `withShell` the whole tool window with the
 // app's render laid over the frame's box (the library cannot see into it on
 // its own terms). Cropped to `crop` with `outline` stroked in red and a dot
-// where the click landed; all three are in the shell window's CSS pixels.
+// where the click landed (with `spot`, ringed too, so it shows on a window
+// full of canvas); all three are in the shell window's CSS pixels.
 // `tip`, when given, is the picker's style overview, drawn in the corner
 // it showed in on screen: bottom-right unless that covers the element.
 export async function grabPng(
@@ -149,7 +150,8 @@ export async function grabPng(
   crop: DOMRect,
   outline: DOMRect,
   click: { x: number; y: number },
-  tip?: StyleLine[]
+  tip?: StyleLine[],
+  spot = false
 ): Promise<string> {
   const scale = window.devicePixelRatio || 1
   const render = async () => {
@@ -198,6 +200,13 @@ export async function grabPng(
   ctx.fill()
   ctx.strokeStyle = "#fff"
   ctx.stroke()
+  if (spot) {
+    ctx.beginPath()
+    ctx.arc((click.x - crop.x) * scale, (click.y - crop.y) * scale, 12 * scale, 0, 2 * Math.PI)
+    ctx.strokeStyle = OUTLINE
+    ctx.lineWidth = 2 * scale
+    ctx.stroke()
+  }
   if (tip?.length) {
     const { width, height } = outline
     const box = { x: outline.x - crop.x, y: outline.y - crop.y, width, height }

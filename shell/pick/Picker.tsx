@@ -6,6 +6,7 @@ import type { CapturedPin } from "./capture.ts"
 import { docOf, frameChainOf, framesTo, offsetWithin, watchDocuments } from "./frames.ts"
 import { componentName, describe, openersOf, uniqueSelector } from "./inspect.ts"
 import { clearSourceCache, sourceOf } from "../source/sourceLookup.ts"
+import { isSpot } from "./PinMarkers.tsx"
 import { StyleTip } from "./StyleTip.tsx"
 import { sizeLine, styleOverview } from "./styles.ts"
 import type { StyleLine } from "./styles.ts"
@@ -76,6 +77,8 @@ function shellBox(el: Element, frame: HTMLIFrameElement | null): Box {
   return { x: r.left + off.x, y: r.top + off.y, width: r.width, height: r.height }
 }
 
+const isCanvas = (el: Element) => el.tagName.toLowerCase() === "canvas"
+
 const rect = (b: Box) => new DOMRect(b.x, b.y, b.width, b.height)
 
 // The step records the app's own address and viewport (the frame's), and
@@ -144,7 +147,7 @@ export function usePicker(frame: HTMLIFrameElement | null): Picker {
         const box = shellBox(target, frameRef.current)
         const label = picking ? describe(target) : null
         if (picking && styled.current?.el !== target)
-          styled.current = { el: target, lines: styleOverview(target) }
+          styled.current = { el: target, lines: isCanvas(target) ? [] : styleOverview(target) }
         const styles = picking ? styled.current!.lines : []
         setShown((s) =>
           s && sameBox(s.box, box) && s.label === label && s.styles === styles
@@ -282,9 +285,10 @@ export function usePicker(frame: HTMLIFrameElement | null): Picker {
           const off = docOffset(picked.el, f)
           const click = { x: off.x + picked.mouse.x, y: off.y + picked.mouse.y }
           const box = shellBox(picked.el, f)
-          // The style overview as it showed at the click.
-          const tip = [sizeLine(box), ...styleOverview(picked.el)]
-          return grabPng(f, false, rect(crop), rect(box), click, tip).catch(() => undefined)
+          // The style overview as it showed at the click; a spot has none.
+          const spot = isSpot(step)
+          const tip = spot ? undefined : [sizeLine(box), ...styleOverview(picked.el)]
+          return grabPng(f, false, rect(crop), rect(box), click, tip, spot).catch(() => undefined)
         })()
       : Promise.resolve(undefined)
     captured.finishing = Promise.all([png, source]).then(([shot, found]) => {
@@ -362,7 +366,9 @@ export function usePicker(frame: HTMLIFrameElement | null): Picker {
             {shown.label}
           </div>
         )}
-        {picking && shown && area && <StyleTip box={shown.box} area={area} lines={shown.styles} />}
+        {picking && shown && area && shown.styles.length > 0 && (
+          <StyleTip box={shown.box} area={area} lines={shown.styles} />
+        )}
         {picking && (
           <div
             className="dr-picker-hint"

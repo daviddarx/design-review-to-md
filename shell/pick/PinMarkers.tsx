@@ -9,6 +9,10 @@ import { replayHover } from "./replayHover.ts"
 // takes the pin off.
 export type Marker = { key: string; label: string; step: PinStep; onRemove?: () => void }
 
+// A pin on a <canvas> marks a spot in a surface the app draws itself: there
+// is no element to style or hover, only the click's place.
+export const isSpot = (step: PinStep): boolean => step.element.tag.toLowerCase() === "canvas"
+
 type Spot = { x: number; y: number; exact: boolean }
 type Placed = { key: string; label: string } & Spot
 
@@ -101,7 +105,8 @@ export function PinMarkers({
   const hoverIn = (p: Placed, step: PinStep) => {
     endHover.current?.()
     held.current = p
-    endHover.current = replayHover(frame, step)
+    // No synthetic pointer events into a canvas: it would act on them.
+    endHover.current = isSpot(step) ? null : replayHover(frame, step)
   }
   const hoverOut = () => {
     held.current = null
