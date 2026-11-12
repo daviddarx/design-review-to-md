@@ -678,12 +678,44 @@ plan beside it.
 - **Hand-over.** `done` rows are left out, and a feedback with nothing left is
   too. A `done` row kept only because it has open sub-rows renders as a plain
   heading. `review` rows show as still open from last round, refined ones show
-  their last `Before:` as "was". Finalize appears only for the served round,
+  their last `Before:` wording, labelled "Before:". Finalize appears only for the served round,
   and never zips or locks. `PROTOCOL.md` comes from `templates/PROTOCOL.md`:
   the colleague's agent reads `open` and `review` rows and never edits the
   files, sets tags or writes `Claude:` notes.
 - **Spots reuse `mouse`/`rect`, no new field.** A pin whose element is a
   `<canvas>` already has the click point and the box; the spot is the mouse
-  relative to the rect, so the record format is untouched. No style tip (it describes the canvas, not
-  the spot), no hover replay (nothing to hover in a canvas), a ring mark in
+  relative to the rect, so the record format is untouched. No style tip (it
+  describes the canvas, not the spot), no hover replay (nothing to hover in a canvas), a ring mark in
   the screenshot and in Show pins and Go to pin. Local mode records spots too.
+- **An empty overlay over a canvas is the canvas.** Avalonia lays an empty
+  `div` over its whole canvas, so the picker saw the div. An element with no
+  children and no text, not a form or replaced element, covering 90% of a
+  canvas below it, is picked as that canvas. Narrower than "any empty
+  element": an input or icon button over a map stays itself.
+
+### feedback-01 (remote)
+
+- **`review` stays in remote mode.** He asked to drop _To review_, then kept
+  it: it is what marks a row carried over from the last round, and what
+  shows Validate and Refine on it. `readme.md` now says what each tag means
+  (`open` new or refined, `review` asked last round, not checked yet).
+- **`index.html` reads like the panel.** The number sits in a fixed left
+  column, bold at the text's size; text, page link, screenshots and files
+  start beside it. The header sits in the same column, without a band. Each
+  pin is its full page link on the site (no 📍), and a refined row shows
+  "Before:".
+- **The lightbox is the page's only script.** Inline, nothing loaded. A
+  screenshot opens at its pixel size divided by the capture's
+  devicePixelRatio (read from its `pin.json` at finalize): the size it was
+  on his screen, not doubled on a Retina capture. Bigger than the window, it
+  pans with the mouse (the mouse's fraction of the window is the image's
+  fraction shown).
+- **A row's pins on one page share one picture in `index.html`.** Only
+  there: the agent's files stay one screenshot per pin. A remote capture
+  also keeps the picture before its marks (`<rowId>-plain.png`, in `.state/`
+  with the state files, so it is not zipped). Finalize draws every pin of the
+  row on that path (outline or spot ring, numbered in pin order) on the
+  latest one's plain picture, as an inline SVG data URI: no new file in the
+  round, and the lightbox opens it like any. Marks sit where each pin was
+  when it was taken; pins at another window size, inside nested iframes, or
+  captured before plain pictures existed stay apart.
