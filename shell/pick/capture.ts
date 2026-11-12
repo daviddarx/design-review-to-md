@@ -14,6 +14,7 @@ export type CapturedPin = {
   pin: PinRef
   record: PinRecord
   png?: string
+  plain?: string // the picture without its marks, remote rounds only
   state: string
   finishing?: Promise<void>
 }
@@ -144,6 +145,7 @@ async function renderViewport(
 // full of canvas); all three are in the shell window's CSS pixels.
 // `tip`, when given, is the picker's style overview, drawn in the corner
 // it showed in on screen: bottom-right unless that covers the element.
+// With `plain`, the picture before any mark is handed back too.
 export async function grabPng(
   frame: HTMLIFrameElement | null,
   withShell: boolean,
@@ -151,8 +153,9 @@ export async function grabPng(
   outline: DOMRect,
   click: { x: number; y: number },
   tip?: StyleLine[],
-  spot = false
-): Promise<string> {
+  spot = false,
+  plain = false
+): Promise<{ png: string; plain?: string }> {
   const scale = window.devicePixelRatio || 1
   const render = async () => {
     const app = frame?.contentDocument ? await renderViewport(frame.contentDocument, scale) : null
@@ -186,6 +189,7 @@ export async function grabPng(
     canvas.width,
     canvas.height
   )
+  const unmarked = plain ? toBase64(canvas) : undefined
   ctx.strokeStyle = OUTLINE
   ctx.lineWidth = 2 * scale
   ctx.strokeRect(
@@ -212,8 +216,10 @@ export async function grabPng(
     const box = { x: outline.x - crop.x, y: outline.y - crop.y, width, height }
     drawTip(ctx, tip, scale, crop.width, crop.height, box)
   }
-  return canvas.toDataURL("image/png").split(",")[1] ?? ""
+  return { png: toBase64(canvas), plain: unmarked }
 }
+
+const toBase64 = (canvas: HTMLCanvasElement) => canvas.toDataURL("image/png").split(",")[1] ?? ""
 
 // The style overview's box (see .dr-style-tip), in CSS pixels times `scale`:
 // a two-column grid, the computed value below the one written, long values

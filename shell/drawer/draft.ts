@@ -3,7 +3,7 @@
 import { applyOp } from "../../model/ops.ts"
 import type { DraftRow, Op } from "../../model/ops.ts"
 import { nextLabel } from "../../model/labels.ts"
-import { pinAssetName } from "../../model/pins.ts"
+import { pinAssetName, type PinFile } from "../../model/pins.ts"
 import type { PinRef, Feedback, Row } from "../../model/types.ts"
 import type { Asset } from "../api.ts"
 import type { CapturedPin } from "../pick/capture.ts"
@@ -325,8 +325,9 @@ function nodeAssets(n: DraftNode, rowId: string): Asset[] {
 // The files of one captured pin, named for pin `index` of its row.
 export function pinAssets(c: CapturedPin, rowId: string, index: number): Asset[] {
   const out: Asset[] = []
-  const name = (file: "png" | "json" | "state") => pinAssetName(index, file)
+  const name = (file: PinFile) => pinAssetName(index, file)
   if (c.png) out.push({ rowId, name: name("png"), dataBase64: c.png })
+  if (c.plain) out.push({ rowId, name: name("plain"), dataBase64: c.plain })
   out.push({
     rowId,
     name: name("json"),

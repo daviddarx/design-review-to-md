@@ -151,14 +151,18 @@ export function toBriefing(feedback: Feedback, folder: string): Feedback {
   return relink(feedback, (link) => (isRelative(link) ? path.posix.relative(folder, link) : link))
 }
 
-// `<rowId>-state.json`, `<rowId>-state-2.json`, … (row ids hold no dash).
-const isStateFile = (file: string) =>
-  parsePinAssetName(file.slice(file.indexOf("-") + 1))?.file === "state"
+// `<rowId>-state.json`, `<rowId>-plain-2.png`, …: the pin files kept out of a
+// zipped remote round (row ids hold no dash).
+const isStateFile = (file: string) => {
+  const kind = parsePinAssetName(file.slice(file.indexOf("-") + 1))?.file
+  return kind === "state" || kind === "plain"
+}
 
 export class Storage {
   readonly root: string
-  // Where the per-pin localStorage snapshots live when they must stay out of
-  // the review folder (a remote round is zipped as-is and sent on).
+  // Where the per-pin localStorage snapshots and unmarked pictures live when
+  // they must stay out of the review folder (a remote round is zipped as-is
+  // and sent on).
   private readonly stateRoot?: string
   private queue: Promise<unknown> = Promise.resolve()
 
@@ -324,7 +328,7 @@ export class Storage {
     index: number,
     pins: PinRef[]
   ) {
-    const files = ["png", "json", "state"] as const
+    const files = ["png", "json", "state", "plain"] as const
     const at = (i: number, file: (typeof files)[number]) => {
       const name = `${rowId}-${pinAssetName(i, file)}`
       return path.join(this.assetDirFor(dir, folder, name), name)
@@ -511,7 +515,7 @@ export class Storage {
 
   assetPath(review: string, relative: string): string {
     const reviewDir = this.reviewDir(review)
-    // A state file is looked up in the state root, which has its own review folder.
+    // A state or plain file is looked up in the state root, which has its own review folder.
     const dir =
       this.stateRoot && isStateFile(path.basename(relative))
         ? path.join(this.stateRoot, path.basename(reviewDir))

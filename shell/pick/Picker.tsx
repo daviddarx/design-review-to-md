@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import type { ReactNode } from "react"
 import type { PinRecord, PinStep } from "../../model/types.ts"
+import { readConfig } from "../config.ts"
 import { grabPng, snapshotLocalStorage } from "./capture.ts"
 import type { CapturedPin } from "./capture.ts"
 import { docOf, frameChainOf, framesTo, offsetWithin, watchDocuments } from "./frames.ts"
@@ -295,11 +296,16 @@ export function usePicker(frame: HTMLIFrameElement | null): Picker {
           // The style overview as it showed at the click; a spot has none.
           const spot = isSpot(step)
           const tip = spot ? undefined : [sizeLine(box), ...styleOverview(picked.el)]
-          return grabPng(f, false, rect(crop), rect(box), click, tip, spot).catch(() => undefined)
+          // A remote round's index.html draws a row's pins on one unmarked picture.
+          const plain = Boolean(readConfig().remote)
+          return grabPng(f, false, rect(crop), rect(box), click, tip, spot, plain).catch(
+            () => undefined
+          )
         })()
       : Promise.resolve(undefined)
     captured.finishing = Promise.all([png, source]).then(([shot, found]) => {
-      if (shot) captured.png = shot
+      if (shot) captured.png = shot.png
+      if (shot?.plain) captured.plain = shot.plain
       if (found) step.element.source = found
     })
     return captured

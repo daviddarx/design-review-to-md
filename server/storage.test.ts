@@ -479,6 +479,19 @@ describe("stateRoot", () => {
     expect(existsSync(path.join(stateDir, "1-state-2.json"))).toBe(false)
   })
 
+  it("keeps the unmarked picture in the state root too, shifted with its pin", async () => {
+    await create(["pin.png", "plain.png", "state.json"])
+    expect(existsSync(path.join(stateDir, "1-plain.png"))).toBe(true)
+    expect(existsSync(path.join(dir, "1-plain.png"))).toBe(false)
+    await storage.applyOp("t", 1, { kind: "addPin", rowId: "1", pin: { path: "/b" } }, [
+      { rowId: "1", name: "plain.png", dataBase64: Buffer.from("b").toString("base64") },
+    ])
+    expect(existsSync(path.join(stateDir, "1-plain-2.png"))).toBe(true)
+    await storage.applyOp("t", 1, { kind: "removePin", rowId: "1", index: 0 }, [])
+    expect(await fs.readFile(path.join(stateDir, "1-plain.png"), "utf8")).toBe("b")
+    expect(storage.assetPath("t", "01-nav/1-plain.png")).toBe(path.join(stateDir, "1-plain.png"))
+  })
+
   it("a moved or deleted row takes its state file along", async () => {
     await storage.createReview("t")
     await storage.createFeedback(
