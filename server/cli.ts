@@ -271,8 +271,8 @@ async function remoteMain(args: RemoteArgs) {
   })
   server.on("error", (err) => fail(err.message))
   server.listen(port, "localhost", () => {
-    console.log(`[design-review] Open http://localhost:${port}${url.pathname}${url.search}`)
     console.log(`[design-review] Round ${round} in ${REMOTE_BASE}`)
+    console.log(`\n[design-review] Open http://localhost:${port}${url.pathname}${url.search}\n`)
   })
   for (const signal of ["SIGINT", "SIGTERM"] as const) process.on(signal, () => process.exit(0))
 }
